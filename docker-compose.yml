@@ -42,6 +42,8 @@ services:
       - DOCKER_NETWORK=wp-launcher-network
       - CONTAINER_MEMORY=${CONTAINER_MEMORY:-268435456}
       - CONTAINER_CPU=${CONTAINER_CPU:-0.5}
+      - ENABLE_TLS=${ENABLE_TLS:-false}
+      - CERT_RESOLVER=${CERT_RESOLVER:-letsencrypt}
     networks:
       - provisioner-internal
       - wp-launcher-network

@@ -228,6 +228,10 @@ WP_IMAGE=wp-launcher/wordpress:latest
 CONTAINER_MEMORY=268435456
 CONTAINER_CPU=0.5
 
+# TLS for demo site containers (production)
+ENABLE_TLS=true
+CERT_RESOLVER=letsencrypt
+
 # SMTP
 SMTP_HOST=${SMTP_HOST:-mailpit}
 SMTP_PORT=${SMTP_PORT:-1025}

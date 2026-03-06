@@ -12,6 +12,8 @@ if (!INTERNAL_KEY) {
 }
 const BASE_DOMAIN = process.env.BASE_DOMAIN || 'localhost';
 const DOCKER_NETWORK = process.env.DOCKER_NETWORK || 'wp-launcher-network';
+const ENABLE_TLS = process.env.ENABLE_TLS === 'true';
+const CERT_RESOLVER = process.env.CERT_RESOLVER || 'letsencrypt';
 const CONTAINER_MEMORY = parseInt(process.env.CONTAINER_MEMORY || String(256 * 1024 * 1024), 10);
 const CONTAINER_CPU = parseFloat(process.env.CONTAINER_CPU || '0.5');
 
@@ -187,6 +189,11 @@ app.post('/containers', async (req: Request, res: Response) => {
         'traefik.enable': 'true',
         [`traefik.http.routers.${opts.subdomain}.rule`]: `Host(\`${opts.subdomain}.${BASE_DOMAIN}\`)`,
         [`traefik.http.services.${opts.subdomain}.loadbalancer.server.port`]: '80',
+        ...(ENABLE_TLS ? {
+          [`traefik.http.routers.${opts.subdomain}.entrypoints`]: 'websecure',
+          [`traefik.http.routers.${opts.subdomain}.tls`]: 'true',
+          [`traefik.http.routers.${opts.subdomain}.tls.certresolver`]: CERT_RESOLVER,
+        } : {}),
         'wp-launcher.managed': 'true',
         'wp-launcher.site-id': opts.subdomain,
         'wp-launcher.expires-at': opts.expiresAt,
