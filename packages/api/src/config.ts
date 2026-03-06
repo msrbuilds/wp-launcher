@@ -1,15 +1,25 @@
+const KNOWN_DEV_DEFAULTS = ['dev-api-key', 'dev-jwt-secret-change-me'];
+
+function requireSecret(envVar: string, fallback: string): string {
+  const value = process.env[envVar] || fallback;
+  if (process.env.NODE_ENV === 'production' && KNOWN_DEV_DEFAULTS.includes(value)) {
+    console.error(`[FATAL] ${envVar} is set to an insecure default. Set a strong secret before running in production.`);
+    process.exit(1);
+  }
+  return value;
+}
+
 export const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
-  apiKey: process.env.API_KEY || 'dev-api-key',
+  apiKey: requireSecret('API_KEY', 'dev-api-key'),
   baseDomain: process.env.BASE_DOMAIN || 'localhost',
-  dockerNetwork: process.env.DOCKER_NETWORK || 'wp-launcher-network',
   wpImage: process.env.WP_IMAGE || 'wp-launcher/wordpress:latest',
   dataDir: process.env.DATA_DIR || './data',
   productConfigsDir: process.env.PRODUCT_CONFIGS_DIR || './products',
 
   // JWT
-  jwtSecret: process.env.JWT_SECRET || 'dev-jwt-secret-change-me',
+  jwtSecret: requireSecret('JWT_SECRET', 'dev-jwt-secret-change-me'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
 
   // SMTP for sending verification emails
@@ -25,13 +35,20 @@ export const config = {
   // Public URL for email links
   publicUrl: process.env.PUBLIC_URL || 'http://localhost',
 
+  // CORS allowed origins — explicit allowlist; falls back to publicUrl + baseDomain when unset
+  corsOrigins: process.env.CORS_ALLOWED_ORIGINS
+    ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((s) => s.trim())
+    : [
+        process.env.PUBLIC_URL || 'http://localhost',
+        `https://${process.env.BASE_DOMAIN || 'localhost'}`,
+        `http://${process.env.BASE_DOMAIN || 'localhost'}`,
+      ],
+
   // Defaults for demo sites
   defaults: {
     expiration: '1h',
     maxExpiration: '24h',
     maxConcurrentSites: 50,
-    containerMemoryLimit: 256 * 1024 * 1024, // 256MB
-    containerCpuLimit: 0.5, // 50% of one CPU core
   },
 
   // Cleanup interval in milliseconds

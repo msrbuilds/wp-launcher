@@ -1,11 +1,31 @@
 import { Router, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus } from '../services/site.service';
 import { userAuth, optionalUserAuth, AuthRequest } from '../middleware/userAuth';
 
 const router = Router();
 
+// Tight limit on write operations (create/delete) — 10 per 15 min per IP
+const siteWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Generous limit on read/polling operations — 120 per 15 min per IP
+// (allows ~30 ready-polls per site launch with headroom for listing/status)
+const siteReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  message: { error: 'Too many requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Create a new demo site (requires auth)
-router.post('/', userAuth, async (req: AuthRequest, res: Response) => {
+router.post('/', siteWriteLimiter, userAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { productId, expiresIn } = req.body;
 
@@ -27,7 +47,6 @@ router.post('/', userAuth, async (req: AuthRequest, res: Response) => {
       adminUrl: site.admin_url,
       credentials: {
         username: site.admin_user,
-        password: site.admin_password,
       },
       expiresAt: site.expires_at,
       status: site.status,
@@ -40,7 +59,7 @@ router.post('/', userAuth, async (req: AuthRequest, res: Response) => {
 });
 
 // List sites - if authenticated, show user's sites; otherwise show all active
-router.get('/', optionalUserAuth, (req: AuthRequest, res: Response) => {
+router.get('/', siteReadLimiter, optionalUserAuth, (req: AuthRequest, res: Response) => {
   try {
     const productId = req.query.productId as string | undefined;
     let sites;
@@ -62,7 +81,6 @@ router.get('/', optionalUserAuth, (req: AuthRequest, res: Response) => {
         adminUrl: s.admin_url,
         credentials: req.userId ? {
           username: s.admin_user,
-          password: s.admin_password,
         } : undefined,
         status: s.status,
         createdAt: s.created_at,
@@ -74,12 +92,17 @@ router.get('/', optionalUserAuth, (req: AuthRequest, res: Response) => {
   }
 });
 
-// Get a specific site
-router.get('/:id', (req: AuthRequest, res: Response) => {
+// Get a specific site (requires auth, users can only view their own)
+router.get('/:id', siteReadLimiter, userAuth, (req: AuthRequest, res: Response) => {
   try {
     const site = getSite(req.params.id);
     if (!site) {
       res.status(404).json({ error: 'Site not found' });
+      return;
+    }
+
+    if (site.user_id && site.user_id !== req.userId) {
+      res.status(403).json({ error: 'You can only view your own sites' });
       return;
     }
 
@@ -91,7 +114,6 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
       adminUrl: site.admin_url,
       credentials: {
         username: site.admin_user,
-        password: site.admin_password,
       },
       status: site.status,
       createdAt: site.created_at,
@@ -103,7 +125,7 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
 });
 
 // Get site status
-router.get('/:id/status', async (req: AuthRequest, res: Response) => {
+router.get('/:id/status', siteReadLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const status = await getSiteStatus(req.params.id);
     res.json(status);
@@ -117,7 +139,7 @@ router.get('/:id/status', async (req: AuthRequest, res: Response) => {
 });
 
 // Check if site's WordPress is fully ready (installed and responding)
-router.get('/:id/ready', async (req: AuthRequest, res: Response) => {
+router.get('/:id/ready', siteReadLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const site = getSite(req.params.id);
     if (!site) {
@@ -153,7 +175,7 @@ router.get('/:id/ready', async (req: AuthRequest, res: Response) => {
 });
 
 // Delete a site (requires auth - users can only delete their own)
-router.delete('/:id', userAuth, async (req: AuthRequest, res: Response) => {
+router.delete('/:id', siteWriteLimiter, userAuth, async (req: AuthRequest, res: Response) => {
   try {
     await deleteSite(req.params.id, req.userId, req.userEmail);
     res.json({ message: 'Site deleted successfully' });

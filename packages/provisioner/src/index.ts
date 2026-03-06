@@ -1,0 +1,239 @@
+import express, { Request, Response, NextFunction } from 'express';
+import Docker from 'dockerode';
+
+const app = express();
+app.use(express.json());
+
+const PORT = parseInt(process.env.PORT || '4000', 10);
+const INTERNAL_KEY = process.env.INTERNAL_KEY;
+if (!INTERNAL_KEY) {
+  console.error('[FATAL] INTERNAL_KEY is required. Set it before starting the provisioner.');
+  process.exit(1);
+}
+const BASE_DOMAIN = process.env.BASE_DOMAIN || 'localhost';
+const DOCKER_NETWORK = process.env.DOCKER_NETWORK || 'wp-launcher-network';
+const CONTAINER_MEMORY = parseInt(process.env.CONTAINER_MEMORY || String(256 * 1024 * 1024), 10);
+const CONTAINER_CPU = parseFloat(process.env.CONTAINER_CPU || '0.5');
+
+// Connect to Docker — via DOCKER_HOST (socket proxy) or local socket
+const docker = process.env.DOCKER_HOST
+  ? new Docker({
+      host: new URL(process.env.DOCKER_HOST).hostname,
+      port: Number(new URL(process.env.DOCKER_HOST).port) || 2375,
+    })
+  : new Docker({ socketPath: '/var/run/docker.sock' });
+
+// Internal auth — only the API service should be able to call us
+function internalAuth(req: Request, res: Response, next: NextFunction): void {
+  const key = req.headers['x-internal-key'];
+  if (key !== INTERNAL_KEY) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+  next();
+}
+
+app.use(express.json({ limit: '64kb' }));
+app.use(internalAuth);
+
+// Health check
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
+// --- Input validation ---
+
+const ALLOWED_IMAGE_PREFIX = process.env.ALLOWED_IMAGE_PREFIX || 'wp-launcher/';
+const SUBDOMAIN_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
+const CONTAINER_ID_RE = /^[a-f0-9]{12,64}$/;
+const MAX_CONCURRENT_CONTAINERS = parseInt(process.env.MAX_CONTAINERS || '100', 10);
+
+function validateSubdomain(s: string): boolean {
+  return typeof s === 'string' && s.length <= 63 && SUBDOMAIN_RE.test(s);
+}
+
+function validateImage(img: string): boolean {
+  return typeof img === 'string' && img.startsWith(ALLOWED_IMAGE_PREFIX) && !img.includes('..');
+}
+
+function validateContainerId(id: string): boolean {
+  return typeof id === 'string' && CONTAINER_ID_RE.test(id);
+}
+
+// --- Container lifecycle ---
+
+interface CreateBody {
+  subdomain: string;
+  image: string;
+  expiresAt: string;
+  siteUrl: string;
+  adminUser: string;
+  adminPassword: string;
+  adminEmail: string;
+  siteTitle: string;
+  activatePlugins?: string;
+  removePlugins?: string;
+  activeTheme?: string;
+  landingPage?: string;
+}
+
+app.post('/containers', async (req: Request, res: Response) => {
+  try {
+    const opts: CreateBody = req.body;
+
+    // Validate inputs to limit blast radius from a compromised API
+    if (!validateSubdomain(opts.subdomain)) {
+      res.status(400).json({ error: 'Invalid subdomain format' });
+      return;
+    }
+    if (!validateImage(opts.image)) {
+      res.status(400).json({ error: `Image must start with "${ALLOWED_IMAGE_PREFIX}"` });
+      return;
+    }
+
+    // Enforce container cap
+    const existing = await docker.listContainers({
+      all: true,
+      filters: { label: ['wp-launcher.managed=true'] },
+    });
+    if (existing.length >= MAX_CONCURRENT_CONTAINERS) {
+      res.status(429).json({ error: 'Maximum container limit reached' });
+      return;
+    }
+
+    const containerName = `wp-demo-${opts.subdomain}`;
+
+    const env = [
+      `WP_SITE_URL=${opts.siteUrl}`,
+      `WP_SITE_TITLE=${opts.siteTitle}`,
+      `WP_ADMIN_USER=${opts.adminUser}`,
+      `WP_ADMIN_PASSWORD=${opts.adminPassword}`,
+      `WP_ADMIN_EMAIL=${opts.adminEmail}`,
+      `WP_DEMO_EXPIRES_AT=${opts.expiresAt}`,
+    ];
+
+    if (opts.activatePlugins) env.push(`WP_ACTIVATE_PLUGINS=${opts.activatePlugins}`);
+    if (opts.removePlugins) env.push(`WP_REMOVE_PLUGINS=${opts.removePlugins}`);
+    if (opts.activeTheme) env.push(`WP_ACTIVE_THEME=${opts.activeTheme}`);
+    if (opts.landingPage) env.push(`WP_DEMO_LANDING_PAGE=${opts.landingPage}`);
+
+    const container = await docker.createContainer({
+      Image: opts.image,
+      name: containerName,
+      Env: env,
+      Labels: {
+        'traefik.enable': 'true',
+        [`traefik.http.routers.${opts.subdomain}.rule`]: `Host(\`${opts.subdomain}.${BASE_DOMAIN}\`)`,
+        [`traefik.http.services.${opts.subdomain}.loadbalancer.server.port`]: '80',
+        'wp-launcher.managed': 'true',
+        'wp-launcher.site-id': opts.subdomain,
+        'wp-launcher.expires-at': opts.expiresAt,
+      },
+      HostConfig: {
+        NetworkMode: DOCKER_NETWORK,
+        Memory: CONTAINER_MEMORY,
+        NanoCpus: CONTAINER_CPU * 1e9,
+        RestartPolicy: { Name: 'unless-stopped' },
+      },
+    });
+
+    await container.start();
+    res.json({ containerId: container.id });
+  } catch (err: any) {
+    console.error('[provisioner] create error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/containers/:id', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+    const container = docker.getContainer(req.params.id);
+    try {
+      const info = await container.inspect();
+      if (info.State.Running) {
+        await container.stop({ t: 5 });
+      }
+      await container.remove({ v: true });
+    } catch (err: any) {
+      if (err.statusCode === 404) {
+        res.json({ status: 'already_removed' });
+        return;
+      }
+      throw err;
+    }
+    res.json({ status: 'removed' });
+  } catch (err: any) {
+    console.error('[provisioner] remove error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/containers/:id/status', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    res.json({ status: info.State.Status });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.json({ status: 'removed' });
+      return;
+    }
+    console.error('[provisioner] status error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/containers', async (_req: Request, res: Response) => {
+  try {
+    const containers = await docker.listContainers({
+      all: true,
+      filters: { label: ['wp-launcher.managed=true'] },
+    });
+    res.json(containers);
+  } catch (err: any) {
+    console.error('[provisioner] list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/images/build', async (req: Request, res: Response) => {
+  try {
+    const { contextPath, tag } = req.body;
+    if (!validateImage(tag)) {
+      res.status(400).json({ error: `Image tag must start with "${ALLOWED_IMAGE_PREFIX}"` });
+      return;
+    }
+    if (typeof contextPath !== 'string' || contextPath.includes('..')) {
+      res.status(400).json({ error: 'Invalid context path' });
+      return;
+    }
+    const stream = await docker.buildImage(
+      { context: contextPath, src: ['.'] },
+      { t: tag },
+    );
+
+    await new Promise<void>((resolve, reject) => {
+      docker.modem.followProgress(stream, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    res.json({ status: 'built', tag });
+  } catch (err: any) {
+    console.error('[provisioner] build error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`[provisioner] Running on port ${PORT}`);
+});

@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import { getDb } from '../utils/db';
 import { generateSubdomain } from '../utils/nameGenerator';
 import { config, parseExpiration } from '../config';
@@ -84,7 +85,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord> {
   const adminUrl = `${siteUrl}/wp-admin/`;
 
   const adminUser = productConfig?.demo?.admin_user || 'demo';
-  const adminPassword = productConfig?.demo?.admin_password || 'demo123';
+  const adminPassword = crypto.randomBytes(16).toString('base64url'); // random per-site
   const adminEmail = productConfig?.demo?.admin_email || 'demo@example.com';
   const siteTitle = productConfig?.name || 'Demo Site';
 
@@ -123,9 +124,11 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord> {
       landingPage,
     });
 
-    db.prepare("UPDATE sites SET container_id = ?, status = 'running' WHERE id = ?").run(containerId, id);
+    // Clear password from DB now that it's been sent to the container — it's only needed at provision time
+    db.prepare("UPDATE sites SET container_id = ?, status = 'running', admin_password = NULL WHERE id = ?").run(containerId, id);
   } catch (err) {
-    db.prepare("UPDATE sites SET status = 'error' WHERE id = ?").run(id);
+    // Clear password even on error
+    db.prepare("UPDATE sites SET status = 'error', admin_password = NULL WHERE id = ?").run(id);
     throw err;
   }
 

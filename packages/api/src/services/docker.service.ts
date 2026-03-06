@@ -1,5 +1,29 @@
-import Docker from 'dockerode';
-import { config } from '../config';
+/**
+ * Docker operations are delegated to the provisioner service over HTTP.
+ * The API no longer has direct Docker socket access.
+ */
+
+const PROVISIONER_URL = process.env.PROVISIONER_URL || 'http://provisioner:4000';
+const INTERNAL_KEY = process.env.PROVISIONER_INTERNAL_KEY || '';
+
+async function provisionerFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(INTERNAL_KEY ? { 'x-internal-key': INTERNAL_KEY } : {}),
+  };
+
+  const res = await fetch(`${PROVISIONER_URL}${path}`, {
+    ...options,
+    headers: { ...headers, ...(options.headers as Record<string, string> || {}) },
+  });
+
+  if (!res.ok && res.status !== 404) {
+    const body = await res.json().catch(() => ({ error: 'Unknown provisioner error' }));
+    throw new Error((body as any).error || `Provisioner error: ${res.status}`);
+  }
+
+  return res;
+}
 
 export interface CreateContainerOptions {
   subdomain: string;
@@ -16,110 +40,41 @@ export interface CreateContainerOptions {
   landingPage?: string;
 }
 
-const docker = new Docker({ socketPath: '/var/run/docker.sock' });
-
 export async function createSiteContainer(opts: CreateContainerOptions): Promise<string> {
-  const containerName = `wp-demo-${opts.subdomain}`;
-
-  const env = [
-    `WP_SITE_URL=${opts.siteUrl}`,
-    `WP_SITE_TITLE=${opts.siteTitle}`,
-    `WP_ADMIN_USER=${opts.adminUser}`,
-    `WP_ADMIN_PASSWORD=${opts.adminPassword}`,
-    `WP_ADMIN_EMAIL=${opts.adminEmail}`,
-    `WP_DEMO_EXPIRES_AT=${opts.expiresAt}`,
-  ];
-
-  if (opts.activatePlugins) {
-    env.push(`WP_ACTIVATE_PLUGINS=${opts.activatePlugins}`);
-  }
-  if (opts.removePlugins) {
-    env.push(`WP_REMOVE_PLUGINS=${opts.removePlugins}`);
-  }
-  if (opts.activeTheme) {
-    env.push(`WP_ACTIVE_THEME=${opts.activeTheme}`);
-  }
-  if (opts.landingPage) {
-    env.push(`WP_DEMO_LANDING_PAGE=${opts.landingPage}`);
-  }
-
-  const container = await docker.createContainer({
-    Image: opts.image,
-    name: containerName,
-    Env: env,
-    Labels: {
-      'traefik.enable': 'true',
-      [`traefik.http.routers.${opts.subdomain}.rule`]: `Host(\`${opts.subdomain}.${config.baseDomain}\`)`,
-      [`traefik.http.services.${opts.subdomain}.loadbalancer.server.port`]: '80',
-      'wp-launcher.managed': 'true',
-      'wp-launcher.site-id': opts.subdomain,
-      'wp-launcher.expires-at': opts.expiresAt,
-    },
-    HostConfig: {
-      NetworkMode: config.dockerNetwork,
-      Memory: config.defaults.containerMemoryLimit,
-      NanoCpus: config.defaults.containerCpuLimit * 1e9,
-      RestartPolicy: { Name: 'unless-stopped' },
-    },
+  const res = await provisionerFetch('/containers', {
+    method: 'POST',
+    body: JSON.stringify(opts),
   });
 
-  await container.start();
-  return container.id;
+  const data = await res.json() as { containerId: string };
+  return data.containerId;
 }
 
 export async function removeSiteContainer(containerId: string): Promise<void> {
-  try {
-    const container = docker.getContainer(containerId);
-    const info = await container.inspect();
-
-    if (info.State.Running) {
-      await container.stop({ t: 5 });
-    }
-
-    await container.remove({ v: true });
-  } catch (err: any) {
-    if (err.statusCode === 404) {
-      return; // Container already removed
-    }
-    throw err;
-  }
+  await provisionerFetch(`/containers/${containerId}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function getContainerStatus(containerId: string): Promise<string> {
-  try {
-    const container = docker.getContainer(containerId);
-    const info = await container.inspect();
-    return info.State.Status;
-  } catch (err: any) {
-    if (err.statusCode === 404) {
-      return 'removed';
-    }
-    throw err;
-  }
+  const res = await provisionerFetch(`/containers/${containerId}/status`);
+  const data = await res.json() as { status: string };
+  return data.status;
 }
 
-export async function listManagedContainers(): Promise<Docker.ContainerInfo[]> {
-  return docker.listContainers({
-    all: true,
-    filters: { label: ['wp-launcher.managed=true'] },
+export interface ManagedContainerInfo {
+  Id: string;
+  Labels?: Record<string, string>;
+}
+
+export async function listManagedContainers(): Promise<ManagedContainerInfo[]> {
+  const res = await provisionerFetch('/containers');
+  return await res.json() as ManagedContainerInfo[];
+}
+
+export async function buildImage(contextPath: string, tag: string): Promise<void> {
+  await provisionerFetch('/images/build', {
+    method: 'POST',
+    body: JSON.stringify({ contextPath, tag }),
   });
 }
-
-export async function buildImage(
-  contextPath: string,
-  tag: string,
-): Promise<void> {
-  const stream = await docker.buildImage(
-    { context: contextPath, src: ['.'] },
-    { t: tag },
-  );
-
-  await new Promise<void>((resolve, reject) => {
-    docker.modem.followProgress(stream, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
-}
-
-export { docker };

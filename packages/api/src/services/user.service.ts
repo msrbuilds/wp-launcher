@@ -14,10 +14,6 @@ export interface UserRecord {
   updated_at: string;
 }
 
-function generateTempPassword(): string {
-  return crypto.randomBytes(4).toString('hex'); // 8-char hex string
-}
-
 export async function registerUser(email: string): Promise<{
   user: UserRecord;
   verificationToken: string;
@@ -54,17 +50,15 @@ export async function registerUser(email: string): Promise<{
     };
   }
 
-  // Create new user
+  // Create new user — no password yet; user sets it after email verification
   const id = uuidv4();
-  const tempPassword = generateTempPassword();
-  const passwordHash = await bcrypt.hash(tempPassword, 10);
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 3600000).toISOString();
 
   db.prepare(`
     INSERT INTO users (id, email, password_hash, verified, verification_token, verification_expires_at)
-    VALUES (?, ?, ?, 0, ?, ?)
-  `).run(id, email, passwordHash, token, expiresAt);
+    VALUES (?, ?, '', 0, ?, ?)
+  `).run(id, email, token, expiresAt);
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord;
 
@@ -73,7 +67,8 @@ export async function registerUser(email: string): Promise<{
 
 export async function verifyUserEmail(token: string): Promise<{
   user: UserRecord;
-  tempPassword: string | null;
+  needsPassword: boolean;
+  passwordSetToken: string | null;
 }> {
   const db = getDb();
 
@@ -88,19 +83,21 @@ export async function verifyUserEmail(token: string): Promise<{
   }
 
   const wasAlreadyVerified = user.verified === 1;
-  let tempPassword: string | null = null;
+  let needsPassword = false;
+  let passwordSetToken: string | null = null;
 
   if (!wasAlreadyVerified) {
-    // First-time verification — generate a temp password
-    tempPassword = crypto.randomBytes(4).toString('hex');
-    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    // First-time verification — mark verified but require password set
+    needsPassword = true;
+    passwordSetToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpiresAt = new Date(Date.now() + 900000).toISOString(); // 15 minutes
 
     db.prepare(`
-      UPDATE users SET verified = 1, password_hash = ?, verification_token = NULL,
-      verification_expires_at = NULL, updated_at = datetime('now') WHERE id = ?
-    `).run(passwordHash, user.id);
+      UPDATE users SET verified = 1, verification_token = ?, verification_expires_at = ?,
+      updated_at = datetime('now') WHERE id = ?
+    `).run(passwordSetToken, tokenExpiresAt, user.id);
   } else {
-    // Already verified — just clear the token
+    // Already verified — just clear the token (magic-link login)
     db.prepare(`
       UPDATE users SET verification_token = NULL, verification_expires_at = NULL,
       updated_at = datetime('now') WHERE id = ?
@@ -108,7 +105,29 @@ export async function verifyUserEmail(token: string): Promise<{
   }
 
   const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as UserRecord;
-  return { user: updatedUser, tempPassword };
+  return { user: updatedUser, needsPassword, passwordSetToken };
+}
+
+export async function setInitialPassword(token: string, newPassword: string): Promise<UserRecord> {
+  const db = getDb();
+
+  const user = db.prepare('SELECT * FROM users WHERE verification_token = ? AND verified = 1').get(token) as UserRecord | undefined;
+
+  if (!user) {
+    throw new Error('Invalid or expired password-set token');
+  }
+
+  if (user.verification_expires_at && new Date(user.verification_expires_at) < new Date()) {
+    throw new Error('Password-set token has expired. Please register again.');
+  }
+
+  const hash = await bcrypt.hash(newPassword, 10);
+  db.prepare(`
+    UPDATE users SET password_hash = ?, verification_token = NULL,
+    verification_expires_at = NULL, updated_at = datetime('now') WHERE id = ?
+  `).run(hash, user.id);
+
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as UserRecord;
 }
 
 export async function loginUser(email: string, password: string): Promise<UserRecord> {
@@ -121,6 +140,10 @@ export async function loginUser(email: string, password: string): Promise<UserRe
 
   if (!user.verified) {
     throw new Error('Please verify your email first');
+  }
+
+  if (!user.password_hash) {
+    throw new Error('Please complete your account setup first');
   }
 
   const valid = await bcrypt.compare(password, user.password_hash);

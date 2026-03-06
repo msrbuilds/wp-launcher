@@ -1,13 +1,22 @@
 import { Router, Request, Response } from 'express';
-import { listProducts, getProductConfig, saveProductConfig } from '../services/product.service';
+import { listProducts, getProductConfig, saveProductConfig, ProductConfig } from '../services/product.service';
 
 const router = Router();
+
+function sanitizeProduct(product: ProductConfig) {
+  const { docker, plugins, ...safe } = product;
+  if (safe.demo) {
+    const { admin_password, admin_email, ...safeDemoFields } = safe.demo;
+    safe.demo = safeDemoFields;
+  }
+  return safe;
+}
 
 // List all products
 router.get('/', (_req: Request, res: Response) => {
   try {
     const products = listProducts();
-    res.json(products);
+    res.json(products.map(sanitizeProduct));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -17,7 +26,7 @@ router.get('/', (_req: Request, res: Response) => {
 router.get('/:id', (req: Request, res: Response) => {
   try {
     const product = getProductConfig(req.params.id);
-    res.json(product);
+    res.json(sanitizeProduct(product));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

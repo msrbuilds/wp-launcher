@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { config } from './config';
 import { apiKeyAuth } from './middleware/auth';
@@ -13,13 +14,12 @@ import { closeDb } from './utils/db';
 const app = express();
 
 // Middleware
+app.use(helmet());
 app.use(cors({
-  origin: config.nodeEnv === 'production'
-    ? [config.publicUrl, `https://${config.baseDomain}`]
-    : true, // Allow all origins in development
+  origin: config.corsOrigins,
   credentials: true,
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Rate limiting for auth endpoints
 const authLimiter = rateLimit({
@@ -47,7 +47,7 @@ app.get('/health', (_req, res) => {
 // Auth routes (public with rate limiting)
 app.use('/api/auth', authLimiter, authRouter);
 
-// Sites routes (auth handled per-route inside the router)
+// Sites routes (rate limiting handled per-route inside the router)
 app.use('/api/sites', sitesRouter);
 
 // Products routes

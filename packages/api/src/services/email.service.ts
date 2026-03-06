@@ -47,20 +47,13 @@ export async function sendVerificationEmail(
 
 export async function sendWelcomeEmail(
   email: string,
-  tempPassword: string,
 ): Promise<void> {
-  const loginUrl = `${config.publicUrl}/login`;
-
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 2rem;">
       <h2 style="color: #1a1a2e;">Welcome to WP Launcher!</h2>
       <p>Your email has been verified and your account is ready.</p>
-      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin: 1rem 0;">
-        <p style="margin: 0 0 0.5rem;"><strong>Email:</strong> ${email}</p>
-        <p style="margin: 0;"><strong>Temporary Password:</strong> <code style="background: #fef3c7; padding: 0.15rem 0.4rem; border-radius: 4px;">${tempPassword}</code></p>
-      </div>
-      <p>You can <a href="${loginUrl}" style="color: #2563eb;">log in</a> and change your password anytime.</p>
-      <p style="color: #64748b; font-size: 0.85rem;">Your demo site is being created now!</p>
+      <p>Please set your password in the browser window where you verified your email to complete your account setup.</p>
+      <p style="color: #64748b; font-size: 0.85rem;">Your demo site will be created once you're logged in!</p>
     </div>
   `;
 
