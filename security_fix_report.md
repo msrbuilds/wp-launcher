@@ -2,188 +2,106 @@
 
 ## Summary
 
-This report documents the remediation actions taken against each finding in the Security Best Practices Report. All nine findings have been addressed. Seven are fully fixed, one (#4) is hardened to the practical limit of the architecture, and one (#6) has a minor remaining edge case noted.
+This report tracks the remediation status of the nine findings from the security review.
 
-All changes pass TypeScript type-checking (`tsc --noEmit`) cleanly.
+- Fully fixed: Finding 1, Finding 2, Finding 3, Finding 5, Finding 7, Finding 8, Finding 9
+- Partially fixed: Finding 4, Finding 6
+- Fully open: None
 
----
+Verification note: `npx tsc --noEmit -p packages/api/tsconfig.json` and `npx tsc --noEmit -p packages/dashboard/tsconfig.json` both passed during this update.
 
 ## Fixed Findings
 
 ### Finding #1 — Unauthenticated site-detail endpoint (Critical) — FIXED
 
-**Original issue**: `GET /api/sites/:id` was public and returned WordPress admin credentials to any caller.
+- `packages/api/src/routes/sites.ts:96-121` now requires `userAuth` and enforces ownership checks.
+- `packages/api/src/routes/sites.ts:44-50`, `packages/api/src/routes/sites.ts:82-84`, and `packages/api/src/routes/sites.ts:115-117` no longer return site passwords.
+- Result: unauthenticated callers cannot retrieve site details, and authenticated users can only view their own user-bound sites.
 
-**Changes**:
-- `packages/api/src/routes/sites.ts` — Added `userAuth` middleware so the route now requires a valid JWT.
-- Added ownership check: if the site has a `user_id`, only that user can view it. Other authenticated users receive `403 Forbidden`.
+### Finding #2 — Public product APIs leaked credentials (Critical) — FIXED
 
-**Result**: Unauthenticated callers get `401`. Authenticated callers can only see their own sites.
-
----
-
-### Finding #2 — Public product APIs leak credentials (Critical) — FIXED
-
-**Original issue**: `GET /api/products` and `GET /api/products/:id` returned full product configs including `admin_password`, `admin_email`, plugin paths, and Docker image tags.
-
-**Changes**:
-- `packages/api/src/routes/products.ts` — Added `sanitizeProduct()` function that strips `demo.admin_password`, `demo.admin_email`, `docker`, and `plugins` from public responses.
-- Applied to both `GET /` (list) and `GET /:id` (detail) routes.
-
-**Result**: Public callers see product branding, names, and demo settings (expiration, landing page) but never credentials, plugin paths, or Docker image names.
-
----
+- `packages/api/src/routes/products.ts:6-29` now sanitizes public product responses.
+- `sanitizeProduct()` removes `demo.admin_password`, `demo.admin_email`, `docker`, and `plugins` from public output.
+- Result: public callers can no longer recover shared demo credentials or internal provisioning metadata.
 
 ### Finding #3 — Predictable default secrets (High) — FIXED
 
-**Original issue**: `API_KEY` and `JWT_SECRET` fell back to hardcoded dev values that would silently work in production.
+- `packages/api/src/config.ts:1-22` now rejects known dev defaults in production with `requireSecret()`.
+- `docker-compose.yml:71-76` requires explicit `API_KEY`, `JWT_SECRET`, and related secrets at Compose startup.
+- Result: the shipped deployment path no longer silently accepts repository-known credentials.
 
-**Changes**:
-- `packages/api/src/config.ts` — Added `requireSecret()` guard that crashes the process on startup if either secret equals a known dev default while `NODE_ENV=production`.
-- `docker-compose.yml` — Changed env vars to `${API_KEY:?Set API_KEY in .env}` and `${JWT_SECRET:?Set JWT_SECRET in .env}`. Docker Compose refuses to start if these are unset.
+### Finding #5 — Traefik dashboard exposure (High) — FIXED
 
-**Result**: Two layers of protection — Compose won't start without explicit values, and the Node process crashes if they match known defaults in production.
+- `traefik/traefik.yml:1-3` disables insecure dashboard mode.
+- `docker-compose.yml:5-17` removes the default `8080` exposure and sets `traefik.enable=false` on the Traefik service itself.
+- Result: the dashboard is no longer publicly routed by default.
 
----
+### Finding #7 — Demo-site passwords at rest and in API responses (Medium) — FIXED
 
-### Finding #4 — Docker socket RW access (High) — HARDENED
+- `packages/api/src/services/site.service.ts:88` now generates a unique per-site password.
+- `packages/api/src/services/site.service.ts:127-131` clears `admin_password` from the database immediately after provisioning success or failure.
+- `packages/api/src/routes/sites.ts:44-50`, `packages/api/src/routes/sites.ts:82-84`, and `packages/api/src/routes/sites.ts:115-117` omit passwords from create/list/get responses.
+- Result: demo passwords are ephemeral and are not persisted at rest after provisioning.
 
-**Original issue**: The API container mounted `/var/run/docker.sock` read-write, giving any API compromise full host-level Docker control.
+### Finding #8 — Temp-password onboarding flow (Medium) — FIXED
 
-**Changes (architectural split)**:
-- Created `packages/provisioner/` — a dedicated internal service that owns all Docker operations.
-- Only the provisioner connects to the Docker socket proxy. It is not publicly exposed.
-- `packages/api/src/services/docker.service.ts` — rewritten from Dockerode to HTTP fetch against the provisioner.
-- Removed `dockerode` dependency from the API entirely.
+- `packages/api/src/routes/auth.ts:38-65` now returns `needsPassword` and `passwordSetToken` for first-time users instead of a temporary password.
+- `packages/api/src/routes/auth.ts:73-99` adds `/api/auth/set-password` for first-time password setup.
+- `packages/api/src/services/user.service.ts:53-130` removes temp-password generation entirely and uses a one-time 15-minute password-set token.
+- `packages/api/src/services/email.service.ts:48-67` sends a credential-free welcome email.
+- `packages/dashboard/src/pages/VerifyPage.tsx:33-76` and `packages/dashboard/src/pages/VerifyPage.tsx:101-153` now drive an in-browser password-set flow.
+- Result: no password is generated, emailed, or returned by the verification API.
 
-**Changes (auth hardening)**:
-- `INTERNAL_KEY` is now **required** at provisioner startup — process exits if unset.
-- Removed the "no key = allow all" dev bypass.
-- `docker-compose.yml` uses `${PROVISIONER_INTERNAL_KEY:?...}` (fail if unset) for both provisioner and API.
+### Finding #9 — CORS fail-open behavior (Low) — FIXED
 
-**Changes (network isolation)**:
-- Docker socket proxy is on an isolated `provisioner-internal` network (marked `internal: true`).
-- Only the provisioner can reach the docker-proxy. No other service has access.
+- `packages/api/src/config.ts:38-45` now defines an explicit `corsOrigins` allowlist.
+- `packages/api/src/index.ts:17-22` applies that allowlist regardless of `NODE_ENV`.
+- Result: browser origins are restricted by configuration rather than reflected open-endedly in development mode.
 
-**Changes (input validation / blast radius limits)**:
-- Subdomain validation: strict regex (`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
-- Image allowlist: must start with `wp-launcher/` prefix
-- Container ID format validation on delete/status endpoints
-- Path traversal prevention on image build
-- Hard container cap (`MAX_CONTAINERS`, default 100)
-- Request body size limited to 64KB
+## Partially Fixed Findings
 
-**Architecture**:
-```
-[Public] → Traefik → API (no Docker access)
-                       ↓ HTTP + INTERNAL_KEY auth
-                     Provisioner (isolated internal network)
-                       ↓ TCP
-                     Docker Socket Proxy (filtered, internal network only)
-                       ↓ RO mount
-                     /var/run/docker.sock
-```
+### Finding #4 — Docker blast radius from the API path (High) — PARTIALLY FIXED
 
-**Remaining caveat**: A fully compromised API can still instruct the provisioner to create/remove containers within the validated bounds (approved images, valid subdomains, up to the cap). This is the irreducible minimum for the system to function — the API's purpose is to orchestrate container lifecycle. Further reduction would require an async approval queue, which changes the instant-demo product model.
+What changed:
 
-**Result**: The blast radius of an API compromise is constrained to creating/removing approved WordPress containers with validated inputs, rather than arbitrary Docker operations on the host.
+- `packages/api/src/services/docker.service.ts:6-79` no longer talks to Docker directly; it calls the provisioner over internal HTTP.
+- `packages/provisioner/src/index.ts:8-12` now requires `INTERNAL_KEY` at startup.
+- `packages/provisioner/src/index.ts:27-37` removed the old no-key bypass and enforces the shared internal key on every request.
+- `packages/provisioner/src/index.ts:36`, `packages/provisioner/src/index.ts:46-61`, `packages/provisioner/src/index.ts:80-145`, and `packages/provisioner/src/index.ts:148-235` add a `64kb` body limit, image-prefix allowlist, subdomain/container-ID validation, a `MAX_CONTAINERS` cap, and path-traversal rejection for image builds.
+- `docker-compose.yml:19-49` and `docker-compose.yml:117-120` isolate `docker-proxy` on the internal `provisioner-internal` network so only the provisioner reaches it.
 
----
+Why this is not fully closed:
 
-### Finding #5 — Traefik dashboard exposed (High) — FIXED
+- The API still has the legitimate `PROVISIONER_INTERNAL_KEY` via `docker-compose.yml:75-76`.
+- A fully compromised API can still instruct the provisioner to create or remove approved managed containers within the allowed policy.
 
-**Original issue**: Traefik's dashboard/API was published on port 8080 with `insecure: true` and a public router.
+Result:
 
-**Changes**:
-- `traefik/traefik.yml` — Changed `insecure: true` to `insecure: false`.
-- `docker-compose.yml` — Commented out `8080:8080` port, replaced public router labels with `traefik.enable=false`.
+- The original host-level blast radius is materially reduced and constrained to a narrow provisioning surface, but it is not zero.
 
-**Result**: The dashboard is completely unreachable — no insecure port, no public router.
+### Finding #6 — Abuse controls for auth and site lifecycle routes (Medium) — PARTIALLY FIXED
 
----
+What changed:
 
-### Finding #6 — Site routes lack rate limiting (Medium) — FIXED
+- `packages/api/src/routes/sites.ts:8-25` adds separate `siteWriteLimiter` and `siteReadLimiter`.
+- Those limiters are now applied directly to create, delete, list, detail, status, and readiness routes in `packages/api/src/routes/sites.ts:28-178`.
+- `packages/api/src/index.ts:50-51` no longer wraps all site routes in the earlier blanket limiter, which avoids the prior polling regression.
 
-**Original issue**: `/api/sites` had no rate limiter.
+Why this is not fully closed:
 
-**Changes**:
-- `packages/api/src/routes/sites.ts` — Added two per-route limiters:
-  - `siteWriteLimiter`: 10 requests / 15 min — applied to `POST /` and `DELETE /:id`.
-  - `siteReadLimiter`: 120 requests / 15 min — applied to all GET routes.
+- `/api/auth/login` in `packages/api/src/routes/auth.ts:103-125` still depends on the coarse top-level `/api/auth` IP limiter from `packages/api/src/index.ts:24-31`.
+- There is still no username-aware or account-aware throttling to slow credential stuffing against a single account from distributed IPs.
 
-**Note**: The broader "login needs username-aware throttling" point remains outside the scope of site route fixes.
+Result:
 
-**Result**: Write operations are tightly throttled. Read/polling has enough headroom for normal UX without allowing abuse.
+- Site lifecycle abuse resistance is improved and the frontend polling path is no longer self-throttled, but the broader auth-abuse finding is only partially remediated.
 
----
+## No Remaining Fully Open Findings
 
-### Finding #7 — Demo-site passwords stored in plaintext (Medium) — FIXED
+All original findings now have either a verified fix or a partial mitigation in place. The remaining work is to close the residual gaps in Finding #4 and Finding #6.
 
-**Original issue**: Demo passwords came from product config (shared across all sites), were stored in `sites.admin_password`, and returned in API responses.
+## Verification Scope
 
-**Changes**:
-- `packages/api/src/services/site.service.ts` — Password is now `crypto.randomBytes(16).toString('base64url')` — unique and random per site.
-- `packages/api/src/services/site.service.ts` — Password is **cleared from the DB** (`SET admin_password = NULL`) immediately after the container is provisioned (or on error). It exists only transiently during the provisioning call.
-- `packages/api/src/routes/sites.ts` — `admin_password` is **never returned** in any API response (create, list, get). Only `admin_user` (username) is included.
-
-**Result**: Demo passwords are random per-site, never persisted at rest, and never exposed via API.
-
----
-
-### Finding #8 — Account bootstrap sends passwords in API/email (Medium) — FIXED
-
-**Original issue**: The auth flow generated 8-hex-char temporary passwords, emailed them to users, returned them in `/api/auth/verify`, and displayed them in the dashboard.
-
-**Changes**:
-- **Eliminated temp passwords entirely**. No password is generated, emailed, or returned in any API response.
-- New flow: verify email → shown a "set your password" form → user chooses their own password → JWT issued.
-- `packages/api/src/services/user.service.ts` — New `setInitialPassword()` function. New users are created with empty `password_hash`. On verification, a one-time `passwordSetToken` (valid 15 minutes) is issued.
-- `packages/api/src/routes/auth.ts` — New `POST /api/auth/set-password` endpoint that consumes the token and sets the user's password.
-- `packages/api/src/services/email.service.ts` — `sendWelcomeEmail()` no longer accepts or sends any password. Just instructs user to set password in browser.
-- `packages/dashboard/src/pages/VerifyPage.tsx` — Shows a password-set form for new users instead of displaying a temp password. Returning users get magic-link login directly.
-- Minimum password length raised from 6 to 8 characters.
-
-**Result**: No temporary passwords exist anywhere in the system. Users set their own password on first login via a time-limited token.
-
----
-
-### Finding #9 — CORS fails open in development defaults (Low) — FIXED
-
-**Original issue**: CORS used `origin: true` (reflect any origin) in non-production.
-
-**Changes**:
-- `packages/api/src/config.ts` — Added `corsOrigins` config field. Reads from `CORS_ALLOWED_ORIGINS` env var (comma-separated). Falls back to explicit allowlist from `PUBLIC_URL` and `BASE_DOMAIN`.
-- `packages/api/src/index.ts` — Replaced the `NODE_ENV` ternary with `config.corsOrigins`.
-
-**Result**: CORS is now an allowlist regardless of `NODE_ENV`.
-
----
-
-## Bonus — HTTP hardening (proactively addressed)
-
-- Added `helmet` middleware (security headers).
-- Added `express.json({ limit: '1mb' })` body size limit on API.
-- Wired Traefik `security-headers@file` and `rate-limit@file` middlewares.
-
----
-
-## Files Changed
-
-| File | Change |
-|------|--------|
-| `packages/api/src/routes/sites.ts` | Auth-gated `GET /:id`, ownership check, per-route rate limiters, removed password from responses |
-| `packages/api/src/routes/products.ts` | Added `sanitizeProduct()`, applied to GET routes |
-| `packages/api/src/routes/auth.ts` | New `POST /set-password` endpoint, removed temp password from verify response |
-| `packages/api/src/config.ts` | `requireSecret()` guard, `corsOrigins` allowlist, removed Docker config |
-| `packages/api/src/index.ts` | `helmet()`, body size limit, CORS allowlist |
-| `packages/api/src/services/docker.service.ts` | Rewritten from Dockerode to HTTP client calling provisioner |
-| `packages/api/src/services/site.service.ts` | Random per-site passwords, cleared from DB after provisioning |
-| `packages/api/src/services/user.service.ts` | Password-set flow, eliminated temp passwords |
-| `packages/api/src/services/email.service.ts` | Welcome email no longer contains any password |
-| `packages/api/package.json` | Added `helmet`; removed `dockerode` |
-| `packages/provisioner/` (new) | Dedicated Docker provisioning worker with input validation |
-| `packages/provisioner/src/index.ts` | Required auth, image allowlist, subdomain validation, container cap |
-| `packages/dashboard/src/pages/VerifyPage.tsx` | Password-set form for new users, removed temp password display |
-| `docker-compose.yml` | Provisioner + docker-proxy services, isolated network, required env vars, Traefik hardening |
-| `traefik/traefik.yml` | `insecure: false` |
-| `.env` | Added `JWT_SECRET`, `PROVISIONER_INTERNAL_KEY` |
+- Static code review against the current workspace
+- TypeScript type-checks for API and dashboard
+- No live `docker compose` deployment or external probing was run for this update
