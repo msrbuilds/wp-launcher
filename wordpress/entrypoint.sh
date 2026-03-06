@@ -14,7 +14,10 @@ done
 DB_ENGINE="${DB_ENGINE:-sqlite}"
 
 if [ "$DB_ENGINE" = "mysql" ] || [ "$DB_ENGINE" = "mariadb" ]; then
-    # MySQL/MariaDB mode — remove SQLite drop-in and plugin entirely
+    # MySQL/MariaDB mode — remove SQLite drop-in and plugin from both source and live dirs
+    # Remove from source first so docker-entrypoint.sh can't re-copy it
+    rm -f /usr/src/wordpress/wp-content/db.php
+    rm -rf /usr/src/wordpress/wp-content/plugins/sqlite-database-integration
     rm -f /var/www/html/wp-content/db.php
     rm -rf /var/www/html/wp-content/plugins/sqlite-database-integration
 
@@ -56,6 +59,12 @@ for i in $(seq 1 30); do
     fi
     sleep 1
 done
+
+# Final cleanup: remove SQLite artifacts again in case docker-entrypoint.sh re-copied them
+if [ "$DB_ENGINE" = "mysql" ] || [ "$DB_ENGINE" = "mariadb" ]; then
+    rm -f /var/www/html/wp-content/db.php
+    rm -rf /var/www/html/wp-content/plugins/sqlite-database-integration
+fi
 
 # Install WordPress if not already installed
 if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then

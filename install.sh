@@ -200,16 +200,29 @@ if [ -n "$SMTP_HOST" ]; then
   SMTP_FROM="${SMTP_FROM:-WP Launcher <noreply@${DOMAIN}>}"
 fi
 
+# --- Admin API Key ---
+echo ""
+echo -e "${BOLD}Admin Panel Access${NC}"
+echo "  The admin API key is used to access the admin dashboard panel."
+echo "  You can set your own or leave blank to auto-generate one."
+echo ""
+prompt -rp "$(echo -e "${CYAN}Admin API key${NC} (blank = auto-generate): ")" CUSTOM_API_KEY
+
 # ─── 4. Generate secrets ─────────────────────────────────────────────────────
 banner "Generating Secrets"
 
 gen_secret() { openssl rand -base64 32 | tr -d '/+=' | head -c 40; }
 
-API_KEY="$(gen_secret)"
+if [ -n "$CUSTOM_API_KEY" ]; then
+  API_KEY="$CUSTOM_API_KEY"
+  ok "API_KEY set (user-provided)"
+else
+  API_KEY="$(gen_secret)"
+  ok "API_KEY generated"
+fi
 JWT_SECRET="$(gen_secret)"
 PROVISIONER_INTERNAL_KEY="$(gen_secret)"
 
-ok "API_KEY generated"
 ok "JWT_SECRET generated"
 ok "PROVISIONER_INTERNAL_KEY generated"
 
