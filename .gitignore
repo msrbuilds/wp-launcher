@@ -1,8 +1,43 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-.env
-data/
-*.db
-traefik/acme.json
 packages/dashboard/dist/
 packages/api/dist/
+
+# Environment & secrets
+.env
+.env.local
+.env.production
+
+# Database
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Traefik SSL certificates
+traefik/acme.json
+
+# Product assets (local plugins/themes — unique to each deployment)
+product-assets/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Docker
+docker-compose.override.yml
