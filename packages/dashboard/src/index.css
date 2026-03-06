@@ -598,8 +598,8 @@ a.btn-primary:hover {
 /* ── Check email card ── */
 .check-email {
   text-align: center;
-  padding: 3rem 2rem;
-  max-width: 480px;
+  padding: 3rem 2.5rem;
+  max-width: 560px;
   margin: 2rem auto 0;
 }
 

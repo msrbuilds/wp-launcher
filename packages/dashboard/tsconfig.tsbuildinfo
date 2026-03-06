@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/countdowntimer.tsx","./src/context/authcontext.tsx","./src/pages/accountpage.tsx","./src/pages/adminpage.tsx","./src/pages/launchpage.tsx","./src/pages/loginpage.tsx","./src/pages/siteslistpage.tsx","./src/pages/verifypage.tsx"],"version":"5.9.3"}

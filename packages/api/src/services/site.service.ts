@@ -49,7 +49,7 @@ function logSiteAction(siteRecord: SiteRecord, action: string, userEmail?: strin
   );
 }
 
-export async function createSite(req: CreateSiteRequest): Promise<SiteRecord> {
+export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & { oneTimePassword: string }> {
   const db = getDb();
   const productConfig = getProductConfig(req.productId);
 
@@ -136,7 +136,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord> {
 
   logSiteAction(site, 'created', req.userEmail);
 
-  return site;
+  return { ...site, oneTimePassword: adminPassword };
 }
 
 export function listSites(productId?: string): SiteRecord[] {

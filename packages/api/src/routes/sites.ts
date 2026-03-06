@@ -47,6 +47,7 @@ router.post('/', siteWriteLimiter, userAuth, async (req: AuthRequest, res: Respo
       adminUrl: site.admin_url,
       credentials: {
         username: site.admin_user,
+        password: site.oneTimePassword,
       },
       expiresAt: site.expires_at,
       status: site.status,
