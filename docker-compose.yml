@@ -77,11 +77,11 @@ services:
       - PROVISIONER_URL=http://provisioner:4000
       - PROVISIONER_INTERNAL_KEY=${PROVISIONER_INTERNAL_KEY:?Set PROVISIONER_INTERNAL_KEY in .env}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-}
-      - SMTP_HOST=mailpit
-      - SMTP_PORT=1025
-      - SMTP_SECURE=false
-      - SMTP_USER=
-      - SMTP_PASS=
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
       - SMTP_FROM=${SMTP_FROM:-WP Launcher <noreply@localhost>}
       - BASE_DOMAIN=${BASE_DOMAIN:-localhost}
       - WP_IMAGE=${WP_IMAGE:-wp-launcher/wordpress:latest}
@@ -95,9 +95,13 @@ services:
     networks:
       - wp-launcher-network
     depends_on:
-      - traefik
-      - mailpit
-      - provisioner
+      traefik:
+        condition: service_started
+      mailpit:
+        condition: service_started
+        required: false
+      provisioner:
+        condition: service_started
 
   dashboard:
     build: ./packages/dashboard

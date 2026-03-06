@@ -43,6 +43,23 @@ fi
 
 banner "WP Launcher — One-Click Installer"
 
+# ─── 0. Ensure sufficient memory (add swap on low-RAM servers) ───────────────
+TOTAL_MEM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+SWAP_TOTAL_KB=$(grep SwapTotal /proc/meminfo | awk '{print $2}')
+if [ "$TOTAL_MEM_KB" -lt 3000000 ] && [ "$SWAP_TOTAL_KB" -lt 1000000 ]; then
+  info "Low memory detected ($(( TOTAL_MEM_KB / 1024 ))MB RAM). Adding 2GB swap..."
+  if [ ! -f /swapfile ]; then
+    fallocate -l 2G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    ok "2GB swap added"
+  else
+    ok "Swap file already exists"
+  fi
+fi
+
 # ─── 1. Docker ───────────────────────────────────────────────────────────────
 install_docker() {
   if command -v docker &>/dev/null; then
@@ -470,7 +487,7 @@ for config in "$PROJECT_DIR"/products/*.json; do
   }
 done
 
-# ─── 10. Start services ─────────────────────────────────────────────────────
+# ─── 10. Start services ────────────────────────────────────────────────────
 # Note: docker compose creates the network automatically with correct labels.
 # Do NOT create it manually — that causes label mismatches.
 banner "Starting Services"
@@ -479,7 +496,7 @@ docker compose up -d --build
 
 ok "All services started!"
 
-# ─── 12. Summary ─────────────────────────────────────────────────────────────
+# ─── 11. Summary ─────────────────────────────────────────────────────────────
 banner "Installation Complete!"
 
 echo -e "${GREEN}${BOLD}"
