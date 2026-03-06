@@ -1,1 +1,0 @@
-document.addEventListener("DOMContentLoaded",function(){const e=document.querySelector('#adminmenu a[href="admin.php?page=elementor-one-upgrade"]');e&&e.setAttribute("target","_blank")});

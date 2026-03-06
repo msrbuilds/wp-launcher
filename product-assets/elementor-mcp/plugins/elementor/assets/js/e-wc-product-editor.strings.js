@@ -1,1 +1,0 @@
-__( 'Edit with Elementor', 'elementor' );

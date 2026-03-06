@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunk=self.webpackChunk||[]).push([["8390"],{7384:function(e){e.exports=JSON.parse('{"example":{"component":"\u05E8\u05DB\u05D9\u05D1 \u05DC\u05D3\u05D5\u05D2\u05DE\u05D4"}}')}}]);

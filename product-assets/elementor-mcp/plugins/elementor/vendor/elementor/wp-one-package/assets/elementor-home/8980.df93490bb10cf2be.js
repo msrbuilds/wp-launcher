@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunk=self.webpackChunk||[]).push([["8980"],{37513:function(e){e.exports=JSON.parse('{"example":{"component":"Voorbeeldcomponent"}}')}}]);

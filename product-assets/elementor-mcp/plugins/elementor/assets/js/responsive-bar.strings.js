@@ -1,1 +1,0 @@
-__( 'The value inserted isn\'t in the breakpoint boundaries', 'elementor' );

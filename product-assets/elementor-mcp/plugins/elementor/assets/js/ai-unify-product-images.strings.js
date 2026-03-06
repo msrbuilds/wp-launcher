@@ -1,1 +1,0 @@
-__( 'Unify with Elementor AI', 'elementor' );
