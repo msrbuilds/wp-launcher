@@ -45,6 +45,7 @@ router.post('/', siteWriteLimiter, userAuth, async (req: AuthRequest, res: Respo
       id: site.id,
       url: site.site_url,
       adminUrl: site.admin_url,
+      autoLoginUrl: `${site.site_url}/wp-login.php?autologin=${site.autoLoginToken}`,
       credentials: {
         username: site.admin_user,
         password: site.oneTimePassword,

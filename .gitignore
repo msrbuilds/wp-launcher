@@ -20,8 +20,11 @@ data/
 # Traefik SSL certificates
 traefik/acme.json
 
-# Product assets (local plugins/themes — unique to each deployment)
-product-assets/
+# Product assets — only track .zip files, ignore extracted directories
+product-assets/**/plugins/*/
+product-assets/**/themes/*/
+!product-assets/**/*.zip
+!product-assets/**/demo-content.xml
 
 # OS files
 .DS_Store

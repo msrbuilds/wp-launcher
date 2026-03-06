@@ -1,7 +1,7 @@
 FROM wordpress:6.9-php8.3-apache
 
-# Install required system packages
-RUN apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/*
+# Install required system packages (unzip for plugins, default-mysql-client for MySQL health checks)
+RUN apt-get update && apt-get install -y --no-install-recommends unzip default-mysql-client && rm -rf /var/lib/apt/lists/*
 
 # Install wp-cli
 RUN curl -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \
@@ -12,8 +12,8 @@ RUN curl -L https://downloads.wordpress.org/plugin/sqlite-database-integration.z
     && unzip /tmp/sqlite.zip -d /usr/src/wordpress/wp-content/plugins/ \
     && rm /tmp/sqlite.zip
 
-# Copy the db.php drop-in from the SQLite plugin
-RUN cp /usr/src/wordpress/wp-content/plugins/sqlite-database-integration/db.copy /usr/src/wordpress/wp-content/db.php
+# NOTE: db.php drop-in is copied at runtime by entrypoint.sh only when DB_ENGINE=sqlite
+# Do NOT copy it here — it would override MySQL/MariaDB connections
 
 # Copy MU-plugins for admin restrictions and branding
 COPY mu-plugins/ /usr/src/wordpress/wp-content/mu-plugins/
@@ -26,7 +26,8 @@ COPY entrypoint.sh /usr/local/bin/wp-launcher-entrypoint.sh
 RUN chmod +x /usr/local/bin/wp-launcher-entrypoint.sh
 
 # Environment defaults
-ENV WORDPRESS_DB_DIR=/var/www/html/wp-content/database \
+ENV DB_ENGINE=sqlite \
+    WORDPRESS_DB_DIR=/var/www/html/wp-content/database \
     WP_SITE_TITLE="Demo Site" \
     WP_ADMIN_USER=demo \
     WP_ADMIN_PASSWORD=demo123 \

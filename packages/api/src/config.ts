@@ -49,6 +49,7 @@ export const config = {
     expiration: '1h',
     maxExpiration: '24h',
     maxConcurrentSites: 50,
+    maxTotalSites: parseInt(process.env.MAX_TOTAL_SITES || '50', 10),
   },
 
   // Cleanup interval in milliseconds

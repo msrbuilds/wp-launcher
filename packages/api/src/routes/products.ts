@@ -6,7 +6,7 @@ const router = Router();
 function sanitizeProduct(product: ProductConfig) {
   const { docker, plugins, ...safe } = product;
   if (safe.demo) {
-    const { admin_password, admin_email, ...safeDemoFields } = safe.demo;
+    const { admin_email, ...safeDemoFields } = safe.demo;
     safe.demo = safeDemoFields;
   }
   return safe;

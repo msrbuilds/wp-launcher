@@ -6,17 +6,30 @@
  * It configures WordPress to use SQLite and disables file modifications.
  */
 
-// SQLite configuration
-define( 'DB_DIR', getenv( 'WORDPRESS_DB_DIR' ) ?: __DIR__ . '/wp-content/database/' );
-define( 'DB_FILE', 'wordpress.db' );
+// Database configuration — SQLite (default) or MySQL
+$db_engine = getenv( 'DB_ENGINE' ) ?: 'sqlite';
 
-// Dummy MySQL constants (required by WordPress but unused with SQLite)
-define( 'DB_NAME', 'wordpress' );
-define( 'DB_USER', '' );
-define( 'DB_PASSWORD', '' );
-define( 'DB_HOST', '' );
-define( 'DB_CHARSET', 'utf8mb4' );
-define( 'DB_COLLATE', '' );
+if ( $db_engine === 'mysql' || $db_engine === 'mariadb' ) {
+    // MySQL/MariaDB mode — real database connection
+    define( 'DB_NAME', getenv( 'WORDPRESS_DB_NAME' ) ?: 'wordpress' );
+    define( 'DB_USER', getenv( 'WORDPRESS_DB_USER' ) ?: 'wordpress' );
+    define( 'DB_PASSWORD', getenv( 'WORDPRESS_DB_PASSWORD' ) ?: 'wordpress' );
+    define( 'DB_HOST', getenv( 'WORDPRESS_DB_HOST' ) ?: 'localhost' );
+    define( 'DB_CHARSET', 'utf8mb4' );
+    define( 'DB_COLLATE', '' );
+} else {
+    // SQLite mode
+    define( 'DB_DIR', getenv( 'WORDPRESS_DB_DIR' ) ?: __DIR__ . '/wp-content/database/' );
+    define( 'DB_FILE', 'wordpress.db' );
+
+    // Dummy MySQL constants (required by WordPress but unused with SQLite)
+    define( 'DB_NAME', 'wordpress' );
+    define( 'DB_USER', '' );
+    define( 'DB_PASSWORD', '' );
+    define( 'DB_HOST', '' );
+    define( 'DB_CHARSET', 'utf8mb4' );
+    define( 'DB_COLLATE', '' );
+}
 
 // Authentication keys and salts - generated per container via environment
 define( 'AUTH_KEY',         getenv( 'WORDPRESS_AUTH_KEY' )         ?: 'wp-launcher-default-auth-key-change-me' );

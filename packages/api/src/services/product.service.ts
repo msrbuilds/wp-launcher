@@ -39,7 +39,6 @@ export interface ProductConfig {
     max_expiration?: string;
     max_concurrent_sites?: number;
     admin_user?: string;
-    admin_password?: string;
     admin_email?: string;
     landing_page?: string;
     rate_limit?: {
@@ -57,6 +56,7 @@ export interface ProductConfig {
     description?: string;
     image_url?: string;
   };
+  database?: 'sqlite' | 'mysql' | 'mariadb';
   docker?: {
     image?: string;
   };

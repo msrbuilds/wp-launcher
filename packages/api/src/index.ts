@@ -13,6 +13,9 @@ import { closeDb } from './utils/db';
 
 const app = express();
 
+// Trust the reverse proxy (Traefik) so rate limiting uses real client IPs
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet());
 app.use(cors({

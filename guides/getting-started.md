@@ -88,7 +88,7 @@ Create `products/my-plugin.json`:
     "max_expiration": "24h",
     "max_concurrent_sites": 10,
     "admin_user": "demo",
-    "admin_password": "demo123",
+
     "landing_page": "/wp-admin/admin.php?page=wpcf7"
   },
   "docker": {
@@ -157,7 +157,7 @@ Create `products/my-premium-plugin.json`:
   "demo": {
     "default_expiration": "1h",
     "admin_user": "demo",
-    "admin_password": "demo123",
+
     "landing_page": "/wp-admin/admin.php?page=my-premium-plugin"
   },
   "branding": {
@@ -219,7 +219,7 @@ Combine plugins from multiple sources in one image.
   "demo": {
     "default_expiration": "4h",
     "admin_user": "demo",
-    "admin_password": "demo123",
+
     "landing_page": "/wp-admin/admin.php?page=wc-settings"
   },
   "docker": {
@@ -274,7 +274,7 @@ All products appear in the dashboard dropdown for users to select.
 | `demo.max_expiration` | Maximum allowed expiration | No |
 | `demo.max_concurrent_sites` | Max simultaneous demos for this product | No |
 | `demo.admin_user` | WordPress admin username for demos | No |
-| `demo.admin_password` | WordPress admin password for demos | No |
+
 | `demo.admin_email` | WordPress admin email | No |
 | `demo.landing_page` | URL path to redirect to after login | No |
 | `restrictions.disable_file_mods` | Block plugin/theme install (default: true) | No |

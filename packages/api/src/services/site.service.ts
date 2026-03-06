@@ -49,19 +49,29 @@ function logSiteAction(siteRecord: SiteRecord, action: string, userEmail?: strin
   );
 }
 
-export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & { oneTimePassword: string }> {
+export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & { oneTimePassword: string; autoLoginToken: string }> {
   const db = getDb();
   const productConfig = getProductConfig(req.productId);
 
-  // If user is provided, enforce 1 active site per user
+  // If user is provided, enforce max active sites per user
+  const maxSitesPerUser = 3;
   if (req.userId) {
-    const activeSite = db
-      .prepare("SELECT id FROM sites WHERE user_id = ? AND status = 'running'")
-      .get(req.userId) as { id: string } | undefined;
+    const activeSiteCount = db
+      .prepare("SELECT COUNT(*) as count FROM sites WHERE user_id = ? AND status = 'running'")
+      .get(req.userId) as { count: number };
 
-    if (activeSite) {
-      throw new Error('You already have an active demo site. Please delete it before creating a new one.');
+    if (activeSiteCount.count >= maxSitesPerUser) {
+      throw new Error(`You already have ${maxSitesPerUser} active demo sites. Please delete one before creating a new one.`);
     }
+  }
+
+  // Check global total site limit
+  const totalActive = db
+    .prepare("SELECT COUNT(*) as count FROM sites WHERE status = 'running'")
+    .get() as { count: number };
+
+  if (totalActive.count >= config.defaults.maxTotalSites) {
+    throw new Error('Our servers are currently at capacity. Please try again in a few minutes.');
   }
 
   // Check concurrent site limit per product
@@ -86,11 +96,12 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
   const adminUser = productConfig?.demo?.admin_user || 'demo';
   const adminPassword = crypto.randomBytes(16).toString('base64url'); // random per-site
+  const autoLoginToken = crypto.randomBytes(32).toString('base64url'); // for one-click login
   const adminEmail = productConfig?.demo?.admin_email || 'demo@example.com';
   const siteTitle = productConfig?.name || 'Demo Site';
 
   const pluginsToActivate = productConfig?.plugins?.preinstall
-    ?.map((p: any) => p.slug || p.path?.split('/').pop())
+    ?.map((p: any) => p.slug || p.path?.split('/').pop()?.replace(/\.zip$/, ''))
     .filter(Boolean)
     .join(',') || '';
 
@@ -102,6 +113,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const landingPage = productConfig?.demo?.landing_page || '';
 
   const image = productConfig?.docker?.image || config.wpImage;
+  const dbEngine = productConfig?.database || 'sqlite';
 
   db.prepare(`
     INSERT INTO sites (id, subdomain, product_id, user_id, status, site_url, admin_url, admin_user, admin_password, expires_at)
@@ -122,6 +134,8 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       removePlugins: pluginsToRemove,
       activeTheme,
       landingPage,
+      dbEngine,
+      autoLoginToken,
     });
 
     // Clear password from DB now that it's been sent to the container — it's only needed at provision time
@@ -136,7 +150,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
   logSiteAction(site, 'created', req.userEmail);
 
-  return { ...site, oneTimePassword: adminPassword };
+  return { ...site, oneTimePassword: adminPassword, autoLoginToken };
 }
 
 export function listSites(productId?: string): SiteRecord[] {

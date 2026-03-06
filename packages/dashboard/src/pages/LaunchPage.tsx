@@ -17,6 +17,7 @@ interface SiteResult {
   id: string;
   url: string;
   adminUrl: string;
+  autoLoginUrl?: string;
   credentials: { username: string; password: string };
   expiresAt: string;
   status: string;
@@ -33,6 +34,7 @@ export default function LaunchPage() {
   const [launchingId, setLaunchingId] = useState<string | null>(null);
   const [result, setResult] = useState<SiteResult | null>(null);
   const [error, setError] = useState('');
+  const [provisionProgress, setProvisionProgress] = useState(0);
 
   const [email, setEmail] = useState('');
   const [step, setStep] = useState<Step>(isAuthenticated ? 'launch' : 'email');
@@ -130,14 +132,23 @@ export default function LaunchPage() {
 
   async function pollUntilReady(siteId: string) {
     const maxAttempts = 30; // 30 x 2s = 60s max
+    const expectedAttempts = 8; // typical ready in ~16s
+    setProvisionProgress(0);
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((r) => setTimeout(r, 2000));
+      // Progress: fast to 80%, then slow crawl to 95%
+      const pct = i < expectedAttempts
+        ? Math.min(80, ((i + 1) / expectedAttempts) * 80)
+        : 80 + Math.min(15, (i - expectedAttempts) * 2);
+      setProvisionProgress(Math.round(pct));
       try {
         const res = await fetch(`/api/sites/${siteId}/ready`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
         if (data.ready) {
+          setProvisionProgress(100);
+          await new Promise((r) => setTimeout(r, 400)); // brief pause at 100%
           setStep('result');
           return;
         }
@@ -145,49 +156,91 @@ export default function LaunchPage() {
         // ignore fetch errors, keep polling
       }
     }
-    // After max attempts, show result anyway
+    setProvisionProgress(100);
     setStep('result');
   }
 
   // Step: Provisioning
   if (step === 'provisioning' && result) {
+    const stageText = provisionProgress < 20
+      ? 'Starting container...'
+      : provisionProgress < 50
+      ? 'Installing WordPress...'
+      : provisionProgress < 80
+      ? 'Configuring plugins & themes...'
+      : provisionProgress < 100
+      ? 'Almost ready...'
+      : 'Done!';
+
     return (
       <div className="card site-result">
         <div className="result-icon" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' }}>
           <span className="spinner" style={{ width: '1.5rem', height: '1.5rem' }} />
         </div>
         <h3>Setting up your demo site...</h3>
-        <p style={{ color: '#64748b', margin: '1rem 0', fontSize: '0.95rem' }}>
-          WordPress is being installed and configured. This usually takes 10–15 seconds.
+        <p style={{ color: '#64748b', margin: '0.5rem 0 0.25rem', fontSize: '0.95rem' }}>
+          {stageText}
         </p>
         <div className="progress-bar-track">
-          <div className="progress-bar-fill" />
+          <div
+            className="progress-bar-fill-real"
+            style={{ width: `${provisionProgress}%` }}
+          />
         </div>
+        <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+          {provisionProgress}%
+        </p>
       </div>
     );
   }
 
   // Step: Result
   if (step === 'result' && result) {
+    function copyToClipboard(text: string, e: React.MouseEvent) {
+      navigator.clipboard.writeText(text);
+      const btn = e.currentTarget as HTMLButtonElement;
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 1500);
+    }
+
     return (
       <div className="card site-result">
         <div className="result-icon">&#10003;</div>
         <h3>Your demo site is ready!</h3>
 
-        <div className="url-box">
-          <a href={result.url} target="_blank" rel="noopener noreferrer">
-            {result.url}
-          </a>
-        </div>
-
-        <div className="credentials">
-          <strong>Admin Login:</strong>{' '}
-          <a href={result.adminUrl} target="_blank" rel="noopener noreferrer">
-            {result.adminUrl}
-          </a>
-          <br />
-          Username: <code>{result.credentials.username}</code> &bull; Password:{' '}
-          <code>{result.credentials.password}</code>
+        <div className="cred-rows">
+          <div className="cred-row">
+            <span className="cred-label">Site URL</span>
+            <span className="cred-value">
+              <a href={result.url} target="_blank" rel="noopener noreferrer">{result.url}</a>
+            </span>
+            <button className="cred-copy" onClick={(e) => copyToClipboard(result.url, e)} title="Copy">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
+          <div className="cred-row">
+            <span className="cred-label">Admin URL</span>
+            <span className="cred-value">
+              <a href={result.adminUrl} target="_blank" rel="noopener noreferrer">{result.adminUrl}</a>
+            </span>
+            <button className="cred-copy" onClick={(e) => copyToClipboard(result.adminUrl, e)} title="Copy">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
+          <div className="cred-row">
+            <span className="cred-label">Username</span>
+            <span className="cred-value"><code>{result.credentials.username}</code></span>
+            <button className="cred-copy" onClick={(e) => copyToClipboard(result.credentials.username, e)} title="Copy">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
+          <div className="cred-row">
+            <span className="cred-label">Password</span>
+            <span className="cred-value"><code>{result.credentials.password}</code></span>
+            <button className="cred-copy" onClick={(e) => copyToClipboard(result.credentials.password, e)} title="Copy">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
         </div>
 
         <p style={{ margin: '1.25rem 0', fontSize: '0.875rem', color: '#64748b' }}>
@@ -196,7 +249,7 @@ export default function LaunchPage() {
 
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
           <a
-            href={result.adminUrl}
+            href={result.autoLoginUrl || result.adminUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-primary btn-lg"

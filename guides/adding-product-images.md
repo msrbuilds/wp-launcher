@@ -100,7 +100,6 @@ Create `products/woocommerce.json`:
     "max_expiration": "24h",
     "max_concurrent_sites": 5,
     "admin_user": "demo",
-    "admin_password": "demo123",
     "admin_email": "demo@example.com",
     "landing_page": "/wp-admin/admin.php?page=wc-admin"
   },

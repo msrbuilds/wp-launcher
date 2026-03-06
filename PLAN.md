@@ -188,7 +188,6 @@ User clicks "Start Demo"
     "max_expiration": "24h",
     "max_concurrent_sites": 10,
     "admin_user": "demo",
-    "admin_password": "demo123",
     "landing_page": "/wp-admin/admin.php?page=awesome-settings"
   },
   "restrictions": {

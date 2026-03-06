@@ -1,8 +1,8 @@
 {
-  "id": "_default",
-  "name": "Default Demo",
+  "id": "demo-sqlite",
+  "name": "Demo - SQLite",
   "wordpress": {
-    "version": "6.7",
+    "version": "6.9",
     "locale": "en_US"
   },
   "plugins": {
@@ -37,6 +37,8 @@
   },
   "branding": {
     "banner_text": "This is a temporary demo site. It will expire in {time_remaining}.",
-    "logo_url": ""
+    "logo_url": "",
+    "description": "WordPress demo powered by SQLite — fastest startup.",
+    "image_url": ""
   }
 }

@@ -75,6 +75,8 @@ interface CreateBody {
   removePlugins?: string;
   activeTheme?: string;
   landingPage?: string;
+  dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
+  autoLoginToken?: string;
 }
 
 app.post('/containers', async (req: Request, res: Response) => {
@@ -102,6 +104,53 @@ app.post('/containers', async (req: Request, res: Response) => {
     }
 
     const containerName = `wp-demo-${opts.subdomain}`;
+    const useExternalDb = opts.dbEngine === 'mysql' || opts.dbEngine === 'mariadb';
+    let dbContainerId: string | undefined;
+    const dbContainerName = `wp-db-${opts.subdomain}`;
+    const dbPassword = `wp_${opts.subdomain}_${Date.now().toString(36)}`;
+
+    // If MySQL or MariaDB mode, create a database sidecar container first
+    if (useExternalDb) {
+      const DB_IMAGE = opts.dbEngine === 'mysql' ? 'mysql:8.4' : 'mariadb:11';
+      try {
+        await docker.getImage(DB_IMAGE).inspect();
+      } catch {
+        console.log(`[provisioner] Pulling ${DB_IMAGE}...`);
+        const stream = await docker.pull(DB_IMAGE);
+        await new Promise<void>((resolve, reject) => {
+          docker.modem.followProgress(stream, (err: Error | null) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+        console.log(`[provisioner] ${DB_IMAGE} pulled.`);
+      }
+
+      const dbSidecar = await docker.createContainer({
+        Image: DB_IMAGE,
+        name: dbContainerName,
+        Env: [
+          'MYSQL_DATABASE=wordpress',
+          'MYSQL_USER=wordpress',
+          `MYSQL_PASSWORD=${dbPassword}`,
+          'MYSQL_RANDOM_ROOT_PASSWORD=yes',
+        ],
+        Labels: {
+          'wp-launcher.managed': 'true',
+          'wp-launcher.site-id': opts.subdomain,
+          'wp-launcher.role': opts.dbEngine || 'mariadb',
+          'wp-launcher.expires-at': opts.expiresAt,
+        },
+        HostConfig: {
+          NetworkMode: DOCKER_NETWORK,
+          Memory: CONTAINER_MEMORY,
+          NanoCpus: CONTAINER_CPU * 1e9,
+          RestartPolicy: { Name: 'unless-stopped' },
+        },
+      });
+      await dbSidecar.start();
+      dbContainerId = dbSidecar.id;
+    }
 
     const env = [
       `WP_SITE_URL=${opts.siteUrl}`,
@@ -112,10 +161,23 @@ app.post('/containers', async (req: Request, res: Response) => {
       `WP_DEMO_EXPIRES_AT=${opts.expiresAt}`,
     ];
 
+    if (useExternalDb) {
+      env.push(
+        `DB_ENGINE=${opts.dbEngine}`,
+        `WORDPRESS_DB_HOST=${dbContainerName}`,
+        'WORDPRESS_DB_USER=wordpress',
+        `WORDPRESS_DB_PASSWORD=${dbPassword}`,
+        'WORDPRESS_DB_NAME=wordpress',
+      );
+    } else {
+      env.push('DB_ENGINE=sqlite');
+    }
+
     if (opts.activatePlugins) env.push(`WP_ACTIVATE_PLUGINS=${opts.activatePlugins}`);
     if (opts.removePlugins) env.push(`WP_REMOVE_PLUGINS=${opts.removePlugins}`);
     if (opts.activeTheme) env.push(`WP_ACTIVE_THEME=${opts.activeTheme}`);
     if (opts.landingPage) env.push(`WP_DEMO_LANDING_PAGE=${opts.landingPage}`);
+    if (opts.autoLoginToken) env.push(`WP_AUTO_LOGIN_TOKEN=${opts.autoLoginToken}`);
 
     const container = await docker.createContainer({
       Image: opts.image,
@@ -128,6 +190,7 @@ app.post('/containers', async (req: Request, res: Response) => {
         'wp-launcher.managed': 'true',
         'wp-launcher.site-id': opts.subdomain,
         'wp-launcher.expires-at': opts.expiresAt,
+        ...(dbContainerId ? { 'wp-launcher.db-container': dbContainerId } : {}),
       },
       HostConfig: {
         NetworkMode: DOCKER_NETWORK,
@@ -154,6 +217,26 @@ app.delete('/containers/:id', async (req: Request, res: Response) => {
     const container = docker.getContainer(req.params.id);
     try {
       const info = await container.inspect();
+
+      // If this WP container has a linked DB sidecar, remove it too
+      const dbId = info.Config?.Labels?.['wp-launcher.db-container']
+        || info.Config?.Labels?.['wp-launcher.mysql-container']; // backwards compat
+      if (dbId) {
+        try {
+          const dbContainer = docker.getContainer(dbId);
+          const dbInfo = await dbContainer.inspect();
+          if (dbInfo.State.Running) {
+            await dbContainer.stop({ t: 5 });
+          }
+          await dbContainer.remove({ v: true });
+          console.log(`[provisioner] Removed DB sidecar: ${dbId.slice(0, 12)}`);
+        } catch (dbErr: any) {
+          if (dbErr.statusCode !== 404) {
+            console.error('[provisioner] DB sidecar cleanup error:', dbErr.message);
+          }
+        }
+      }
+
       if (info.State.Running) {
         await container.stop({ t: 5 });
       }

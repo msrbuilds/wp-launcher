@@ -3,7 +3,7 @@
 # WP Launcher — One-Click VPS Installer
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/msrbuilds/wp-launcher/main/install.sh | bash
+#   curl -sSL https://scripts.msrbuilds.com/wplauncher/install.sh | bash
 #   — or —
 #   bash install.sh
 #

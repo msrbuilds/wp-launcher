@@ -38,6 +38,8 @@ export interface CreateContainerOptions {
   removePlugins?: string;
   activeTheme?: string;
   landingPage?: string;
+  dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
+  autoLoginToken?: string;
 }
 
 export async function createSiteContainer(opts: CreateContainerOptions): Promise<string> {

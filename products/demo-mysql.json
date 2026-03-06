@@ -1,8 +1,8 @@
 {
-  "id": "_default",
-  "name": "Default Demo",
+  "id": "demo-mysql",
+  "name": "Demo - MySQL",
   "wordpress": {
-    "version": "6.7",
+    "version": "6.9",
     "locale": "en_US"
   },
   "plugins": {
@@ -21,7 +21,7 @@
     "admin_email": "demo@example.com",
     "landing_page": ""
   },
-  "database": "sqlite",
+  "database": "mysql",
   "restrictions": {
     "disable_file_mods": true,
     "hidden_menu_items": ["tools.php"],
@@ -37,6 +37,8 @@
   },
   "branding": {
     "banner_text": "This is a temporary demo site. It will expire in {time_remaining}.",
-    "logo_url": ""
+    "logo_url": "",
+    "description": "WordPress demo powered by MySQL 8.4.",
+    "image_url": ""
   }
 }

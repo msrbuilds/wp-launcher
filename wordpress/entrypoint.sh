@@ -11,18 +11,38 @@ until [ -f /var/www/html/wp-includes/version.php ]; do
     sleep 1
 done
 
-# Create SQLite database directory
-mkdir -p "${WORDPRESS_DB_DIR:-/var/www/html/wp-content/database}"
-chown www-data:www-data "${WORDPRESS_DB_DIR:-/var/www/html/wp-content/database}"
+DB_ENGINE="${DB_ENGINE:-sqlite}"
+
+if [ "$DB_ENGINE" = "mysql" ] || [ "$DB_ENGINE" = "mariadb" ]; then
+    # MySQL/MariaDB mode — remove SQLite drop-in and plugin entirely
+    rm -f /var/www/html/wp-content/db.php
+    rm -rf /var/www/html/wp-content/plugins/sqlite-database-integration
+
+    # Wait for database to be ready
+    echo "[wp-launcher] Waiting for ${DB_ENGINE} at ${WORDPRESS_DB_HOST:-localhost}..."
+    for i in $(seq 1 60); do
+        if mysqladmin ping -h "${WORDPRESS_DB_HOST:-localhost}" -u "${WORDPRESS_DB_USER:-wordpress}" -p"${WORDPRESS_DB_PASSWORD:-wordpress}" --silent 2>/dev/null; then
+            echo "[wp-launcher] ${DB_ENGINE} is ready."
+            break
+        fi
+        sleep 1
+    done
+else
+    # SQLite mode — set up database directory and drop-in
+    mkdir -p "${WORDPRESS_DB_DIR:-/var/www/html/wp-content/database}"
+    chown www-data:www-data "${WORDPRESS_DB_DIR:-/var/www/html/wp-content/database}"
+
+    # Copy db.php drop-in from the SQLite plugin
+    if [ -f /var/www/html/wp-content/plugins/sqlite-database-integration/db.copy ]; then
+        cp -n /var/www/html/wp-content/plugins/sqlite-database-integration/db.copy /var/www/html/wp-content/db.php 2>/dev/null || true
+    elif [ -f /usr/src/wordpress/wp-content/plugins/sqlite-database-integration/db.copy ]; then
+        cp -n /usr/src/wordpress/wp-content/plugins/sqlite-database-integration/db.copy /var/www/html/wp-content/db.php 2>/dev/null || true
+    fi
+fi
 
 # Ensure mu-plugins are in place
 if [ -d /usr/src/wordpress/wp-content/mu-plugins ]; then
     cp -rn /usr/src/wordpress/wp-content/mu-plugins/* /var/www/html/wp-content/mu-plugins/ 2>/dev/null || true
-fi
-
-# Ensure db.php drop-in is in place
-if [ -f /usr/src/wordpress/wp-content/db.php ]; then
-    cp -n /usr/src/wordpress/wp-content/db.php /var/www/html/wp-content/db.php 2>/dev/null || true
 fi
 
 # Determine the site URL
@@ -50,8 +70,10 @@ if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
         --skip-email \
         --allow-root
 
-    echo "[wp-launcher] Activating SQLite Database Integration plugin..."
-    wp plugin activate sqlite-database-integration --path=/var/www/html --allow-root 2>/dev/null || true
+    if [ "$DB_ENGINE" != "mysql" ] && [ "$DB_ENGINE" != "mariadb" ]; then
+        echo "[wp-launcher] Activating SQLite Database Integration plugin..."
+        wp plugin activate sqlite-database-integration --path=/var/www/html --allow-root 2>/dev/null || true
+    fi
 
     # Activate pre-installed plugins (skip SQLite and mu-plugins)
     if [ -n "${WP_ACTIVATE_PLUGINS:-}" ]; then

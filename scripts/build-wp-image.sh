@@ -85,13 +85,24 @@ RUN curl -L "$url" -o /tmp/${FILENAME} \\
 EOF
 done
 
-# Copy local plugins
+# Copy local plugins (zip files)
 for local_path in $PLUGINS_LOCAL; do
     # Resolve relative to project dir
     RESOLVED_PATH="$PROJECT_DIR/$local_path"
-    if [ -d "$RESOLVED_PATH" ]; then
+    if [ -f "$RESOLVED_PATH" ] && [[ "$RESOLVED_PATH" == *.zip ]]; then
+        ZIP_NAME=$(basename "$RESOLVED_PATH")
+        echo "Adding local plugin (zip): $ZIP_NAME from $RESOLVED_PATH"
+        cp "$RESOLVED_PATH" "$BUILD_DIR/$ZIP_NAME"
+        cat >> "$BUILD_DIR/Dockerfile" <<EOF
+COPY ${ZIP_NAME} /tmp/${ZIP_NAME}
+RUN unzip /tmp/${ZIP_NAME} -d /usr/src/wordpress/wp-content/plugins/ \\
+    && rm /tmp/${ZIP_NAME}
+EOF
+    elif [ -d "$RESOLVED_PATH" ]; then
+        # Legacy support: plain directory (deprecated — use .zip instead)
         PLUGIN_NAME=$(basename "$RESOLVED_PATH")
-        echo "Adding local plugin: $PLUGIN_NAME from $RESOLVED_PATH"
+        echo "WARNING: Local plugin '$PLUGIN_NAME' is a directory. Use a .zip file instead."
+        echo "  Run: scripts/package-plugin.sh $RESOLVED_PATH"
         cp -r "$RESOLVED_PATH" "$BUILD_DIR/$PLUGIN_NAME"
         cat >> "$BUILD_DIR/Dockerfile" <<EOF
 COPY ${PLUGIN_NAME}/ /usr/src/wordpress/wp-content/plugins/${PLUGIN_NAME}/
