@@ -466,13 +466,9 @@ for config in "$PROJECT_DIR"/products/*.json; do
   }
 done
 
-# ─── 10. Create Docker network (if not exists) ──────────────────────────────
-if ! docker network inspect wp-launcher-network &>/dev/null; then
-  docker network create wp-launcher-network
-  ok "Created Docker network: wp-launcher-network"
-fi
-
-# ─── 11. Start services ─────────────────────────────────────────────────────
+# ─── 10. Start services ─────────────────────────────────────────────────────
+# Note: docker compose creates the network automatically with correct labels.
+# Do NOT create it manually — that causes label mismatches.
 banner "Starting Services"
 
 docker compose up -d --build
