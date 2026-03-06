@@ -32,6 +32,9 @@ warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 err()   { echo -e "${RED}[ERROR]${NC} $*"; }
 banner(){ echo -e "\n${BOLD}═══ $* ═══${NC}\n"; }
 
+# Wrapper for read that always reads from /dev/tty (works with curl | bash)
+prompt() { read "$@" < /dev/tty; }
+
 # ─── Pre-flight checks ──────────────────────────────────────────────────────
 if [ "$(id -u)" -ne 0 ]; then
   err "This script must be run as root (or with sudo)."
@@ -78,7 +81,6 @@ if ! command -v openssl &>/dev/null; then
 fi
 
 # ─── 2. Project directory ────────────────────────────────────────────────────
-# !! IMPORTANT: Change this to your repository URL before distributing !!
 REPO_URL="${WP_LAUNCHER_REPO:-https://github.com/msrbuilds/wp-launcher.git}"
 
 if [ -f "docker-compose.yml" ] && grep -q "wp-launcher" docker-compose.yml 2>/dev/null; then
@@ -87,7 +89,7 @@ if [ -f "docker-compose.yml" ] && grep -q "wp-launcher" docker-compose.yml 2>/de
 else
   DEFAULT_DIR="/opt/wp-launcher"
   echo ""
-  read -rp "$(echo -e "${CYAN}Install directory${NC} [${DEFAULT_DIR}]: ")" INSTALL_DIR
+  prompt -rp "$(echo -e "${CYAN}Install directory${NC} [${DEFAULT_DIR}]: ")" INSTALL_DIR
   INSTALL_DIR="${INSTALL_DIR:-$DEFAULT_DIR}"
 
   if [ -d "$INSTALL_DIR/.git" ]; then
@@ -114,18 +116,18 @@ echo "  Your launcher will run at https://YOUR_DOMAIN"
 echo "  Demo sites will be at https://*.YOUR_DOMAIN"
 echo "  The API will be at https://api.YOUR_DOMAIN"
 echo ""
-read -rp "$(echo -e "${CYAN}Enter your domain${NC} (e.g. demo.example.com): ")" DOMAIN
+prompt -rp "$(echo -e "${CYAN}Enter your domain${NC} (e.g. demo.example.com): ")" DOMAIN
 while [ -z "$DOMAIN" ]; do
   err "Domain is required."
-  read -rp "$(echo -e "${CYAN}Enter your domain${NC}: ")" DOMAIN
+  prompt -rp "$(echo -e "${CYAN}Enter your domain${NC}: ")" DOMAIN
 done
 
 # --- Let's Encrypt email ---
 echo ""
-read -rp "$(echo -e "${CYAN}Email for Let's Encrypt SSL${NC}: ")" ACME_EMAIL
+prompt -rp "$(echo -e "${CYAN}Email for Let's Encrypt SSL${NC}: ")" ACME_EMAIL
 while [ -z "$ACME_EMAIL" ]; do
   err "Email is required for SSL certificates."
-  read -rp "$(echo -e "${CYAN}Email for Let's Encrypt SSL${NC}: ")" ACME_EMAIL
+  prompt -rp "$(echo -e "${CYAN}Email for Let's Encrypt SSL${NC}: ")" ACME_EMAIL
 done
 
 # --- SSL method ---
@@ -134,7 +136,7 @@ echo -e "${BOLD}SSL Certificate Method${NC}"
 echo "  1) Cloudflare DNS challenge (recommended — supports wildcard *.${DOMAIN})"
 echo "  2) HTTP challenge (simpler — but each demo subdomain needs its own cert)"
 echo ""
-read -rp "$(echo -e "${CYAN}Choose SSL method${NC} [1]: ")" SSL_METHOD
+prompt -rp "$(echo -e "${CYAN}Choose SSL method${NC} [1]: ")" SSL_METHOD
 SSL_METHOD="${SSL_METHOD:-1}"
 
 CF_API_EMAIL=""
@@ -145,15 +147,15 @@ if [ "$SSL_METHOD" = "1" ]; then
   echo "  for *.${DOMAIN} automatically. You need a Cloudflare API token with"
   echo "  Zone:DNS:Edit permissions."
   echo ""
-  read -rp "$(echo -e "${CYAN}Cloudflare account email${NC}: ")" CF_API_EMAIL
+  prompt -rp "$(echo -e "${CYAN}Cloudflare account email${NC}: ")" CF_API_EMAIL
   while [ -z "$CF_API_EMAIL" ]; do
     err "Cloudflare email is required."
-    read -rp "$(echo -e "${CYAN}Cloudflare account email${NC}: ")" CF_API_EMAIL
+    prompt -rp "$(echo -e "${CYAN}Cloudflare account email${NC}: ")" CF_API_EMAIL
   done
-  read -rp "$(echo -e "${CYAN}Cloudflare DNS API token${NC}: ")" CF_DNS_API_TOKEN
+  prompt -rp "$(echo -e "${CYAN}Cloudflare DNS API token${NC}: ")" CF_DNS_API_TOKEN
   while [ -z "$CF_DNS_API_TOKEN" ]; do
     err "Cloudflare API token is required."
-    read -rp "$(echo -e "${CYAN}Cloudflare DNS API token${NC}: ")" CF_DNS_API_TOKEN
+    prompt -rp "$(echo -e "${CYAN}Cloudflare DNS API token${NC}: ")" CF_DNS_API_TOKEN
   done
 fi
 
@@ -162,7 +164,7 @@ echo ""
 echo -e "${BOLD}SMTP Settings${NC} (for sending verification emails)"
 echo "  Leave blank to use the built-in Mailpit dev mailer (dev only)."
 echo ""
-read -rp "$(echo -e "${CYAN}SMTP host${NC} (blank = Mailpit): ")" SMTP_HOST
+prompt -rp "$(echo -e "${CYAN}SMTP host${NC} (blank = Mailpit): ")" SMTP_HOST
 SMTP_PORT=""
 SMTP_SECURE=""
 SMTP_USER=""
@@ -170,14 +172,14 @@ SMTP_PASS=""
 SMTP_FROM=""
 
 if [ -n "$SMTP_HOST" ]; then
-  read -rp "$(echo -e "${CYAN}SMTP port${NC} [587]: ")" SMTP_PORT
+  prompt -rp "$(echo -e "${CYAN}SMTP port${NC} [587]: ")" SMTP_PORT
   SMTP_PORT="${SMTP_PORT:-587}"
-  read -rp "$(echo -e "${CYAN}SMTP secure (true/false)${NC} [false]: ")" SMTP_SECURE
+  prompt -rp "$(echo -e "${CYAN}SMTP secure (true/false)${NC} [false]: ")" SMTP_SECURE
   SMTP_SECURE="${SMTP_SECURE:-false}"
-  read -rp "$(echo -e "${CYAN}SMTP username${NC}: ")" SMTP_USER
-  read -rsp "$(echo -e "${CYAN}SMTP password${NC}: ")" SMTP_PASS
+  prompt -rp "$(echo -e "${CYAN}SMTP username${NC}: ")" SMTP_USER
+  prompt -rsp "$(echo -e "${CYAN}SMTP password${NC}: ")" SMTP_PASS
   echo ""
-  read -rp "$(echo -e "${CYAN}SMTP from address${NC} [WP Launcher <noreply@${DOMAIN}>]: ")" SMTP_FROM
+  prompt -rp "$(echo -e "${CYAN}SMTP from address${NC} [WP Launcher <noreply@${DOMAIN}>]: ")" SMTP_FROM
   SMTP_FROM="${SMTP_FROM:-WP Launcher <noreply@${DOMAIN}>}"
 fi
 
