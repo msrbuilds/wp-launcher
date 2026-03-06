@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk=self.webpackChunk||[]).push([["5235"],{16157:function(a){a.exports=JSON.parse('{"copyClipboard":"Copiar al portapapeles","copyClipboardSuccess":"\xa1Copiado!","noDataToDisplay":"No hay datos para mostrar","search":"Buscar","sort":"Ordenar","pagination":{"rowsPerPage":"Filas por p\xe1gina:","displayedRows":"{from}-{to} de {count}"}}')}}]);

@@ -1,0 +1,1 @@
+__( 'New Floating Elements', 'elementor' );

@@ -1,0 +1,11 @@
+__( 'Checklist', 'elementor' );
+__( 'You\'re on your way!', 'elementor' );
+__( 'With these steps, you\'ve got a great base for a robust website. Enjoy your web creation journey!', 'elementor' );
+__( 'Got it', 'elementor' );
+__( 'Looking for your Launchpad Checklist?', 'elementor' );
+__( 'Click the launch icon to continue setting up your site.', 'elementor' );
+__( 'Got it', 'elementor' );
+__( 'Let\'s make a productivity boost', 'elementor' );
+__( 'Upgrade Now', 'elementor' );
+__( 'Unmark as done', 'elementor' );
+__( 'Mark as done', 'elementor' );

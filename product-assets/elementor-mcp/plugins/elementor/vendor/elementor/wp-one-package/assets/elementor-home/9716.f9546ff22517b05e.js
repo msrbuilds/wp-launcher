@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk=self.webpackChunk||[]).push([["9716"],{91167:function(o){o.exports=JSON.parse('{"copyClipboard":"Skopiuj do schowka","copyClipboardSuccess":"Skopiowano!","noDataToDisplay":"Brak danych do wy\u015Bwietlenia","search":"Szukaj","sort":"Sortuj","pagination":{"rowsPerPage":"Wiersze na stron\u0119:","displayedRows":"{from}\u2013{to} z {count}"}}')}}]);

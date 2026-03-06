@@ -1,0 +1,42 @@
+{
+  "id": "_default",
+  "name": "Default Demo",
+  "wordpress": {
+    "version": "6.7",
+    "locale": "en_US"
+  },
+  "plugins": {
+    "preinstall": [],
+    "remove": ["hello", "akismet"]
+  },
+  "themes": {
+    "install": [],
+    "remove": []
+  },
+  "demo": {
+    "default_expiration": "1h",
+    "max_expiration": "24h",
+    "max_concurrent_sites": 10,
+    "admin_user": "demo",
+    "admin_password": "demo123",
+    "admin_email": "demo@example.com",
+    "landing_page": ""
+  },
+  "restrictions": {
+    "disable_file_mods": true,
+    "hidden_menu_items": ["tools.php"],
+    "blocked_capabilities": [
+      "install_plugins",
+      "install_themes",
+      "edit_plugins",
+      "edit_themes",
+      "update_core",
+      "export",
+      "import"
+    ]
+  },
+  "branding": {
+    "banner_text": "This is a temporary demo site. It will expire in {time_remaining}.",
+    "logo_url": ""
+  }
+}

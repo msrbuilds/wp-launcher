@@ -1,0 +1,13 @@
+__( 'Save as default', 'elementor' );
+__( 'Sure you want to change default settings?', 'elementor' );
+__( 'Your changes will automatically be saved for future uses of this element. %1$sNote:%2$s This includes sensitive information like emails, API keys, etc.', 'elementor' );
+__( 'Save', 'elementor' );
+__( 'Cancel', 'elementor' );
+__( 'Do not show this message again', 'elementor' );
+__( 'Previous settings restored.', 'elementor' );
+__( 'An error occurred.', 'elementor' );
+__( 'Default settings has been reset.', 'elementor' );
+__( 'An error occurred.', 'elementor' );
+__( 'Default settings changed.', 'elementor' );
+__( 'Undo', 'elementor' );
+__( 'An error occurred.', 'elementor' );

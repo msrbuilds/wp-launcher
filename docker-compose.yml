@@ -1,0 +1,86 @@
+services:
+  traefik:
+    image: traefik:v3.6
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Traefik dashboard (dev only)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - traefik-certs:/acme
+    networks:
+      - wp-launcher-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.traefik-dashboard.service=api@internal"
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025" # Web UI
+    networks:
+      - wp-launcher-network
+
+  api:
+    build: ./packages/api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/app/data
+      - ./products:/app/products:ro
+      - ./wordpress:/app/wordpress:ro
+    environment:
+      - DOCKER_API_VERSION=1.44
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3000
+      - API_KEY=${API_KEY:-dev-api-key}
+      - JWT_SECRET=${JWT_SECRET:-dev-jwt-secret-change-me}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - PUBLIC_URL=${PUBLIC_URL:-http://localhost}
+      - SMTP_HOST=mailpit
+      - SMTP_PORT=1025
+      - SMTP_SECURE=false
+      - SMTP_USER=
+      - SMTP_PASS=
+      - SMTP_FROM=${SMTP_FROM:-WP Launcher <noreply@localhost>}
+      - BASE_DOMAIN=${BASE_DOMAIN:-localhost}
+      - DOCKER_NETWORK=wp-launcher-network
+      - WP_IMAGE=${WP_IMAGE:-wp-launcher/wordpress:latest}
+      - DATA_DIR=/app/data
+      - PRODUCT_CONFIGS_DIR=/app/products
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`api.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.api.loadbalancer.server.port=3000"
+    networks:
+      - wp-launcher-network
+    depends_on:
+      - traefik
+      - mailpit
+
+  dashboard:
+    build: ./packages/dashboard
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=80"
+    networks:
+      - wp-launcher-network
+    depends_on:
+      - api
+
+networks:
+  wp-launcher-network:
+    name: wp-launcher-network
+    driver: bridge
+
+volumes:
+  traefik-certs:

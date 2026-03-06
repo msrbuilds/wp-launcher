@@ -1,0 +1,1 @@
+__( 'PRO', 'elementor' );

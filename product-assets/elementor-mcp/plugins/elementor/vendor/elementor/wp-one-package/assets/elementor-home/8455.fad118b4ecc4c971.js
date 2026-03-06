@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk=self.webpackChunk||[]).push([["8455"],{57848:function(e){e.exports=JSON.parse('{"apps":{"HOSTING":"H\xe9bergement","APP_AI":"Elementor AI","APP_IO":"Image Optimizer","APP_MAILER":"Site Mailer","PLUGIN":"Elementor Pro","APP_ACCESS":"Ally","APP_EMPMA":"Send","APP_MANAGE":"Elementor Manage"}}')}}]);

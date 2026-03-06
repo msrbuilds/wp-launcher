@@ -1,0 +1,29 @@
+{
+  "name": "elementor/wp-one-package",
+  "version": "1.0.52",
+  "require-dev": {
+    "squizlabs/php_codesniffer": "^3.10.2",
+    "dealerdirect/phpcodesniffer-composer-installer": "^v1.0.0",
+    "wp-coding-standards/wpcs": "^3.1.0",
+    "phpunit/phpunit": "^9.0",
+    "yoast/phpunit-polyfills": "^2.0",
+    "johnpbloch/wordpress-core": "^6.0"
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
+  },
+  "scripts": {
+    "lint": "vendor/bin/phpcs --standard=./phpcs.xml ./src/",
+    "lint:fix": "vendor/bin/phpcbf ."
+  },
+  "autoload": {
+    "files": [
+      "./runner.php"
+    ]
+  },
+  "require": {
+    "elementor/wp-notifications-package": "^1.2"
+  }
+}

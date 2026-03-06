@@ -1,0 +1,1 @@
+__( 'New Template', 'elementor' );

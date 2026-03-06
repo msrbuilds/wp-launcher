@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+data/
+*.db
+traefik/acme.json
+packages/dashboard/dist/
+packages/api/dist/

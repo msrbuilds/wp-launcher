@@ -1,0 +1,36 @@
+{
+  "name": "@wp-launcher/api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^11.0.0",
+    "cors": "^2.8.5",
+    "dockerode": "^4.0.0",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^8.0.1",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/cors": "^2.8.0",
+    "@types/dockerode": "^3.3.0",
+    "@types/express": "^4.17.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.0.0",
+    "@types/node-cron": "^3.0.0",
+    "@types/nodemailer": "^7.0.11",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0"
+  }
+}

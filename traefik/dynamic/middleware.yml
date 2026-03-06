@@ -1,0 +1,14 @@
+http:
+  middlewares:
+    security-headers:
+      headers:
+        frameDeny: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 50
+        period: 1m

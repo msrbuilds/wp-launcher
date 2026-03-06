@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk=self.webpackChunk||[]).push([["2953"],{83159:function(a){a.exports=JSON.parse('{"copyClipboard":"Salin ke papan klip","copyClipboardSuccess":"Tersalin!","noDataToDisplay":"Tidak ada data untuk ditampilkan","search":"Cari","sort":"Urutkan","pagination":{"rowsPerPage":"Baris per halaman:","displayedRows":"{from}-{to} dari {count}"}}')}}]);
