@@ -64,6 +64,11 @@ if ( getenv( 'WP_SITE_URL' ) ) {
     define( 'WP_SITEURL', getenv( 'WP_SITE_URL' ) );
 }
 
+// Trust the reverse proxy (Traefik) for HTTPS detection
+if ( isset( $_SERVER['HTTP_X_FORWARDED_PROTO'] ) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https' ) {
+    $_SERVER['HTTPS'] = 'on';
+}
+
 // Memory limits
 define( 'WP_MEMORY_LIMIT', '128M' );
 define( 'WP_MAX_MEMORY_LIMIT', '256M' );
