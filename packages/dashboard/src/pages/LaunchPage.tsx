@@ -30,6 +30,7 @@ export default function LaunchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [cardLayout, setCardLayout] = useState<'full' | 'compact'>('full');
   const [loading, setLoading] = useState(false);
   const [launchingId, setLaunchingId] = useState<string | null>(null);
   const [result, setResult] = useState<SiteResult | null>(null);
@@ -53,6 +54,17 @@ export default function LaunchPage() {
     }
   }, [isAuthenticated]);
 
+  // Auto-launch pending product (from /launch/:productId URL)
+  useEffect(() => {
+    if (!isAuthenticated || step !== 'launch' || launchingId || result) return;
+    if (products.length === 0) return; // wait for products to load
+    const pending = localStorage.getItem('pendingProductLaunch');
+    if (!pending) return;
+    localStorage.removeItem('pendingProductLaunch');
+    const found = products.find((p) => p.id === pending);
+    if (found) handleLaunch(found.id);
+  }, [isAuthenticated, step, products, launchingId, result]);
+
   useEffect(() => {
     fetch('/api/products')
       .then((res) => res.json())
@@ -60,6 +72,12 @@ export default function LaunchPage() {
         if (Array.isArray(data)) setProducts(data);
       })
       .catch(() => setProducts([]));
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.cardLayout) setCardLayout(data.cardLayout);
+      })
+      .catch(() => {});
   }, []);
 
   async function handleEmailSubmit() {
@@ -305,32 +323,33 @@ export default function LaunchPage() {
 
         {error && <div className="alert-error">{error}</div>}
 
-        <div className="product-grid">
+        <div className={`product-grid ${cardLayout === 'compact' ? 'product-grid-compact' : ''}`}>
           {products.length === 0 && (
             <div className="card empty-state">
               <h3>No products available</h3>
               <p>Ask your administrator to configure products.</p>
             </div>
           )}
-          {products.map((product) => (
-            <div key={product.id} className="product-card card">
-              <div className="product-card-image">
-                {product.branding?.image_url ? (
-                  <img src={product.branding.image_url} alt={product.name} />
-                ) : (
-                  <div className="product-card-placeholder">
-                    {product.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <div className="product-card-body">
-                <h3 className="product-card-title">{product.name}</h3>
-                {product.branding?.description && (
-                  <p className="product-card-desc">{product.branding.description}</p>
-                )}
+          {cardLayout === 'compact' ? (
+            products.map((product) => (
+              <div key={product.id} className="product-card-compact card">
+                <div className="product-compact-icon">
+                  {product.branding?.image_url ? (
+                    <img src={product.branding.image_url} alt={product.name} />
+                  ) : (
+                    <div className="product-compact-placeholder">
+                      {product.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="product-compact-info">
+                  <h3 className="product-compact-name">{product.name}</h3>
+                  {product.branding?.description && (
+                    <p className="product-compact-desc">{product.branding.description}</p>
+                  )}
+                </div>
                 <button
-                  className="btn btn-primary"
-                  style={{ width: '100%' }}
+                  className="btn btn-primary btn-compact-launch"
                   onClick={() => handleLaunch(product.id)}
                   disabled={launchingId !== null}
                 >
@@ -341,8 +360,40 @@ export default function LaunchPage() {
                   )}
                 </button>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            products.map((product) => (
+              <div key={product.id} className="product-card card">
+                <div className="product-card-image">
+                  {product.branding?.image_url ? (
+                    <img src={product.branding.image_url} alt={product.name} />
+                  ) : (
+                    <div className="product-card-placeholder">
+                      {product.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="product-card-body">
+                  <h3 className="product-card-title">{product.name}</h3>
+                  {product.branding?.description && (
+                    <p className="product-card-desc">{product.branding.description}</p>
+                  )}
+                  <button
+                    className="btn btn-primary"
+                    style={{ width: '100%' }}
+                    onClick={() => handleLaunch(product.id)}
+                    disabled={launchingId !== null}
+                  >
+                    {launchingId === product.id ? (
+                      <><span className="spinner" /> Launching...</>
+                    ) : (
+                      'Launch Demo'
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     );
@@ -352,7 +403,9 @@ export default function LaunchPage() {
   return (
     <div className="card auth-card" style={{ padding: '2rem' }}>
       <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '0.375rem' }}>Launch a Demo Site</h2>
+        <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '0.375rem' }}>
+          {localStorage.getItem('pendingProductLaunch') ? 'Sign in to Launch' : 'Launch a Demo Site'}
+        </h2>
         <p style={{ color: '#64748b', fontSize: '0.95rem' }}>
           Enter your email to get started. We'll send you a verification link.
         </p>

@@ -43,6 +43,7 @@ function initSchema(db: Database.Database): void {
       admin_url TEXT,
       admin_user TEXT,
       admin_password TEXT,
+      auto_login_token TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       expires_at TEXT NOT NULL,
       deleted_at TEXT,
@@ -76,6 +77,13 @@ function initSchema(db: Database.Database): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  // Migrations for existing databases
+  try {
+    db.exec(`ALTER TABLE sites ADD COLUMN auto_login_token TEXT`);
+  } catch {
+    // Column already exists
+  }
 }
 
 export function closeDb(): void {

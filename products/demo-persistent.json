@@ -1,0 +1,43 @@
+{
+  "id": "demo-persistent",
+  "name": "Persistent Demo - Never Expires",
+  "wordpress": {
+    "version": "6.9",
+    "locale": "en_US"
+  },
+  "plugins": {
+    "preinstall": [],
+    "remove": ["hello", "akismet"]
+  },
+  "themes": {
+    "install": [],
+    "remove": []
+  },
+  "demo": {
+    "default_expiration": "never",
+    "max_concurrent_sites": 5,
+    "admin_user": "demo",
+    "admin_email": "demo@example.com",
+    "landing_page": ""
+  },
+  "database": "sqlite",
+  "restrictions": {
+    "disable_file_mods": true,
+    "hidden_menu_items": ["tools.php"],
+    "blocked_capabilities": [
+      "install_plugins",
+      "install_themes",
+      "edit_plugins",
+      "edit_themes",
+      "update_core",
+      "export",
+      "import"
+    ]
+  },
+  "branding": {
+    "banner_text": "This is a persistent demo site. It will not expire automatically.",
+    "logo_url": "",
+    "description": "WordPress demo that never expires — great for long-term testing.",
+    "image_url": ""
+  }
+}

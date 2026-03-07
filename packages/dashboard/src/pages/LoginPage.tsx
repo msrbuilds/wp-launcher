@@ -38,7 +38,11 @@ export default function LoginPage() {
     <div className="card auth-card" style={{ padding: '2rem' }}>
       <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
         <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '0.375rem' }}>Welcome back</h2>
-        <p style={{ color: '#64748b', fontSize: '0.95rem' }}>Log in to manage your demo sites</p>
+        <p style={{ color: '#64748b', fontSize: '0.95rem' }}>
+          {localStorage.getItem('pendingProductLaunch')
+            ? 'Log in to launch your demo site'
+            : 'Log in to manage your demo sites'}
+        </p>
       </div>
 
       <form onSubmit={handleLogin}>

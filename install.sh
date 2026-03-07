@@ -200,6 +200,14 @@ if [ -n "$SMTP_HOST" ]; then
   SMTP_FROM="${SMTP_FROM:-WP Launcher <noreply@${DOMAIN}>}"
 fi
 
+# --- Site Limits ---
+echo ""
+echo -e "${BOLD}Site Limits${NC}"
+prompt -rp "$(echo -e "${CYAN}Max sites per user${NC} [3]: ")" MAX_SITES_PER_USER
+MAX_SITES_PER_USER="${MAX_SITES_PER_USER:-3}"
+prompt -rp "$(echo -e "${CYAN}Max total sites (global)${NC} [50]: ")" MAX_TOTAL_SITES
+MAX_TOTAL_SITES="${MAX_TOTAL_SITES:-50}"
+
 # --- Admin API Key ---
 echo ""
 echo -e "${BOLD}Admin Panel Access${NC}"
@@ -253,6 +261,10 @@ CORS_ALLOWED_ORIGINS=https://${DOMAIN}
 
 # WordPress image
 WP_IMAGE=wp-launcher/wordpress:latest
+
+# Site limits
+MAX_SITES_PER_USER=${MAX_SITES_PER_USER}
+MAX_TOTAL_SITES=${MAX_TOTAL_SITES}
 
 # Container resource limits (per demo site)
 CONTAINER_MEMORY=268435456

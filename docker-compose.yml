@@ -42,6 +42,8 @@ services:
       - DOCKER_NETWORK=wp-launcher-network
       - CONTAINER_MEMORY=${CONTAINER_MEMORY:-268435456}
       - CONTAINER_CPU=${CONTAINER_CPU:-0.5}
+      - WP_UPLOAD_LIMIT=${WP_UPLOAD_LIMIT:-2097152}
+      - WP_DISK_QUOTA=${WP_DISK_QUOTA:-104857600}
       - ENABLE_TLS=${ENABLE_TLS:-false}
       - CERT_RESOLVER=${CERT_RESOLVER:-letsencrypt}
     networks:
@@ -85,6 +87,8 @@ services:
       - SMTP_FROM=${SMTP_FROM:-WP Launcher <noreply@localhost>}
       - BASE_DOMAIN=${BASE_DOMAIN:-localhost}
       - WP_IMAGE=${WP_IMAGE:-wp-launcher/wordpress:latest}
+      - MAX_SITES_PER_USER=${MAX_SITES_PER_USER:-3}
+      - CARD_LAYOUT=${CARD_LAYOUT:-full}
       - DATA_DIR=/app/data
       - PRODUCT_CONFIGS_DIR=/app/products
     labels:

@@ -163,8 +163,8 @@ export default function VerifyPage() {
         You're now logged in and can launch your demo site.
       </p>
 
-      <button className="btn btn-primary" onClick={() => navigate('/')}>
-        Launch Demo Site
+      <button className="btn btn-primary" onClick={() => navigate('/')} >
+        {localStorage.getItem('pendingProductLaunch') ? 'Continue to Launch' : 'Launch Demo Site'}
       </button>
     </div>
   );

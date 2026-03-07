@@ -47,6 +47,13 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Public UI settings
+app.get('/api/settings', (_req, res) => {
+  res.json({
+    cardLayout: config.ui.cardLayout,
+  });
+});
+
 // Auth routes (public with rate limiting)
 app.use('/api/auth', authLimiter, authRouter);
 

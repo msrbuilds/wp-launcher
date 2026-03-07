@@ -8,6 +8,7 @@ interface Site {
   productId: string;
   url: string;
   adminUrl: string;
+  autoLoginUrl?: string;
   credentials?: { username: string; password: string };
   status: string;
   createdAt: string;
@@ -17,6 +18,7 @@ interface Site {
 export default function SitesListPage() {
   const { isAuthenticated, token } = useAuth();
   const [sites, setSites] = useState<Site[]>([]);
+  const [maxSites, setMaxSites] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   function fetchSites() {
@@ -26,7 +28,12 @@ export default function SitesListPage() {
     fetch('/api/sites', { headers })
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data)) setSites(data);
+        if (Array.isArray(data)) {
+          setSites(data);
+        } else if (data && Array.isArray(data.sites)) {
+          setSites(data.sites);
+          if (data.maxSites != null) setMaxSites(data.maxSites);
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -51,7 +58,7 @@ export default function SitesListPage() {
   if (loading) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
-        <span className="spinner" /> Loading sites...
+        <span className="spinner spinner-dark" /> Loading sites...
       </div>
     );
   }
@@ -70,57 +77,109 @@ export default function SitesListPage() {
   if (sites.length === 0) {
     return (
       <div className="card empty-state">
+        <div className="empty-icon">
+          <svg width="48" height="48" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
+          </svg>
+        </div>
         <h3>No active sites</h3>
-        <p>Launch a demo site to see it here.</p>
+        <p>Launch a demo from the <a href="/">Products</a> page to see it here.</p>
       </div>
     );
   }
 
   return (
-    <div className="card">
-      <h2 style={{ marginBottom: '1rem' }}>
-        My Sites ({sites.length})
-      </h2>
+    <div>
+      <div className="page-header">
+        <h2>My Sites ({sites.length}{maxSites ? ` / ${maxSites}` : ''})</h2>
+        <p>Manage your active demo sites</p>
+      </div>
 
-      {sites.map((site) => (
-        <div key={site.id} className="site-list-item">
-          <div className="site-info">
-            <h4>
-              <a href={site.url} target="_blank" rel="noopener noreferrer">
-                {site.subdomain}
-              </a>
-              <span className={`badge badge-${site.status}`} style={{ marginLeft: '0.5rem' }}>
-                {site.status}
-              </span>
-            </h4>
-            {site.credentials && (
-              <div className="meta" style={{ marginBottom: '0.25rem' }}>
-                Login: <code>{site.credentials.username}</code> / <code>{site.credentials.password}</code>
+      <div className="sites-grid">
+        {sites.map((site) => (
+          <div key={site.id} className="card site-card">
+            <div className="site-card-header">
+              <div className="site-card-status">
+                <span className={`status-dot status-${site.status}`} />
+                <span className="status-text">{site.status}</span>
               </div>
-            )}
-            <div className="meta">
-              Product: {site.productId} &bull;{' '}
-              Expires: <CountdownTimer expiresAt={site.expiresAt} />
+              <div className="site-card-timer">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                <CountdownTimer expiresAt={site.expiresAt} />
+              </div>
+            </div>
+
+            <div className="site-card-body">
+              <h3 className="site-card-name">
+                <a href={site.url} target="_blank" rel="noopener noreferrer">
+                  {site.subdomain}
+                </a>
+              </h3>
+              <div className="site-card-meta">
+                <span className="site-card-product">{site.productId}</span>
+                {site.credentials && (
+                  <span className="site-card-user">
+                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0" />
+                    </svg>
+                    {site.credentials.username}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="site-card-actions">
+              {site.autoLoginUrl ? (
+                <a
+                  href={site.autoLoginUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-primary btn-site-action"
+                >
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                  </svg>
+                  One-Click Login
+                </a>
+              ) : (
+                <a
+                  href={site.adminUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-primary btn-site-action"
+                >
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                  </svg>
+                  WP Admin
+                </a>
+              )}
+              <a
+                href={site.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary btn-site-action"
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" />
+                </svg>
+                Visit Site
+              </a>
+              <button
+                className="btn btn-danger-outline btn-site-action"
+                onClick={() => handleDelete(site.id)}
+                title="Delete site"
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                </svg>
+              </button>
             </div>
           </div>
-          <div className="site-actions">
-            <a
-              href={site.adminUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-sm btn-primary"
-            >
-              WP Admin
-            </a>
-            <button
-              className="btn btn-sm btn-danger"
-              onClick={() => handleDelete(site.id)}
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

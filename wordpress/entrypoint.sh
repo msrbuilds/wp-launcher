@@ -126,5 +126,9 @@ else
     echo "[wp-launcher] WordPress already installed."
 fi
 
+# Ensure wp-content is writable by Apache (media uploads, plugin updates, etc.)
+chown -R www-data:www-data /var/www/html/wp-content
+chmod -R 755 /var/www/html/wp-content
+
 # Keep the container running with the Apache process
 wait $WP_PID

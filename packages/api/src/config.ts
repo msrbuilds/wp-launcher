@@ -54,9 +54,16 @@ export const config = {
 
   // Cleanup interval in milliseconds
   cleanupInterval: 60_000, // 1 minute
+
+  // Dashboard UI settings
+  ui: {
+    cardLayout: (process.env.CARD_LAYOUT || 'full') as 'full' | 'compact',
+  },
 };
 
 export function parseExpiration(expiration: string): number {
+  if (expiration === 'never' || expiration === '0') return 0;
+
   const match = expiration.match(/^(\d+)(m|h|d)$/);
   if (!match) throw new Error(`Invalid expiration format: ${expiration}`);
 

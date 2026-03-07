@@ -61,8 +61,15 @@ function wp_launcher_render_timer_assets() {
         if (!el) return;
 
         var expiresAt = new Date(el.getAttribute('data-expires')).getTime();
+        var neverExpires = new Date(el.getAttribute('data-expires')).getFullYear() >= 9999;
         var landingPage = '<?php echo $landing_page; ?>';
         var parentNode = el.closest('.wp-launcher-timer-node');
+
+        if (neverExpires) {
+            el.textContent = 'Permanent';
+            if (parentNode) parentNode.style.backgroundColor = '#059669';
+            return;
+        }
 
         function pad(n) { return n < 10 ? '0' + n : n; }
 

@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus } from '../services/site.service';
+import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, MAX_SITES_PER_USER } from '../services/site.service';
 import { userAuth, optionalUserAuth, AuthRequest } from '../middleware/userAuth';
 
 const router = Router();
@@ -55,7 +55,7 @@ router.post('/', siteWriteLimiter, userAuth, async (req: AuthRequest, res: Respo
     });
   } catch (err: any) {
     console.error('[sites] Error creating site:', err);
-    const status = err.message.includes('already have an active') ? 409 : 500;
+    const status = err.message.includes('already have') ? 409 : 500;
     res.status(status).json({ error: err.message });
   }
 });
@@ -74,21 +74,28 @@ router.get('/', siteReadLimiter, optionalUserAuth, (req: AuthRequest, res: Respo
       sites = listSites();
     }
 
-    res.json(
-      sites.map((s) => ({
-        id: s.id,
-        subdomain: s.subdomain,
-        productId: s.product_id,
-        url: s.site_url,
-        adminUrl: s.admin_url,
-        credentials: req.userId ? {
-          username: s.admin_user,
-        } : undefined,
-        status: s.status,
-        createdAt: s.created_at,
-        expiresAt: s.expires_at,
-      })),
-    );
+    const mapped = sites.map((s) => ({
+      id: s.id,
+      subdomain: s.subdomain,
+      productId: s.product_id,
+      url: s.site_url,
+      adminUrl: s.admin_url,
+      autoLoginUrl: req.userId && s.auto_login_token
+        ? `${s.site_url}/wp-login.php?autologin=${s.auto_login_token}`
+        : undefined,
+      credentials: req.userId ? {
+        username: s.admin_user,
+      } : undefined,
+      status: s.status,
+      createdAt: s.created_at,
+      expiresAt: s.expires_at,
+    }));
+
+    if (req.userId) {
+      res.json({ sites: mapped, maxSites: MAX_SITES_PER_USER });
+    } else {
+      res.json(mapped);
+    }
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

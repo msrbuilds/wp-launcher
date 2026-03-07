@@ -63,6 +63,8 @@ PLUGINS_WP=$(read_config "(c.plugins?.preinstall||[]).filter(p=>p.source==='word
 PLUGINS_URL=$(read_config "(c.plugins?.preinstall||[]).filter(p=>p.source==='url'&&p.url).forEach(p=>console.log(p.url))")
 PLUGINS_LOCAL=$(read_config "(c.plugins?.preinstall||[]).filter(p=>p.source==='local'&&p.path).forEach(p=>console.log(p.path))")
 THEMES_WP=$(read_config "(c.themes?.install||[]).filter(t=>t.source==='wordpress.org'&&t.slug).forEach(t=>console.log(t.slug))")
+THEMES_URL=$(read_config "(c.themes?.install||[]).filter(t=>t.source==='url'&&t.url).forEach(t=>console.log(t.url))")
+THEMES_LOCAL=$(read_config "(c.themes?.install||[]).filter(t=>t.source==='local'&&t.path).forEach(t=>console.log(t.path))")
 
 # Install wordpress.org plugins
 for slug in $PLUGINS_WP; do
@@ -120,6 +122,34 @@ RUN curl -L "https://downloads.wordpress.org/theme/${slug}.latest-stable.zip" -o
     && unzip /tmp/${slug}.zip -d /usr/src/wordpress/wp-content/themes/ \\
     && rm /tmp/${slug}.zip
 EOF
+done
+
+# Install URL themes
+for url in $THEMES_URL; do
+    FILENAME=$(basename "$url")
+    echo "Adding URL theme: $url"
+    cat >> "$BUILD_DIR/Dockerfile" <<EOF
+RUN curl -L "$url" -o /tmp/${FILENAME} \\
+    && unzip /tmp/${FILENAME} -d /usr/src/wordpress/wp-content/themes/ \\
+    && rm /tmp/${FILENAME}
+EOF
+done
+
+# Copy local themes (zip files)
+for local_path in $THEMES_LOCAL; do
+    RESOLVED_PATH="$PROJECT_DIR/$local_path"
+    if [ -f "$RESOLVED_PATH" ] && [[ "$RESOLVED_PATH" == *.zip ]]; then
+        ZIP_NAME=$(basename "$RESOLVED_PATH")
+        echo "Adding local theme (zip): $ZIP_NAME from $RESOLVED_PATH"
+        cp "$RESOLVED_PATH" "$BUILD_DIR/$ZIP_NAME"
+        cat >> "$BUILD_DIR/Dockerfile" <<EOF
+COPY ${ZIP_NAME} /tmp/${ZIP_NAME}
+RUN unzip /tmp/${ZIP_NAME} -d /usr/src/wordpress/wp-content/themes/ \\
+    && rm /tmp/${ZIP_NAME}
+EOF
+    else
+        echo "WARNING: Local theme not found: $RESOLVED_PATH"
+    fi
 done
 
 # Copy demo content if it exists

@@ -122,6 +122,79 @@ add_filter( 'rest_dispatch_request', function ( $dispatch, $request, $route ) {
 }, 10, 3 );
 
 /**
+ * Limit upload file size and total disk usage for demo sites.
+ */
+add_filter( 'upload_size_limit', function () {
+    // Per-file upload limit (default 2MB)
+    $limit = getenv( 'WP_UPLOAD_LIMIT' );
+    return $limit ? intval( $limit ) : 2 * 1024 * 1024;
+} );
+
+add_filter( 'wp_handle_upload_prefilter', function ( $file ) {
+    // Total disk quota for wp-content/uploads (default 50MB)
+    $quota = getenv( 'WP_DISK_QUOTA' );
+    $quota = $quota ? intval( $quota ) : 100 * 1024 * 1024;
+
+    $uploads_dir = wp_upload_dir();
+    $used = wp_launcher_dir_size( $uploads_dir['basedir'] );
+
+    if ( $used + $file['size'] > $quota ) {
+        $quota_mb = round( $quota / 1024 / 1024 );
+        $file['error'] = sprintf(
+            'Upload quota exceeded. This demo site is limited to %dMB of uploads.',
+            $quota_mb
+        );
+    }
+
+    return $file;
+} );
+
+/**
+ * Calculate directory size recursively.
+ */
+function wp_launcher_dir_size( $dir ) {
+    $size = 0;
+    if ( ! is_dir( $dir ) ) {
+        return $size;
+    }
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator( $dir, RecursiveDirectoryIterator::SKIP_DOTS )
+    );
+    foreach ( $iterator as $file ) {
+        $size += $file->getSize();
+    }
+    return $size;
+}
+
+/**
+ * Show disk usage in the media upload UI.
+ */
+add_action( 'admin_notices', function () {
+    $screen = get_current_screen();
+    if ( ! $screen || $screen->id !== 'upload' ) {
+        return;
+    }
+
+    $quota = getenv( 'WP_DISK_QUOTA' );
+    $quota = $quota ? intval( $quota ) : 100 * 1024 * 1024;
+
+    $uploads_dir = wp_upload_dir();
+    $used = wp_launcher_dir_size( $uploads_dir['basedir'] );
+
+    $used_mb  = round( $used / 1024 / 1024, 1 );
+    $quota_mb = round( $quota / 1024 / 1024 );
+    $pct      = $quota > 0 ? min( 100, round( ( $used / $quota ) * 100 ) ) : 0;
+    $color    = $pct > 90 ? '#dc3232' : ( $pct > 70 ? '#ffb900' : '#00a32a' );
+
+    echo '<div class="notice notice-info"><p>';
+    echo "<strong>Disk usage:</strong> {$used_mb}MB / {$quota_mb}MB ({$pct}%) ";
+    echo "<span style='display:inline-block;width:100px;height:10px;background:#ddd;border-radius:3px;vertical-align:middle'>";
+    echo "<span style='display:block;width:{$pct}%;height:100%;background:{$color};border-radius:3px'></span>";
+    echo '</span>';
+    echo '</p></div>';
+} );
+
+/**
  * Disable automatic updates.
  */
 add_filter( 'automatic_updater_disabled', '__return_true' );

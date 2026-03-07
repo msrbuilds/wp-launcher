@@ -16,6 +16,8 @@ const ENABLE_TLS = process.env.ENABLE_TLS === 'true';
 const CERT_RESOLVER = process.env.CERT_RESOLVER || 'letsencrypt';
 const CONTAINER_MEMORY = parseInt(process.env.CONTAINER_MEMORY || String(256 * 1024 * 1024), 10);
 const CONTAINER_CPU = parseFloat(process.env.CONTAINER_CPU || '0.5');
+const WP_UPLOAD_LIMIT = process.env.WP_UPLOAD_LIMIT || String(2 * 1024 * 1024); // 2MB per file
+const WP_DISK_QUOTA = process.env.WP_DISK_QUOTA || String(100 * 1024 * 1024); // 100MB total uploads
 
 // Connect to Docker — via DOCKER_HOST (socket proxy) or local socket
 const docker = process.env.DOCKER_HOST
@@ -174,6 +176,9 @@ app.post('/containers', async (req: Request, res: Response) => {
     } else {
       env.push('DB_ENGINE=sqlite');
     }
+
+    env.push(`WP_UPLOAD_LIMIT=${WP_UPLOAD_LIMIT}`);
+    env.push(`WP_DISK_QUOTA=${WP_DISK_QUOTA}`);
 
     if (opts.activatePlugins) env.push(`WP_ACTIVATE_PLUGINS=${opts.activatePlugins}`);
     if (opts.removePlugins) env.push(`WP_REMOVE_PLUGINS=${opts.removePlugins}`);

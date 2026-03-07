@@ -10,6 +10,8 @@ import {
 } from './docker.service';
 import { getProductConfig } from './product.service';
 
+export const MAX_SITES_PER_USER = parseInt(process.env.MAX_SITES_PER_USER || '3', 10);
+
 export interface CreateSiteRequest {
   productId: string;
   expiresIn?: string;
@@ -28,6 +30,7 @@ export interface SiteRecord {
   admin_url: string | null;
   admin_user: string | null;
   admin_password: string | null;
+  auto_login_token: string | null;
   created_at: string;
   expires_at: string;
   deleted_at: string | null;
@@ -53,15 +56,14 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const db = getDb();
   const productConfig = getProductConfig(req.productId);
 
-  // If user is provided, enforce max active sites per user
-  const maxSitesPerUser = 3;
-  if (req.userId) {
+  // If user is provided, enforce max active sites per user (0 = unlimited)
+  if (req.userId && MAX_SITES_PER_USER > 0) {
     const activeSiteCount = db
       .prepare("SELECT COUNT(*) as count FROM sites WHERE user_id = ? AND status = 'running'")
       .get(req.userId) as { count: number };
 
-    if (activeSiteCount.count >= maxSitesPerUser) {
-      throw new Error(`You already have ${maxSitesPerUser} active demo sites. Please delete one before creating a new one.`);
+    if (activeSiteCount.count >= MAX_SITES_PER_USER) {
+      throw new Error(`You already have ${MAX_SITES_PER_USER} active demo sites. Please delete one before creating a new one.`);
     }
   }
 
@@ -87,8 +89,10 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const id = uuidv4();
   const subdomain = generateSubdomain();
   const expiresIn = req.expiresIn || productConfig?.demo?.default_expiration || config.defaults.expiration;
-  const expiresAtMs = Date.now() + parseExpiration(expiresIn);
-  const expiresAt = new Date(expiresAtMs).toISOString();
+  const expirationMs = parseExpiration(expiresIn);
+  const expiresAt = expirationMs === 0
+    ? '9999-12-31T23:59:59.999Z'
+    : new Date(Date.now() + expirationMs).toISOString();
 
   const protocol = config.nodeEnv === 'production' ? 'https' : 'http';
   const siteUrl = `${protocol}://${subdomain}.${config.baseDomain}`;
@@ -116,9 +120,9 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const dbEngine = productConfig?.database || 'sqlite';
 
   db.prepare(`
-    INSERT INTO sites (id, subdomain, product_id, user_id, status, site_url, admin_url, admin_user, admin_password, expires_at)
-    VALUES (?, ?, ?, ?, 'creating', ?, ?, ?, ?, ?)
-  `).run(id, subdomain, req.productId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, expiresAt);
+    INSERT INTO sites (id, subdomain, product_id, user_id, status, site_url, admin_url, admin_user, admin_password, auto_login_token, expires_at)
+    VALUES (?, ?, ?, ?, 'creating', ?, ?, ?, ?, ?, ?)
+  `).run(id, subdomain, req.productId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt);
 
   try {
     const containerId = await createSiteContainer({

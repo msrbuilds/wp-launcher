@@ -20,17 +20,24 @@ function formatTime(ms: number): string {
 }
 
 export default function CountdownTimer({ expiresAt }: CountdownTimerProps) {
+  const neverExpires = new Date(expiresAt).getFullYear() >= 9999;
+
   const [remaining, setRemaining] = useState(() =>
     new Date(expiresAt).getTime() - Date.now(),
   );
 
   useEffect(() => {
+    if (neverExpires) return;
     const timer = setInterval(() => {
       setRemaining(new Date(expiresAt).getTime() - Date.now());
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [expiresAt]);
+  }, [expiresAt, neverExpires]);
+
+  if (neverExpires) {
+    return <span className="countdown">Never expires</span>;
+  }
 
   const totalMins = remaining / 60000;
   let className = 'countdown';

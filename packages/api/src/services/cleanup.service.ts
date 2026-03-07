@@ -73,7 +73,7 @@ export async function cleanupOrphanedContainers(): Promise<void> {
 
       // If not in DB or already marked expired, remove the container
       const isOrphaned = !site || site.status === 'expired';
-      const isExpiredByLabel = expiresAtStr && new Date(expiresAtStr).getTime() < Date.now();
+      const isExpiredByLabel = expiresAtStr && new Date(expiresAtStr).getFullYear() < 9999 && new Date(expiresAtStr).getTime() < Date.now();
 
       if (isOrphaned || isExpiredByLabel) {
         try {
