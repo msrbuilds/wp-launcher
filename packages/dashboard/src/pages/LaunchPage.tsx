@@ -192,9 +192,7 @@ export default function LaunchPage() {
 
     return (
       <div className="card site-result">
-        <div className="result-icon" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' }}>
-          <span className="spinner" style={{ width: '1.5rem', height: '1.5rem' }} />
-        </div>
+        <span className="spinner spinner-hero" />
         <h3>Setting up your demo site...</h3>
         <p style={{ color: '#64748b', margin: '0.5rem 0 0.25rem', fontSize: '0.95rem' }}>
           {stageText}
@@ -272,7 +270,7 @@ export default function LaunchPage() {
             rel="noopener noreferrer"
             className="btn btn-primary btn-lg"
           >
-            Open WP Admin
+            One Click Login
           </a>
           <button className="btn btn-secondary btn-lg" onClick={() => { setResult(null); setStep('launch'); }}>
             Back to Products

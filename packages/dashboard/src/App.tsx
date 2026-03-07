@@ -11,16 +11,7 @@ export default function App() {
       <header className="header">
         <div className="container">
           <NavLink to="/" className="header-brand">
-            <svg viewBox="0 0 28 28" fill="none">
-              <rect width="28" height="28" rx="8" fill="url(#grad)" />
-              <path d="M8 14l4 4 8-8" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <defs>
-                <linearGradient id="grad" x1="0" y1="0" x2="28" y2="28">
-                  <stop stopColor="#3b82f6"/>
-                  <stop offset="1" stopColor="#6366f1"/>
-                </linearGradient>
-              </defs>
-            </svg>
+            <img src="/logo-square.png" alt="WP Launcher" style={{ width: 28, height: 28 }} />
             WP Launcher
           </NavLink>
           <nav>
@@ -58,6 +49,9 @@ export default function App() {
           <Outlet />
         </div>
       </main>
+      <footer className="footer">
+        Built with <a href="https://github.com/msrbuilds/wp-launcher" target="_blank" rel="noopener noreferrer">WP Launcher</a> by <a href="https://msrbuilds.com" target="_blank" rel="noopener noreferrer">MSR Builds</a>
+      </footer>
     </>
   );
 }

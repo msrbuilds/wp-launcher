@@ -1,6 +1,6 @@
 {
   "id": "demo-persistent",
-  "name": "Persistent Demo - Never Expires",
+  "name": "Demo - Never Expires",
   "wordpress": {
     "version": "6.9",
     "locale": "en_US"
