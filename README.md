@@ -1,8 +1,11 @@
 # WP Launcher
 
-Spin up isolated, temporary WordPress demo sites on demand — pre-loaded with your plugins and themes, auto-deleted after expiration. Perfect for letting potential customers test your WordPress products without manual setup.
+Docker-based WordPress environment with two modes:
 
-Each demo site runs in its own Docker container with a choice of SQLite, MySQL, or MariaDB, routed through Traefik with automatic subdomain assignment.
+- **Local Mode** — Full-featured local WordPress development tool (like Local by Flywheel / Laragon) with multi-PHP, multi-DB support, and a `wpl` CLI
+- **Agency Mode** — Demo hosting platform that spins up temporary WordPress sites pre-loaded with your plugins/themes, auto-deleted after expiration
+
+Each site runs in its own Docker container with a choice of SQLite, MySQL, or MariaDB, routed through Traefik with automatic subdomain assignment.
 
 ## How It Works
 
@@ -18,14 +21,16 @@ User clicks "Launch Demo"
 ## Features
 
 - **Instant provisioning** — Pre-built Docker images with plugins baked in (~10s launch time)
-- **Full isolation** — Each demo is a separate container, no shared databases
-- **3 database engines** — SQLite (fastest), MySQL 8.4, or MariaDB 11 per product
-- **Auto-cleanup** — Expired sites are automatically stopped and removed
+- **Full isolation** — Each site is a separate container, no shared databases
+- **3 database engines** — SQLite (fastest), MySQL 8.4, or MariaDB 11 per site
+- **3 PHP versions** — PHP 8.1, 8.2, or 8.3 selectable per site
+- **`wpl` CLI** — Global command to start/stop services, manage sites, run WP-CLI, and more
+- **Persistent data** — Local mode sites survive container restarts via Docker volumes
+- **Auto-cleanup** — Agency mode sites auto-expire and get removed
 - **One-click admin login** — Auto-login URLs for instant WP admin access
-- **Admin restrictions** — MU-plugins prevent demo users from installing plugins, editing code, etc.
-- **Email verification** — Optional email gate before launching demos (rate limiting built-in)
+- **Email testing** — Built-in Mailpit catches all outgoing emails locally
 - **Multi-product** — Host demos for multiple products from a single installation
-- **Wildcard subdomains** — Each demo gets a unique URL like `coral-sunset-7x3k.yourdomain.com`
+- **Wildcard subdomains** — Each site gets a unique URL like `coral-sunset-7x3k.localhost`
 - **Modern dashboard** — React SPA with real-time provisioning progress
 
 ## Architecture
@@ -46,6 +51,8 @@ wp-launcher/
 ├── docker-compose.yml          # Infrastructure (Traefik + API + Dashboard)
 ├── .env.example                # Environment configuration
 ├── install.sh                  # One-click VPS installer
+├── install-local.sh            # Local mode installer
+├── bin/wpl                     # Global CLI command
 ├── packages/
 │   ├── api/                    # Management API (Express/TypeScript)
 │   ├── provisioner/            # Docker container management service
@@ -55,11 +62,10 @@ wp-launcher/
 │   ├── entrypoint.sh           # Auto-installs WP + activates plugins
 │   ├── wp-config-docker.php
 │   └── mu-plugins/             # Admin restrictions, branding & auto-login
-├── products/                   # Product config files (one per product)
-│   ├── _default.json
-│   ├── demo-sqlite.json
-│   ├── demo-mysql.json
-│   └── demo-mariadb.json
+├── products/                   # Product configs (agency mode)
+│   └── _default.json
+├── templates/                  # Template configs (local mode)
+│   └── starter.json
 ├── product-assets/             # Local plugins/themes per product
 │   └── my-product/
 │       └── plugins/
@@ -89,8 +95,9 @@ That's it. The installer will:
 1. Check for Docker & Docker Compose
 2. Generate `.env` with local mode defaults
 3. Build WordPress images for PHP 8.1, 8.2, and 8.3
-4. Start all services
-5. Open **http://localhost** in your browser
+4. Install the `wpl` CLI command globally
+5. Start all services
+6. Open **http://localhost** in your browser
 
 **What you get:**
 - No authentication, no site limits, no WordPress restrictions
@@ -98,6 +105,7 @@ That's it. The installer will:
 - Sites at `http://{subdomain}.localhost` (works in Chrome, Firefox, Edge — no hosts file needed)
 - Persistent site data via Docker volumes (survives restarts)
 - Built-in email testing via Mailpit at `http://localhost:8025`
+- Global `wpl` CLI command (see [CLI Reference](#cli-reference) below)
 
 ### Agency Mode (Demo Hosting Platform)
 
@@ -292,6 +300,38 @@ docker compose build api && docker compose up -d api
 | `GET` | `/api/sites/:id` | — | Get site details |
 | `GET` | `/api/sites/:id/ready` | — | Check if WP is fully installed |
 | `DELETE` | `/api/sites/:id` | User | Delete a demo site |
+
+## CLI Reference
+
+The `wpl` command is installed globally by `install-local.sh` and works from any directory.
+
+```bash
+wpl start                            # Start all services
+wpl stop                             # Stop all services
+wpl restart                          # Restart all services
+wpl rebuild                          # Rebuild and restart (after code changes)
+wpl status                           # Show running containers
+wpl logs [service]                   # Tail logs (all or specific service)
+wpl sites                            # List active WordPress sites
+wpl open                             # Open dashboard in browser
+wpl open mail                        # Open Mailpit in browser
+wpl open <subdomain>                 # Open a site in browser
+wpl shell <subdomain>                # Bash into a site container
+wpl wp <subdomain> plugin list       # Run WP-CLI in a site container
+wpl build:wp                         # Rebuild WordPress images (all PHP versions)
+wpl dir                              # Print project directory path
+wpl help                             # Show all commands
+```
+
+You can also use `npm` scripts from the project directory:
+
+```bash
+npm start          # Start services
+npm stop           # Stop services
+npm run rebuild    # Rebuild and restart
+npm run status     # Show containers
+npm run logs       # Tail logs
+```
 
 ## Resource Requirements
 
