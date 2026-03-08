@@ -85,7 +85,10 @@ export default function SitesListPage() {
           </svg>
         </div>
         <h3>No active sites</h3>
-        <p>Launch a demo from the <a href="/">Products</a> page to see it here.</p>
+        <p>{isLocal
+          ? <>Create a site from the <a href="/create">Create Site</a> page or the <a href="/">Templates</a> page.</>
+          : <>Launch a demo from the <a href="/">Products</a> page to see it here.</>
+        }</p>
       </div>
     );
   }

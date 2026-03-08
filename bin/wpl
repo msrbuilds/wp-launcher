@@ -28,6 +28,71 @@ if [ ! -f "$PROJECT_DIR/docker-compose.yml" ]; then
   exit 1
 fi
 
+# Delegate to Node.js CLI if built (supports dashboard TUI)
+NODE_CLI="$PROJECT_DIR/packages/cli/dist/index.js"
+if [ -f "$NODE_CLI" ] && command -v node &>/dev/null; then
+  WPL_DIR="$PROJECT_DIR" exec node "$NODE_CLI" "$@"
+fi
+
+# Ensure Docker daemon is running, start Docker Desktop if needed
+ensure_docker() {
+  if docker info &>/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Docker is not running. Starting Docker Desktop..."
+
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      # Windows: try common Docker Desktop paths
+      local dd=""
+      for p in \
+        "$PROGRAMFILES/Docker/Docker/Docker Desktop.exe" \
+        "$LOCALAPPDATA/Docker/Docker Desktop.exe" \
+        "/c/Program Files/Docker/Docker/Docker Desktop.exe"; do
+        if [ -f "$p" ]; then dd="$p"; break; fi
+      done
+      if [ -n "$dd" ]; then
+        start "" "$dd" 2>/dev/null || "$dd" &>/dev/null &
+      else
+        echo "Error: Could not find Docker Desktop. Please start it manually."
+        exit 1
+      fi
+      ;;
+    Darwin)
+      open -a "Docker" 2>/dev/null || open -a "Docker Desktop" 2>/dev/null || {
+        echo "Error: Could not find Docker Desktop. Please start it manually."
+        exit 1
+      }
+      ;;
+    Linux)
+      if command -v systemctl &>/dev/null; then
+        sudo systemctl start docker 2>/dev/null || {
+          echo "Error: Could not start Docker. Run: sudo systemctl start docker"
+          exit 1
+        }
+      else
+        echo "Error: Docker is not running. Please start the Docker daemon."
+        exit 1
+      fi
+      ;;
+  esac
+
+  # Wait for Docker to be ready (up to 60 seconds)
+  echo -n "Waiting for Docker"
+  for i in $(seq 1 30); do
+    if docker info &>/dev/null 2>&1; then
+      echo " ready!"
+      return 0
+    fi
+    echo -n "."
+    sleep 2
+  done
+  echo ""
+  echo "Error: Docker did not start in time. Please start Docker Desktop manually."
+  exit 1
+}
+
 # Wrapper that handles paths with spaces correctly
 compose() {
   if [ -f "$PROJECT_DIR/docker-compose.local.yml" ] && grep -q "APP_MODE=local" "$PROJECT_DIR/.env" 2>/dev/null; then
@@ -42,31 +107,37 @@ shift 2>/dev/null || true
 
 case "$CMD" in
   start)
+    ensure_docker
     echo "Starting WP Launcher..."
     compose up -d "$@"
     echo "Running at http://localhost"
     ;;
 
   stop)
+    ensure_docker
     echo "Stopping WP Launcher..."
     compose down "$@"
     ;;
 
   restart)
+    ensure_docker
     echo "Restarting WP Launcher..."
     compose restart "$@"
     ;;
 
   rebuild)
+    ensure_docker
     echo "Rebuilding and restarting WP Launcher..."
     compose up -d --build "$@"
     ;;
 
   status|ps)
+    ensure_docker
     compose ps "$@"
     ;;
 
   logs)
+    ensure_docker
     compose logs -f "$@"
     ;;
 
@@ -81,11 +152,13 @@ case "$CMD" in
     ;;
 
   build:wp)
+    ensure_docker
     echo "Building WordPress images (all PHP versions)..."
     bash "$PROJECT_DIR/scripts/build-wp-image.sh" "$@"
     ;;
 
   shell)
+    ensure_docker
     # Open a shell in a running WordPress container
     CONTAINER="${1:-}"
     if [ -z "$CONTAINER" ]; then
@@ -100,6 +173,7 @@ case "$CMD" in
     ;;
 
   wp)
+    ensure_docker
     # Run WP-CLI in a WordPress container
     CONTAINER="${1:-}"
     if [ -z "$CONTAINER" ]; then

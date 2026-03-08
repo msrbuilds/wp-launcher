@@ -1039,7 +1039,7 @@ a.btn-primary:hover {
 
 /* ── Local launch form ── */
 .local-launch-form {
-  margin: 2rem auto 0;
+  margin: 0 auto 2rem auto;
   max-width: 720px;
 }
 

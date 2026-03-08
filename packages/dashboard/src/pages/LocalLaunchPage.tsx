@@ -47,7 +47,8 @@ export default function LocalLaunchPage() {
   const [phpVersion, setPhpVersion] = useState('8.3');
   const [adminUser, setAdminUser] = useState('admin');
   const [adminPassword, setAdminPassword] = useState('admin');
-  const [adminEmail, setAdminEmail] = useState('admin@localhost');
+  const [adminEmail, setAdminEmail] = useState('admin@localhost.test');
+  const [displayName, setDisplayName] = useState('Admin');
 
   const [step, setStep] = useState<Step>('configure');
   const [creating, setCreating] = useState(false);
@@ -313,30 +314,40 @@ export default function LocalLaunchPage() {
               />
             </div>
             <div className="form-group">
+              <label htmlFor="displayName">Display Name</label>
+              <input
+                id="displayName"
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Admin"
+              />
+            </div>
+            <div className="form-group">
               <label htmlFor="adminEmail">Admin Email</label>
               <input
                 id="adminEmail"
                 type="email"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
-                placeholder="admin@localhost"
+                placeholder="admin@localhost.test"
               />
             </div>
-            {error && <div className="alert-error">{error}</div>}
-            <button
-              className="btn btn-primary btn-lg"
-              style={{ width: '100%', marginTop: 'auto' }}
-              onClick={handleCreate}
-              disabled={creating || !selectedTemplate}
-            >
-              {creating ? (
-                <><span className="spinner" /> Creating...</>
-              ) : (
-                'Create Site'
-              )}
-            </button>
           </div>
         </div>
+        {error && <div className="alert-error" style={{ marginTop: '1rem' }}>{error}</div>}
+        <button
+          className="btn btn-primary btn-lg"
+          style={{ width: '100%', marginTop: '1.5rem' }}
+          onClick={handleCreate}
+          disabled={creating || !selectedTemplate}
+        >
+          {creating ? (
+            <><span className="spinner" /> Creating...</>
+          ) : (
+            'Create Site'
+          )}
+        </button>
       </div>
     </div>
   );

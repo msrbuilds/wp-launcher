@@ -18,10 +18,9 @@
     "max_expiration": "never",
     "max_concurrent_sites": 0,
     "admin_user": "admin",
-    "admin_email": "admin@localhost",
+    "admin_email": "admin@localhost.test",
     "landing_page": ""
   },
-  "database": "sqlite",
   "restrictions": {
     "disable_file_mods": false,
     "blocked_capabilities": []

@@ -140,48 +140,97 @@ echo ""
 bash "$PROJECT_DIR/scripts/build-wp-image.sh"
 ok "All WordPress images built"
 
-# ─── 5. Install wpl CLI command ───────────────────────────────────────────────
-banner "Installing CLI"
+# ─── 5. Build CLI (interactive dashboard) ──────────────────────────────────
+banner "Building CLI"
+
+if command -v node &>/dev/null && command -v npm &>/dev/null; then
+  if [ -f "$PROJECT_DIR/packages/cli/package.json" ]; then
+    (cd "$PROJECT_DIR/packages/cli" && npm install --silent && npx tsc 2>/dev/null) && \
+      ok "CLI built (interactive dashboard available)" || \
+      warn "CLI build failed — bash fallback will be used"
+  fi
+else
+  warn "Node.js not found — CLI dashboard requires Node.js"
+fi
+
+# ─── 6. Install wpl CLI command ───────────────────────────────────────────────
+banner "Installing CLI Command"
 
 chmod +x "$PROJECT_DIR/bin/wpl"
 
 WPL_INSTALLED=false
 
-# Try standard locations in order of preference
-if [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
-  ln -sf "$PROJECT_DIR/bin/wpl" /usr/local/bin/wpl
-  ok "Installed 'wpl' command to /usr/local/bin/wpl"
-  WPL_INSTALLED=true
-elif [ -d "$HOME/.local/bin" ]; then
-  ln -sf "$PROJECT_DIR/bin/wpl" "$HOME/.local/bin/wpl"
-  ok "Installed 'wpl' command to ~/.local/bin/wpl"
-  WPL_INSTALLED=true
-elif [ -d "$HOME/bin" ]; then
-  ln -sf "$PROJECT_DIR/bin/wpl" "$HOME/bin/wpl"
-  ok "Installed 'wpl' command to ~/bin/wpl"
-  WPL_INSTALLED=true
+# Detect Windows (Git Bash / MSYS / Cygwin)
+IS_WINDOWS=false
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=true ;;
+esac
+
+if [ "$IS_WINDOWS" = true ]; then
+  # On Windows, add bin/ to the user's PATH via PowerShell (for wpl.cmd)
+  WIN_BIN_DIR=$(cd "$PROJECT_DIR/bin" && pwd -W 2>/dev/null || cygpath -w "$PROJECT_DIR/bin" 2>/dev/null || echo "$PROJECT_DIR/bin")
+
+  # Check if already in PATH
+  if echo "$PATH" | tr ':' '\n' | grep -qi "$(basename "$PROJECT_DIR")/bin"; then
+    ok "'wpl' is already in PATH"
+    WPL_INSTALLED=true
+  else
+    # Add to Windows user PATH via PowerShell
+    powershell.exe -NoProfile -Command "
+      \$binDir = '${WIN_BIN_DIR}'
+      \$currentPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+      if (\$currentPath -notlike \"*\$binDir*\") {
+        [Environment]::SetEnvironmentVariable('Path', \"\$currentPath;\$binDir\", 'User')
+        Write-Host 'Added to Windows PATH'
+      } else {
+        Write-Host 'Already in PATH'
+      }
+    " 2>/dev/null
+    if [ $? -eq 0 ]; then
+      ok "Installed 'wpl' command (added bin/ to Windows PATH)"
+      info "Open a NEW terminal for 'wpl' to work."
+      WPL_INSTALLED=true
+    fi
+  fi
 else
-  # Create ~/.local/bin and add to PATH
-  mkdir -p "$HOME/.local/bin"
-  ln -sf "$PROJECT_DIR/bin/wpl" "$HOME/.local/bin/wpl"
-  # Add to shell profile if not already there
-  SHELL_RC=""
-  if [ -f "$HOME/.bashrc" ]; then SHELL_RC="$HOME/.bashrc"
-  elif [ -f "$HOME/.zshrc" ]; then SHELL_RC="$HOME/.zshrc"
-  elif [ -f "$HOME/.profile" ]; then SHELL_RC="$HOME/.profile"
+  # Linux/macOS: symlink to a directory in PATH
+  if [ -d "/usr/local/bin" ] && [ -w "/usr/local/bin" ]; then
+    ln -sf "$PROJECT_DIR/bin/wpl" /usr/local/bin/wpl
+    ok "Installed 'wpl' command to /usr/local/bin/wpl"
+    WPL_INSTALLED=true
+  elif [ -d "$HOME/.local/bin" ]; then
+    ln -sf "$PROJECT_DIR/bin/wpl" "$HOME/.local/bin/wpl"
+    ok "Installed 'wpl' command to ~/.local/bin/wpl"
+    WPL_INSTALLED=true
+  elif [ -d "$HOME/bin" ]; then
+    ln -sf "$PROJECT_DIR/bin/wpl" "$HOME/bin/wpl"
+    ok "Installed 'wpl' command to ~/bin/wpl"
+    WPL_INSTALLED=true
+  else
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$PROJECT_DIR/bin/wpl" "$HOME/.local/bin/wpl"
+    SHELL_RC=""
+    if [ -f "$HOME/.bashrc" ]; then SHELL_RC="$HOME/.bashrc"
+    elif [ -f "$HOME/.zshrc" ]; then SHELL_RC="$HOME/.zshrc"
+    elif [ -f "$HOME/.profile" ]; then SHELL_RC="$HOME/.profile"
+    fi
+    if [ -n "$SHELL_RC" ] && ! grep -q '.local/bin' "$SHELL_RC" 2>/dev/null; then
+      echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
+      info "Added ~/.local/bin to PATH in $SHELL_RC"
+      info "Run 'source $SHELL_RC' or open a new terminal for 'wpl' to work."
+    fi
+    ok "Installed 'wpl' command to ~/.local/bin/wpl"
+    WPL_INSTALLED=true
   fi
-  if [ -n "$SHELL_RC" ] && ! grep -q '.local/bin' "$SHELL_RC" 2>/dev/null; then
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
-    info "Added ~/.local/bin to PATH in $SHELL_RC"
-    info "Run 'source $SHELL_RC' or open a new terminal for 'wpl' to work."
-  fi
-  ok "Installed 'wpl' command to ~/.local/bin/wpl"
-  WPL_INSTALLED=true
 fi
 
 if [ "$WPL_INSTALLED" = false ]; then
   warn "Could not install 'wpl' globally. You can run it directly:"
-  echo "  $PROJECT_DIR/bin/wpl help"
+  if [ "$IS_WINDOWS" = true ]; then
+    echo "  $PROJECT_DIR\\bin\\wpl.cmd help"
+  else
+    echo "  $PROJECT_DIR/bin/wpl help"
+  fi
 fi
 
 # ─── 6. Start services ──────────────────────────────────────────────────────

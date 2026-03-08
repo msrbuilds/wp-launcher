@@ -89,7 +89,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
     .get(req.productId) as { count: number };
 
   const maxConcurrent = productConfig?.demo?.max_concurrent_sites ?? config.defaults.maxConcurrentSites;
-  if (activeSiteCount.count >= maxConcurrent) {
+  if (maxConcurrent > 0 && activeSiteCount.count >= maxConcurrent) {
     throw new Error(`Maximum concurrent sites (${maxConcurrent}) reached for this product.`);
   }
 
