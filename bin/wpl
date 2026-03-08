@@ -1,0 +1,171 @@
+#!/bin/bash
+###############################################################################
+# wpl — WP Launcher CLI
+#
+# Global command to manage WP Launcher from anywhere.
+# Install: bash install-local.sh (auto-installs) or manually:
+#   ln -sf /path/to/wp-launcher/bin/wpl /usr/local/bin/wpl
+###############################################################################
+set -euo pipefail
+
+# Resolve the project directory (where docker-compose.yml lives)
+# First check if WPL_DIR is set, then try to find it relative to this script
+if [ -n "${WPL_DIR:-}" ]; then
+  PROJECT_DIR="$WPL_DIR"
+elif [ -L "${BASH_SOURCE[0]}" ]; then
+  # Follow symlink to find the real script location
+  REAL_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
+  PROJECT_DIR="$(cd "$(dirname "$REAL_SCRIPT")/.." && pwd)"
+else
+  PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
+
+# Verify project directory
+if [ ! -f "$PROJECT_DIR/docker-compose.yml" ]; then
+  echo "Error: Could not find WP Launcher project directory."
+  echo "Set WPL_DIR environment variable to your wp-launcher path."
+  echo "  export WPL_DIR=/path/to/wp-launcher"
+  exit 1
+fi
+
+# Wrapper that handles paths with spaces correctly
+compose() {
+  if [ -f "$PROJECT_DIR/docker-compose.local.yml" ] && grep -q "APP_MODE=local" "$PROJECT_DIR/.env" 2>/dev/null; then
+    docker compose -f "$PROJECT_DIR/docker-compose.yml" -f "$PROJECT_DIR/docker-compose.local.yml" "$@"
+  else
+    docker compose -f "$PROJECT_DIR/docker-compose.yml" "$@"
+  fi
+}
+
+CMD="${1:-help}"
+shift 2>/dev/null || true
+
+case "$CMD" in
+  start)
+    echo "Starting WP Launcher..."
+    compose up -d "$@"
+    echo "Running at http://localhost"
+    ;;
+
+  stop)
+    echo "Stopping WP Launcher..."
+    compose down "$@"
+    ;;
+
+  restart)
+    echo "Restarting WP Launcher..."
+    compose restart "$@"
+    ;;
+
+  rebuild)
+    echo "Rebuilding and restarting WP Launcher..."
+    compose up -d --build "$@"
+    ;;
+
+  status|ps)
+    compose ps "$@"
+    ;;
+
+  logs)
+    compose logs -f "$@"
+    ;;
+
+  sites)
+    # List active sites from the API
+    SITES=$(curl -sf http://localhost:3000/api/sites 2>/dev/null || curl -sf http://localhost/api/sites 2>/dev/null || echo "")
+    if [ -z "$SITES" ]; then
+      echo "Could not reach API. Is WP Launcher running? (wpl start)"
+      exit 1
+    fi
+    echo "$SITES" | python3 -m json.tool 2>/dev/null || echo "$SITES"
+    ;;
+
+  build:wp)
+    echo "Building WordPress images (all PHP versions)..."
+    bash "$PROJECT_DIR/scripts/build-wp-image.sh" "$@"
+    ;;
+
+  shell)
+    # Open a shell in a running WordPress container
+    CONTAINER="${1:-}"
+    if [ -z "$CONTAINER" ]; then
+      echo "Usage: wpl shell <subdomain>"
+      echo ""
+      echo "Running WordPress containers:"
+      docker ps --filter "label=wp-launcher.managed=true" --format "  {{.Names}}" | sed 's/wp-demo-//'
+      exit 1
+    fi
+    echo "Opening shell in wp-demo-${CONTAINER}..."
+    docker exec -it "wp-demo-${CONTAINER}" bash
+    ;;
+
+  wp)
+    # Run WP-CLI in a WordPress container
+    CONTAINER="${1:-}"
+    if [ -z "$CONTAINER" ]; then
+      echo "Usage: wpl wp <subdomain> <wp-cli command...>"
+      echo "Example: wpl wp coral-sunset-7x3k plugin list"
+      echo ""
+      echo "Running WordPress containers:"
+      docker ps --filter "label=wp-launcher.managed=true" --format "  {{.Names}}" | sed 's/wp-demo-//'
+      exit 1
+    fi
+    shift
+    docker exec -it "wp-demo-${CONTAINER}" wp --allow-root "$@"
+    ;;
+
+  open)
+    # Open a site or the dashboard in the browser
+    TARGET="${1:-dashboard}"
+    if [ "$TARGET" = "dashboard" ]; then
+      URL="http://localhost"
+    elif [ "$TARGET" = "mail" ] || [ "$TARGET" = "mailpit" ]; then
+      URL="http://localhost:8025"
+    else
+      URL="http://${TARGET}.localhost"
+    fi
+    echo "Opening $URL..."
+    if command -v xdg-open &>/dev/null; then xdg-open "$URL" 2>/dev/null &
+    elif command -v open &>/dev/null; then open "$URL" 2>/dev/null &
+    elif command -v start &>/dev/null; then start "$URL" 2>/dev/null &
+    else echo "  $URL"; fi
+    ;;
+
+  dir)
+    echo "$PROJECT_DIR"
+    ;;
+
+  help|--help|-h|"")
+    echo "WP Launcher CLI"
+    echo ""
+    echo "Usage: wpl <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  start              Start all services"
+    echo "  stop               Stop all services"
+    echo "  restart            Restart all services"
+    echo "  rebuild            Rebuild and restart (after code changes)"
+    echo "  status             Show running containers"
+    echo "  logs [service]     Tail logs (optionally for a specific service)"
+    echo "  sites              List active WordPress sites"
+    echo "  open [target]      Open in browser (dashboard, mail, or subdomain)"
+    echo "  shell <subdomain>  Open bash shell in a site container"
+    echo "  wp <subdomain> ... Run WP-CLI command in a site container"
+    echo "  build:wp           Rebuild WordPress images (all PHP versions)"
+    echo "  dir                Print WP Launcher project directory"
+    echo "  help               Show this help"
+    echo ""
+    echo "Examples:"
+    echo "  wpl start                          # Start WP Launcher"
+    echo "  wpl logs api                       # Tail API logs"
+    echo "  wpl open coral-sunset-7x3k         # Open site in browser"
+    echo "  wpl wp coral-sunset-7x3k plugin list   # List plugins via WP-CLI"
+    echo "  wpl shell coral-sunset-7x3k        # SSH into site container"
+    ;;
+
+  *)
+    echo "Unknown command: $CMD"
+    echo "Run 'wpl help' for available commands."
+    exit 1
+    ;;
+esac

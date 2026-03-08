@@ -65,9 +65,11 @@ function wp_launcher_render_timer_assets() {
         var landingPage = '<?php echo $landing_page; ?>';
         var parentNode = el.closest('.wp-launcher-timer-node');
 
+        var isLocalMode = '<?php echo getenv("WP_LOCAL_MODE") === "true" ? "1" : "0"; ?>' === '1';
+
         if (neverExpires) {
-            el.textContent = 'Permanent';
-            if (parentNode) parentNode.style.backgroundColor = '#059669';
+            el.textContent = isLocalMode ? 'Local Dev' : 'Permanent';
+            if (parentNode) parentNode.style.backgroundColor = isLocalMode ? '#14213d' : '#059669';
             return;
         }
 

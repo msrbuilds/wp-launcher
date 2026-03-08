@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, MAX_SITES_PER_USER } from '../services/site.service';
-import { userAuth, optionalUserAuth, AuthRequest } from '../middleware/userAuth';
+import { conditionalAuth, conditionalOptionalAuth, AuthRequest } from '../middleware/userAuth';
 
 const router = Router();
 
@@ -25,9 +25,9 @@ const siteReadLimiter = rateLimit({
 });
 
 // Create a new demo site (requires auth)
-router.post('/', siteWriteLimiter, userAuth, async (req: AuthRequest, res: Response) => {
+router.post('/', siteWriteLimiter, conditionalAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { productId, expiresIn } = req.body;
+    const { productId, expiresIn, siteTitle, adminUser, adminPassword, adminEmail, dbEngine, phpVersion } = req.body;
 
     if (!productId) {
       res.status(400).json({ error: 'productId is required' });
@@ -39,6 +39,12 @@ router.post('/', siteWriteLimiter, userAuth, async (req: AuthRequest, res: Respo
       expiresIn,
       userId: req.userId,
       userEmail: req.userEmail,
+      siteTitle,
+      adminUser,
+      adminPassword,
+      adminEmail,
+      dbEngine,
+      phpVersion,
     });
 
     res.status(201).json({
@@ -61,7 +67,7 @@ router.post('/', siteWriteLimiter, userAuth, async (req: AuthRequest, res: Respo
 });
 
 // List sites - if authenticated, show user's sites; otherwise show all active
-router.get('/', siteReadLimiter, optionalUserAuth, (req: AuthRequest, res: Response) => {
+router.get('/', siteReadLimiter, conditionalOptionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const productId = req.query.productId as string | undefined;
     let sites;
@@ -102,7 +108,7 @@ router.get('/', siteReadLimiter, optionalUserAuth, (req: AuthRequest, res: Respo
 });
 
 // Get a specific site (requires auth, users can only view their own)
-router.get('/:id', siteReadLimiter, userAuth, (req: AuthRequest, res: Response) => {
+router.get('/:id', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Response) => {
   try {
     const site = getSite(req.params.id);
     if (!site) {
@@ -184,7 +190,7 @@ router.get('/:id/ready', siteReadLimiter, async (req: AuthRequest, res: Response
 });
 
 // Delete a site (requires auth - users can only delete their own)
-router.delete('/:id', siteWriteLimiter, userAuth, async (req: AuthRequest, res: Response) => {
+router.delete('/:id', siteWriteLimiter, conditionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     await deleteSite(req.params.id, req.userId, req.userEmail);
     res.json({ message: 'Site deleted successfully' });

@@ -14,6 +14,26 @@ export function generateToken(userId: string, email: string): string {
   } as jwt.SignOptions);
 }
 
+export function localModeAuth(req: AuthRequest, _res: Response, next: NextFunction): void {
+  req.userId = 'local-user';
+  req.userEmail = 'local@localhost';
+  next();
+}
+
+export function conditionalAuth(req: AuthRequest, res: Response, next: NextFunction): void {
+  if (config.isLocalMode) {
+    return localModeAuth(req, res, next);
+  }
+  return userAuth(req, res, next);
+}
+
+export function conditionalOptionalAuth(req: AuthRequest, res: Response, next: NextFunction): void {
+  if (config.isLocalMode) {
+    return localModeAuth(req, res, next);
+  }
+  return optionalUserAuth(req, res, next);
+}
+
 export function userAuth(req: AuthRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
 

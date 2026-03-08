@@ -89,6 +89,15 @@ export function getProductConfig(productId: string): ProductConfig {
     return parsed;
   }
 
+  // Try loading from templates directory
+  const templatePath = path.join(config.templateConfigsDir, `${productId}.json`);
+  if (fs.existsSync(templatePath)) {
+    const raw = fs.readFileSync(templatePath, 'utf-8');
+    const parsed = JSON.parse(raw) as ProductConfig;
+    configCache.set(productId, parsed);
+    return parsed;
+  }
+
   // Fall back to default config
   const defaultPath = path.join(config.productConfigsDir, '_default.json');
   if (fs.existsSync(defaultPath)) {
@@ -147,4 +156,40 @@ export function saveProductConfig(productConfig: ProductConfig): void {
 
 export function clearConfigCache(): void {
   configCache.clear();
+}
+
+// --- Templates (local mode starter configs, stored in templates/ directory) ---
+
+const templateCache = new Map<string, ProductConfig>();
+
+export function getTemplateConfig(templateId: string): ProductConfig | null {
+  if (templateCache.has(templateId)) {
+    return templateCache.get(templateId)!;
+  }
+
+  const filePath = path.join(config.templateConfigsDir, `${templateId}.json`);
+  if (fs.existsSync(filePath)) {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(raw) as ProductConfig;
+    templateCache.set(templateId, parsed);
+    return parsed;
+  }
+
+  return null;
+}
+
+export function listTemplates(): ProductConfig[] {
+  const templates: ProductConfig[] = [];
+
+  if (fs.existsSync(config.templateConfigsDir)) {
+    const files = fs.readdirSync(config.templateConfigsDir).filter(
+      (f) => f.endsWith('.json') && !f.startsWith('_'),
+    );
+    for (const file of files) {
+      const raw = fs.readFileSync(path.join(config.templateConfigsDir, file), 'utf-8');
+      templates.push(JSON.parse(raw));
+    }
+  }
+
+  return templates;
 }

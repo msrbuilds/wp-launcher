@@ -1,6 +1,10 @@
 const KNOWN_DEV_DEFAULTS = ['dev-api-key', 'dev-jwt-secret-change-me'];
 
+const appMode = (process.env.APP_MODE || 'agency') as 'local' | 'agency';
+const isLocalMode = appMode === 'local';
+
 function requireSecret(envVar: string, fallback: string): string {
+  if (isLocalMode) return process.env[envVar] || fallback;
   const value = process.env[envVar] || fallback;
   if (process.env.NODE_ENV === 'production' && KNOWN_DEV_DEFAULTS.includes(value)) {
     console.error(`[FATAL] ${envVar} is set to an insecure default. Set a strong secret before running in production.`);
@@ -10,6 +14,8 @@ function requireSecret(envVar: string, fallback: string): string {
 }
 
 export const config = {
+  appMode,
+  isLocalMode,
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   apiKey: requireSecret('API_KEY', 'dev-api-key'),
@@ -17,6 +23,7 @@ export const config = {
   wpImage: process.env.WP_IMAGE || 'wp-launcher/wordpress:latest',
   dataDir: process.env.DATA_DIR || './data',
   productConfigsDir: process.env.PRODUCT_CONFIGS_DIR || './products',
+  templateConfigsDir: process.env.TEMPLATE_CONFIGS_DIR || './templates',
 
   // JWT
   jwtSecret: requireSecret('JWT_SECRET', 'dev-jwt-secret-change-me'),
@@ -49,7 +56,7 @@ export const config = {
     expiration: '1h',
     maxExpiration: '24h',
     maxConcurrentSites: 50,
-    maxTotalSites: parseInt(process.env.MAX_TOTAL_SITES || '50', 10),
+    maxTotalSites: isLocalMode ? 0 : parseInt(process.env.MAX_TOTAL_SITES || '50', 10),
   },
 
   // Cleanup interval in milliseconds

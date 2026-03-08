@@ -37,7 +37,7 @@ User clicks "Launch Demo"
 | WordPress DB | SQLite, MySQL 8.4, or MariaDB 11 (per product) |
 | Reverse Proxy | Traefik v3 (auto-discovery via Docker labels) |
 | Dashboard | React + Vite + TypeScript |
-| Container Base | wordpress:6.9-php8.3-apache |
+| Container Base | wordpress:6.9 (PHP 8.1 / 8.2 / 8.3) |
 
 ## Project Structure
 
@@ -75,7 +75,35 @@ wp-launcher/
 
 ## Installation
 
-### Quick Setup (VPS — Recommended)
+### Local Mode (WordPress Development Environment)
+
+Use WP Launcher as a local WordPress development tool — like Local by Flywheel or Laragon, but Docker-based with multi-PHP support.
+
+```bash
+git clone https://github.com/msrbuilds/wp-launcher.git
+cd wp-launcher
+bash install-local.sh
+```
+
+That's it. The installer will:
+1. Check for Docker & Docker Compose
+2. Generate `.env` with local mode defaults
+3. Build WordPress images for PHP 8.1, 8.2, and 8.3
+4. Start all services
+5. Open **http://localhost** in your browser
+
+**What you get:**
+- No authentication, no site limits, no WordPress restrictions
+- Choose PHP version (8.1 / 8.2 / 8.3), database engine (MySQL / MariaDB / SQLite), and admin credentials per site
+- Sites at `http://{subdomain}.localhost` (works in Chrome, Firefox, Edge — no hosts file needed)
+- Persistent site data via Docker volumes (survives restarts)
+- Built-in email testing via Mailpit at `http://localhost:8025`
+
+### Agency Mode (Demo Hosting Platform)
+
+Host temporary WordPress demo sites for your products — with auth, site limits, auto-expiration, and admin restrictions.
+
+#### Quick Setup (VPS)
 
 Run the one-click installer on a fresh Ubuntu VPS:
 
@@ -94,15 +122,9 @@ This will:
 
 For a detailed step-by-step guide, see [guides/vps-deployment.md](guides/vps-deployment.md).
 
-### Manual Setup (Local Development)
+#### Manual Setup
 
-#### Prerequisites
-
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine + Docker Compose)
-- [Node.js](https://nodejs.org/) 18+ (for the build script)
-- Git Bash (on Windows) or any Unix shell
-
-#### 1. Clone and configure
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/), [Node.js](https://nodejs.org/) 18+, Git Bash (Windows) or any Unix shell.
 
 ```bash
 git clone https://github.com/msrbuilds/wp-launcher.git
@@ -111,15 +133,13 @@ cp .env.example .env
 # Edit .env with your settings (see Configuration section)
 ```
 
-#### 2. Build the base WordPress image
+Build the WordPress images:
 
 ```bash
 bash scripts/build-wp-image.sh
 ```
 
-#### 3. Add your first product
-
-Create `products/my-product.json`:
+Add your first product — create `products/my-product.json`:
 
 ```json
 {
@@ -155,15 +175,10 @@ Create `products/my-product.json`:
 }
 ```
 
-Build the product image:
+Build the product image and start:
 
 ```bash
 bash scripts/build-wp-image.sh my-product
-```
-
-#### 4. Start everything
-
-```bash
 docker compose up -d
 ```
 

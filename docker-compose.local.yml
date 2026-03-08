@@ -1,0 +1,23 @@
+# Local development mode override
+# Usage: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+# Or set APP_MODE=local in .env and use: docker compose up -d --build
+
+services:
+  api:
+    environment:
+      - APP_MODE=local
+      - BASE_DOMAIN=localhost
+      - MAX_SITES_PER_USER=0
+      - MAX_TOTAL_SITES=0
+      - PUBLIC_URL=http://localhost
+
+  provisioner:
+    environment:
+      - CONTAINER_MEMORY=0
+      - CONTAINER_CPU=0
+      - WP_UPLOAD_LIMIT=0
+      - WP_DISK_QUOTA=0
+
+  dashboard:
+    labels:
+      - "traefik.http.routers.dashboard.rule=Host(`localhost`)"

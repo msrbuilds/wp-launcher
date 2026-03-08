@@ -1,10 +1,12 @@
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, Link } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useAdminAuth } from './pages/AdminPage';
+import { useIsLocalMode } from './context/SettingsContext';
 
 export default function App() {
   const { isAuthenticated, logout } = useAuth();
   const { isAdmin } = useAdminAuth();
+  const isLocal = useIsLocalMode();
 
   return (
     <>
@@ -13,33 +15,48 @@ export default function App() {
           <NavLink to="/" className="header-brand">
             <img src="/logo-square.png" alt="WP Launcher" style={{ width: 28, height: 28 }} />
             WP Launcher
+            {isLocal && <span className="mode-badge">Local</span>}
           </NavLink>
           <nav>
             <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''}>
-              Products
+              {isLocal ? 'Templates' : 'Products'}
             </NavLink>
             <NavLink to="/sites" className={({ isActive }) => isActive ? 'active' : ''}>
-              My Sites
+              {isLocal ? 'Sites' : 'My Sites'}
             </NavLink>
-            {isAdmin && (
+            {!isLocal && isAdmin && (
               <NavLink to="/admin" className={({ isActive }) => isActive ? 'active' : ''}>
                 Admin
               </NavLink>
             )}
-            <span className="nav-divider" />
-            {isAuthenticated ? (
+            {isLocal && (
               <>
-                <NavLink to="/account" className={({ isActive }) => isActive ? 'active' : ''}>
-                  Account
-                </NavLink>
-                <span className="nav-action" onClick={logout}>
-                  Log out
-                </span>
+                <a href="http://localhost:8025" target="_blank" rel="noopener noreferrer">
+                  Mail
+                </a>
+                <Link to="/create" className="btn btn-primary btn-sm" style={{ marginLeft: '0.75rem', color: '#fff' }}>
+                  + Create Site
+                </Link>
               </>
-            ) : (
-              <NavLink to="/login" className={({ isActive }) => isActive ? 'active' : ''}>
-                Log In
-              </NavLink>
+            )}
+            {!isLocal && (
+              <>
+                <span className="nav-divider" />
+                {isAuthenticated ? (
+                  <>
+                    <NavLink to="/account" className={({ isActive }) => isActive ? 'active' : ''}>
+                      Account
+                    </NavLink>
+                    <span className="nav-action" onClick={logout}>
+                      Log out
+                    </span>
+                  </>
+                ) : (
+                  <NavLink to="/login" className={({ isActive }) => isActive ? 'active' : ''}>
+                    Log In
+                  </NavLink>
+                )}
+              </>
             )}
           </nav>
         </div>

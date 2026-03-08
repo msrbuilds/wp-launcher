@@ -1,4 +1,5 @@
-FROM wordpress:6.9-php8.3-apache
+ARG PHP_VERSION=8.3
+FROM wordpress:6.9-php${PHP_VERSION}-apache
 
 # Install required system packages (unzip for plugins, default-mysql-client for MySQL health checks)
 RUN apt-get update && apt-get install -y --no-install-recommends unzip default-mysql-client && rm -rf /var/lib/apt/lists/*

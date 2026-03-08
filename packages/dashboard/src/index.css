@@ -90,6 +90,21 @@ code {
   color: var(--white);
 }
 
+.mode-badge {
+  display: inline-block;
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--orange);
+  color: var(--white);
+  padding: 0.15rem 0.4rem;
+  border-radius: 0;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+  line-height: 1;
+}
+
 .header-brand svg {
   width: 28px;
   height: 28px;
@@ -1020,6 +1035,40 @@ a.btn-primary:hover {
 
 .footer a:hover {
   text-decoration: underline;
+}
+
+/* ── Local launch form ── */
+.local-launch-form {
+  margin: 2rem auto 0;
+  max-width: 720px;
+}
+
+.form-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.form-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-col .btn {
+  margin-top: auto;
+}
+
+@media (max-width: 640px) {
+  .form-columns {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
 }
 
 /* ── Responsive ── */

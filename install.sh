@@ -497,8 +497,8 @@ ok "Data directory ready"
 # ─── 9. Build WordPress image ────────────────────────────────────────────────
 banner "Building WordPress Image"
 
-docker build -t wp-launcher/wordpress:latest "$PROJECT_DIR/wordpress"
-ok "WordPress base image built"
+bash "$PROJECT_DIR/scripts/build-wp-image.sh"
+ok "WordPress base images built (all PHP versions)"
 
 # Build product-specific images if product configs exist
 for config in "$PROJECT_DIR"/products/*.json; do

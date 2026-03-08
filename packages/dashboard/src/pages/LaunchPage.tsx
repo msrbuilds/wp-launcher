@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 import { useSearchParams } from 'react-router-dom';
 import CountdownTimer from '../components/CountdownTimer';
 
@@ -27,6 +28,8 @@ type Step = 'email' | 'check-email' | 'launch' | 'provisioning' | 'result';
 
 export default function LaunchPage() {
   const { isAuthenticated, token, login } = useAuth();
+  const { appMode, loading: settingsLoading } = useSettings();
+  const isLocal = appMode === 'local';
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -36,9 +39,10 @@ export default function LaunchPage() {
   const [result, setResult] = useState<SiteResult | null>(null);
   const [error, setError] = useState('');
   const [provisionProgress, setProvisionProgress] = useState(0);
+  const expiresIn = isLocal ? 'never' : '';
 
   const [email, setEmail] = useState('');
-  const [step, setStep] = useState<Step>(isAuthenticated ? 'launch' : 'email');
+  const [step, setStep] = useState<Step>((isAuthenticated || isLocal) ? 'launch' : 'email');
 
   useEffect(() => {
     const verifyToken = searchParams.get('token');
@@ -66,7 +70,8 @@ export default function LaunchPage() {
   }, [isAuthenticated, step, products, launchingId, result]);
 
   useEffect(() => {
-    fetch('/api/products')
+    if (settingsLoading) return;
+    fetch(isLocal ? '/api/templates' : '/api/products')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setProducts(data);
@@ -78,7 +83,7 @@ export default function LaunchPage() {
         if (data.cardLayout) setCardLayout(data.cardLayout);
       })
       .catch(() => {});
-  }, []);
+  }, [settingsLoading, isLocal]);
 
   async function handleEmailSubmit() {
     setLoading(true);
@@ -131,7 +136,7 @@ export default function LaunchPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ productId }),
+        body: JSON.stringify({ productId, ...(expiresIn ? { expiresIn } : {}) }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -315,17 +320,24 @@ export default function LaunchPage() {
     return (
       <div>
         <div className="hero">
-          <h2>Launch a Demo Site</h2>
-          <p>Spin up a fully configured WordPress instance in seconds. Pick a product below to get started.</p>
+          <h2>{isLocal ? 'Create a WordPress Site' : 'Launch a Demo Site'}</h2>
+          <p>{isLocal
+            ? 'Spin up a fully functional WordPress instance from a template.'
+            : 'Spin up a fully configured WordPress instance in seconds. Pick a product below to get started.'
+          }</p>
         </div>
+
 
         {error && <div className="alert-error">{error}</div>}
 
         <div className={`product-grid ${cardLayout === 'compact' ? 'product-grid-compact' : ''}`}>
           {products.length === 0 && (
             <div className="card empty-state">
-              <h3>No products available</h3>
-              <p>Ask your administrator to configure products.</p>
+              <h3>No {isLocal ? 'templates' : 'products'} available</h3>
+              <p>{isLocal
+                ? 'Add template JSON files to the templates/ directory.'
+                : 'Ask your administrator to configure products.'
+              }</p>
             </div>
           )}
           {cardLayout === 'compact' ? (
@@ -352,9 +364,9 @@ export default function LaunchPage() {
                   disabled={launchingId !== null}
                 >
                   {launchingId === product.id ? (
-                    <><span className="spinner" /> Launching...</>
+                    <><span className="spinner" /> {isLocal ? 'Creating...' : 'Launching...'}</>
                   ) : (
-                    'Launch Demo'
+                    isLocal ? 'Create Site' : 'Launch Demo'
                   )}
                 </button>
               </div>
@@ -383,9 +395,9 @@ export default function LaunchPage() {
                     disabled={launchingId !== null}
                   >
                     {launchingId === product.id ? (
-                      <><span className="spinner" /> Launching...</>
+                      <><span className="spinner" /> {isLocal ? 'Creating...' : 'Launching...'}</>
                     ) : (
-                      'Launch Demo'
+                      isLocal ? 'Create Site' : 'Launch Demo'
                     )}
                   </button>
                 </div>

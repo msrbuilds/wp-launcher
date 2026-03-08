@@ -17,10 +17,21 @@ PRODUCT_ASSETS_DIR="$PROJECT_DIR/product-assets"
 PRODUCT_ID="${1:-}"
 CUSTOM_TAG="${2:-}"
 
-# Always build the base image first
-echo "=== Building base WordPress image ==="
-docker build -t wp-launcher/wordpress:latest "$WP_DIR"
-echo "Base image built: wp-launcher/wordpress:latest"
+# Supported PHP versions
+PHP_VERSIONS=("8.3" "8.2" "8.1")
+DEFAULT_PHP="8.3"
+
+# Build base images for all PHP versions
+echo "=== Building base WordPress images ==="
+for PHP_VER in "${PHP_VERSIONS[@]}"; do
+    TAG="wp-launcher/wordpress:php${PHP_VER}"
+    echo "Building: $TAG (PHP $PHP_VER)..."
+    docker build --build-arg PHP_VERSION="$PHP_VER" -t "$TAG" "$WP_DIR"
+    echo "  Built: $TAG"
+done
+# Tag default PHP version as :latest
+docker tag "wp-launcher/wordpress:php${DEFAULT_PHP}" wp-launcher/wordpress:latest
+echo "Tagged wp-launcher/wordpress:php${DEFAULT_PHP} as wp-launcher/wordpress:latest"
 echo ""
 
 # If no product specified, we're done

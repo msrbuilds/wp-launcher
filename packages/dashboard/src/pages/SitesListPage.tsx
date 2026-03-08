@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useIsLocalMode } from '../context/SettingsContext';
 import CountdownTimer from '../components/CountdownTimer';
 
 interface Site {
@@ -17,6 +18,7 @@ interface Site {
 
 export default function SitesListPage() {
   const { isAuthenticated, token } = useAuth();
+  const isLocal = useIsLocalMode();
   const [sites, setSites] = useState<Site[]>([]);
   const [maxSites, setMaxSites] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,7 +65,7 @@ export default function SitesListPage() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isLocal) {
     return (
       <div className="card empty-state">
         <h3>Log in to see your sites</h3>
@@ -91,8 +93,8 @@ export default function SitesListPage() {
   return (
     <div>
       <div className="page-header">
-        <h2>My Sites ({sites.length}{maxSites ? ` / ${maxSites}` : ''})</h2>
-        <p>Manage your active demo sites</p>
+        <h2>{isLocal ? 'Sites' : 'My Sites'} ({sites.length}{!isLocal && maxSites ? ` / ${maxSites}` : ''})</h2>
+        <p>{isLocal ? 'Manage your WordPress sites' : 'Manage your active demo sites'}</p>
       </div>
 
       <div className="sites-grid">
@@ -167,6 +169,21 @@ export default function SitesListPage() {
                 </svg>
                 Visit Site
               </a>
+              {isLocal && (
+                <button
+                  className="btn btn-secondary btn-site-action"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`docker exec -it wp-demo-${site.subdomain} wp --allow-root`);
+                    alert('WP-CLI command copied to clipboard!');
+                  }}
+                  title="Copy WP-CLI command"
+                >
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
+                  </svg>
+                  WP-CLI
+                </button>
+              )}
               <button
                 className="btn btn-danger-outline btn-site-action"
                 onClick={() => handleDelete(site.id)}

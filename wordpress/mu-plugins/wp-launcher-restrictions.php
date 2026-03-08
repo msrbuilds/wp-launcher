@@ -9,6 +9,11 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+// Skip ALL restrictions in local mode — full WordPress functionality
+if ( getenv( 'WP_LOCAL_MODE' ) === 'true' ) {
+    return;
+}
+
 /**
  * Ensure wp-config constants are set as fallback.
  */

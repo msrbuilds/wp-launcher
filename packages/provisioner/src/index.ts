@@ -81,6 +81,7 @@ interface CreateBody {
   landingPage?: string;
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
   autoLoginToken?: string;
+  localMode?: boolean;
 }
 
 app.post('/containers', async (req: Request, res: Response) => {
@@ -177,14 +178,33 @@ app.post('/containers', async (req: Request, res: Response) => {
       env.push('DB_ENGINE=sqlite');
     }
 
-    env.push(`WP_UPLOAD_LIMIT=${WP_UPLOAD_LIMIT}`);
-    env.push(`WP_DISK_QUOTA=${WP_DISK_QUOTA}`);
+    if (!opts.localMode) {
+      env.push(`WP_UPLOAD_LIMIT=${WP_UPLOAD_LIMIT}`);
+      env.push(`WP_DISK_QUOTA=${WP_DISK_QUOTA}`);
+    }
 
     if (opts.activatePlugins) env.push(`WP_ACTIVATE_PLUGINS=${opts.activatePlugins}`);
     if (opts.removePlugins) env.push(`WP_REMOVE_PLUGINS=${opts.removePlugins}`);
     if (opts.activeTheme) env.push(`WP_ACTIVE_THEME=${opts.activeTheme}`);
     if (opts.landingPage) env.push(`WP_DEMO_LANDING_PAGE=${opts.landingPage}`);
     if (opts.autoLoginToken) env.push(`WP_AUTO_LOGIN_TOKEN=${opts.autoLoginToken}`);
+    if (opts.localMode) env.push('WP_LOCAL_MODE=true');
+
+    // In local mode: no resource limits, mount persistent volume
+    const useLocalMode = opts.localMode === true;
+    const hostConfig: any = {
+      NetworkMode: DOCKER_NETWORK,
+      RestartPolicy: { Name: 'unless-stopped' },
+    };
+
+    if (useLocalMode) {
+      // Named volume for wp-content persistence
+      hostConfig.Binds = [`wp-site-${opts.subdomain}:/var/www/html/wp-content`];
+    } else {
+      // Agency mode: enforce resource limits
+      hostConfig.Memory = CONTAINER_MEMORY;
+      hostConfig.NanoCpus = CONTAINER_CPU * 1e9;
+    }
 
     const container = await docker.createContainer({
       Image: opts.image,
@@ -204,12 +224,7 @@ app.post('/containers', async (req: Request, res: Response) => {
         'wp-launcher.expires-at': opts.expiresAt,
         ...(dbContainerId ? { 'wp-launcher.db-container': dbContainerId } : {}),
       },
-      HostConfig: {
-        NetworkMode: DOCKER_NETWORK,
-        Memory: CONTAINER_MEMORY,
-        NanoCpus: CONTAINER_CPU * 1e9,
-        RestartPolicy: { Name: 'unless-stopped' },
-      },
+      HostConfig: hostConfig,
     });
 
     await container.start();

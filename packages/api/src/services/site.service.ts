@@ -10,13 +10,20 @@ import {
 } from './docker.service';
 import { getProductConfig } from './product.service';
 
-export const MAX_SITES_PER_USER = parseInt(process.env.MAX_SITES_PER_USER || '3', 10);
+export const MAX_SITES_PER_USER = config.isLocalMode ? 0 : parseInt(process.env.MAX_SITES_PER_USER || '3', 10);
 
 export interface CreateSiteRequest {
   productId: string;
   expiresIn?: string;
   userId?: string;
   userEmail?: string;
+  // Local mode overrides
+  siteTitle?: string;
+  adminUser?: string;
+  adminPassword?: string;
+  adminEmail?: string;
+  dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
+  phpVersion?: string;
 }
 
 export interface SiteRecord {
@@ -72,7 +79,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
     .prepare("SELECT COUNT(*) as count FROM sites WHERE status = 'running'")
     .get() as { count: number };
 
-  if (totalActive.count >= config.defaults.maxTotalSites) {
+  if (config.defaults.maxTotalSites > 0 && totalActive.count >= config.defaults.maxTotalSites) {
     throw new Error('Our servers are currently at capacity. Please try again in a few minutes.');
   }
 
@@ -98,11 +105,11 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const siteUrl = `${protocol}://${subdomain}.${config.baseDomain}`;
   const adminUrl = `${siteUrl}/wp-admin/`;
 
-  const adminUser = productConfig?.demo?.admin_user || 'demo';
-  const adminPassword = crypto.randomBytes(16).toString('base64url'); // random per-site
+  const adminUser = req.adminUser || productConfig?.demo?.admin_user || 'demo';
+  const adminPassword = req.adminPassword || crypto.randomBytes(16).toString('base64url');
   const autoLoginToken = crypto.randomBytes(32).toString('base64url'); // for one-click login
-  const adminEmail = productConfig?.demo?.admin_email || 'demo@example.com';
-  const siteTitle = productConfig?.name || 'Demo Site';
+  const adminEmail = req.adminEmail || productConfig?.demo?.admin_email || 'demo@example.com';
+  const siteTitle = req.siteTitle || productConfig?.name || 'Demo Site';
 
   const pluginsToActivate = productConfig?.plugins?.preinstall
     ?.map((p: any) => p.slug || p.path?.split('/').pop()?.replace(/\.zip$/, ''))
@@ -116,8 +123,11 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
   const landingPage = productConfig?.demo?.landing_page || '';
 
-  const image = productConfig?.docker?.image || config.wpImage;
-  const dbEngine = productConfig?.database || 'sqlite';
+  const VALID_PHP_VERSIONS = ['8.1', '8.2', '8.3'];
+  const phpVersion = req.phpVersion && VALID_PHP_VERSIONS.includes(req.phpVersion) ? req.phpVersion : null;
+  const image = productConfig?.docker?.image
+    || (phpVersion ? `wp-launcher/wordpress:php${phpVersion}` : config.wpImage);
+  const dbEngine = req.dbEngine || productConfig?.database || 'sqlite';
 
   db.prepare(`
     INSERT INTO sites (id, subdomain, product_id, user_id, status, site_url, admin_url, admin_user, admin_password, auto_login_token, expires_at)
@@ -140,6 +150,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       landingPage,
       dbEngine,
       autoLoginToken,
+      localMode: config.isLocalMode,
     });
 
     // Clear password from DB now that it's been sent to the container — it's only needed at provision time

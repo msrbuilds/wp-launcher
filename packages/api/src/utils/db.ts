@@ -84,6 +84,14 @@ function initSchema(db: Database.Database): void {
   } catch {
     // Column already exists
   }
+
+  // Auto-create local user in local mode
+  if (config.isLocalMode) {
+    db.prepare(`
+      INSERT OR IGNORE INTO users (id, email, password_hash, verified)
+      VALUES ('local-user', 'local@localhost', '', 1)
+    `).run();
+  }
 }
 
 export function closeDb(): void {

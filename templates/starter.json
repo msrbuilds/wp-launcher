@@ -1,0 +1,34 @@
+{
+  "id": "starter",
+  "name": "WordPress Starter",
+  "wordpress": {
+    "version": "6.9",
+    "locale": "en_US"
+  },
+  "plugins": {
+    "preinstall": [],
+    "remove": ["hello", "akismet"]
+  },
+  "themes": {
+    "install": [],
+    "remove": []
+  },
+  "demo": {
+    "default_expiration": "never",
+    "max_expiration": "never",
+    "max_concurrent_sites": 0,
+    "admin_user": "admin",
+    "admin_email": "admin@localhost",
+    "landing_page": ""
+  },
+  "database": "sqlite",
+  "restrictions": {
+    "disable_file_mods": false,
+    "blocked_capabilities": []
+  },
+  "branding": {
+    "description": "Clean WordPress installation with SQLite. Fast and lightweight.",
+    "banner_text": "",
+    "logo_url": ""
+  }
+}

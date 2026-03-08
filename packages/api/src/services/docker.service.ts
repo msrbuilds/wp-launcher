@@ -40,6 +40,7 @@ export interface CreateContainerOptions {
   landingPage?: string;
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
   autoLoginToken?: string;
+  localMode?: boolean;
 }
 
 export async function createSiteContainer(opts: CreateContainerOptions): Promise<string> {

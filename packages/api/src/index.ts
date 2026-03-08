@@ -8,6 +8,7 @@ import sitesRouter from './routes/sites';
 import productsRouter from './routes/products';
 import authRouter from './routes/auth';
 import adminRouter from './routes/admin';
+import templatesRouter from './routes/templates';
 import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cleanup.service';
 import { closeDb } from './utils/db';
 
@@ -51,14 +52,31 @@ app.get('/health', (_req, res) => {
 app.get('/api/settings', (_req, res) => {
   res.json({
     cardLayout: config.ui.cardLayout,
+    appMode: config.appMode,
+    baseDomain: config.baseDomain,
   });
 });
 
-// Auth routes (public with rate limiting)
-app.use('/api/auth', authLimiter, authRouter);
+if (config.isLocalMode) {
+  // Local mode: minimal auth — just issue a token for the local user
+  const { generateToken } = require('./middleware/userAuth');
+  app.post('/api/auth/local-token', (_req: any, res: any) => {
+    const token = generateToken('local-user', 'local@localhost');
+    res.json({ token, user: { id: 'local-user', email: 'local@localhost' } });
+  });
+} else {
+  // Agency mode: full auth routes with rate limiting
+  app.use('/api/auth', authLimiter, authRouter);
+
+  // Admin routes (API key protected + rate limited)
+  app.use('/api/admin', adminLimiter, adminRouter);
+}
 
 // Sites routes (rate limiting handled per-route inside the router)
 app.use('/api/sites', sitesRouter);
+
+// Templates routes (local mode starter configs)
+app.use('/api/templates', templatesRouter);
 
 // Products routes
 app.use('/api/products', (req, res, next) => {
@@ -68,14 +86,12 @@ app.use('/api/products', (req, res, next) => {
   return apiKeyAuth(req, res, next);
 }, productsRouter);
 
-// Admin routes (API key protected + rate limited)
-app.use('/api/admin', adminLimiter, adminRouter);
-
 // Start server
 const server = app.listen(config.port, () => {
   console.log(`[api] WP Launcher API running on port ${config.port}`);
   console.log(`[api] Base domain: ${config.baseDomain}`);
   console.log(`[api] Environment: ${config.nodeEnv}`);
+  console.log(`[api] Mode: ${config.appMode}`);
 });
 
 // Start cleanup scheduler

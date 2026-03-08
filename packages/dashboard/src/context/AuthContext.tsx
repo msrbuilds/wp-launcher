@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useSettings } from './SettingsContext';
 
 interface User {
   id: string;
@@ -22,13 +23,31 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { appMode, loading: settingsLoading } = useSettings();
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
   const [user, setUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('user');
     return saved ? JSON.parse(saved) : null;
   });
 
+  // Auto-login for local mode
   useEffect(() => {
+    if (settingsLoading) return;
+    if (appMode === 'local' && !token) {
+      fetch('/api/auth/local-token', { method: 'POST' })
+        .then((res) => res.json())
+        .then((data) => {
+          setToken(data.token);
+          setUser(data.user);
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+        })
+        .catch(() => {});
+    }
+  }, [appMode, settingsLoading]);
+
+  useEffect(() => {
+    if (appMode === 'local') return; // Skip validation in local mode
     if (token && !user) {
       // Validate token
       fetch('/api/auth/me', {

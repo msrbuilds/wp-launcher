@@ -8,11 +8,20 @@
     "packages/dashboard"
   ],
   "scripts": {
+    "start": "docker compose up -d",
+    "stop": "docker compose down",
+    "restart": "docker compose restart",
+    "status": "docker compose ps",
+    "logs": "docker compose logs -f",
+    "install:local": "bash install-local.sh",
+    "install:vps": "bash install.sh",
     "dev": "docker compose up --build",
+    "dev:local": "docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build",
     "dev:api": "npm run dev -w packages/api",
     "dev:dashboard": "npm run dev -w packages/dashboard",
     "build": "npm run build -w packages/api && npm run build -w packages/dashboard",
     "build:wp": "bash scripts/build-wp-image.sh",
+    "rebuild": "docker compose up -d --build",
     "setup": "bash scripts/setup.sh"
   }
 }

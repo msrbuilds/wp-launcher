@@ -68,8 +68,10 @@ services:
     volumes:
       - ./data:/app/data
       - ./products:/app/products:ro
+      - ./templates:/app/templates:ro
       - ./wordpress:/app/wordpress:ro
     environment:
+      - APP_MODE=${APP_MODE:-agency}
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=3000
       - API_KEY=${API_KEY:?Set API_KEY in .env}
@@ -91,6 +93,7 @@ services:
       - CARD_LAYOUT=${CARD_LAYOUT:-full}
       - DATA_DIR=/app/data
       - PRODUCT_CONFIGS_DIR=/app/products
+      - TEMPLATE_CONFIGS_DIR=/app/templates
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.api.rule=Host(`api.${BASE_DOMAIN:-localhost}`)"

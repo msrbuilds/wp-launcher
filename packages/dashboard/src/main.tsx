@@ -1,9 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { SettingsProvider } from './context/SettingsContext';
 import { AuthProvider } from './context/AuthContext';
+import { useIsLocalMode } from './context/SettingsContext';
 import App from './App';
 import LaunchPage from './pages/LaunchPage';
+import LocalLaunchPage from './pages/LocalLaunchPage';
 import SitesListPage from './pages/SitesListPage';
 import LoginPage from './pages/LoginPage';
 import AccountPage from './pages/AccountPage';
@@ -19,22 +22,43 @@ function LaunchRedirect() {
   return <Navigate to="/" replace />;
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<App />}>
-            <Route index element={<LaunchPage />} />
-            <Route path="launch/:productId" element={<LaunchRedirect />} />
-            <Route path="sites" element={<SitesListPage />} />
+function AppRoutes() {
+  const isLocal = useIsLocalMode();
+
+  return (
+    <Routes>
+      <Route path="/" element={<App />}>
+        <Route index element={<LaunchPage />} />
+        {isLocal && <Route path="create" element={<LocalLaunchPage />} />}
+        <Route path="launch/:productId" element={<LaunchRedirect />} />
+        <Route path="sites" element={<SitesListPage />} />
+        {!isLocal && (
+          <>
             <Route path="login" element={<LoginPage />} />
             <Route path="account" element={<AccountPage />} />
             <Route path="verify" element={<VerifyPage />} />
             <Route path="admin" element={<AdminPage />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+          </>
+        )}
+        {isLocal && (
+          <>
+            <Route path="login" element={<Navigate to="/" replace />} />
+            <Route path="admin" element={<Navigate to="/" replace />} />
+          </>
+        )}
+      </Route>
+    </Routes>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <SettingsProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthProvider>
+    </SettingsProvider>
   </React.StrictMode>,
 );
