@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 
@@ -39,16 +40,17 @@ const PHP_OPTIONS = [
 export default function LocalLaunchPage() {
   const { token } = useAuth();
   const { loading: settingsLoading } = useSettings();
+  const [searchParams] = useSearchParams();
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [subdomain, setSubdomain] = useState('');
   const [siteTitle, setSiteTitle] = useState('My WordPress Site');
   const [dbEngine, setDbEngine] = useState('mysql');
   const [phpVersion, setPhpVersion] = useState('8.3');
   const [adminUser, setAdminUser] = useState('admin');
   const [adminPassword, setAdminPassword] = useState('admin');
   const [adminEmail, setAdminEmail] = useState('admin@localhost.test');
-  const [displayName, setDisplayName] = useState('Admin');
 
   const [step, setStep] = useState<Step>('configure');
   const [creating, setCreating] = useState(false);
@@ -63,7 +65,9 @@ export default function LocalLaunchPage() {
       .then((data) => {
         if (Array.isArray(data)) {
           setTemplates(data);
-          if (data.length > 0) setSelectedTemplate(data[0].id);
+          const templateParam = searchParams.get('template');
+          const match = templateParam && data.find((t: Template) => t.id === templateParam);
+          setSelectedTemplate(match ? match.id : data.length > 0 ? data[0].id : '');
         }
       })
       .catch(() => setTemplates([]));
@@ -97,6 +101,7 @@ export default function LocalLaunchPage() {
           adminUser,
           adminPassword,
           adminEmail,
+          ...(subdomain.trim() ? { subdomain: subdomain.trim().toLowerCase() } : {}),
         }),
       });
       if (!res.ok) {
@@ -314,16 +319,6 @@ export default function LocalLaunchPage() {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="displayName">Display Name</label>
-              <input
-                id="displayName"
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Admin"
-              />
-            </div>
-            <div className="form-group">
               <label htmlFor="adminEmail">Admin Email</label>
               <input
                 id="adminEmail"
@@ -331,6 +326,16 @@ export default function LocalLaunchPage() {
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
                 placeholder="admin@localhost.test"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="subdomain">Subdomain <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.8rem' }}>(optional)</span></label>
+              <input
+                id="subdomain"
+                type="text"
+                value={subdomain}
+                onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                placeholder="my-site (auto-generated if empty)"
               />
             </div>
           </div>

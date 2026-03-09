@@ -21,3 +21,8 @@ function randomSuffix(): string {
 export function generateSubdomain(): string {
   return `${randomItem(adjectives)}-${randomItem(nouns)}-${randomSuffix()}`;
 }
+
+export function isValidSubdomain(subdomain: string): boolean {
+  // 3-63 chars, lowercase alphanumeric + hyphens, no leading/trailing hyphens
+  return /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/.test(subdomain);
+}

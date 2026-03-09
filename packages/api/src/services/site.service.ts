@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { getDb } from '../utils/db';
-import { generateSubdomain } from '../utils/nameGenerator';
+import { generateSubdomain, isValidSubdomain } from '../utils/nameGenerator';
 import { config, parseExpiration } from '../config';
 import {
   createSiteContainer,
@@ -24,6 +24,7 @@ export interface CreateSiteRequest {
   adminEmail?: string;
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
   phpVersion?: string;
+  subdomain?: string;
 }
 
 export interface SiteRecord {
@@ -94,7 +95,23 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   }
 
   const id = uuidv4();
-  const subdomain = generateSubdomain();
+
+  // Use custom subdomain if provided, otherwise generate one
+  let subdomain: string;
+  if (req.subdomain) {
+    const cleaned = req.subdomain.toLowerCase().trim();
+    if (!isValidSubdomain(cleaned)) {
+      throw new Error('Invalid subdomain. Use 3-63 lowercase letters, numbers, and hyphens (no leading/trailing hyphens).');
+    }
+    // Check uniqueness
+    const existing = db.prepare("SELECT id FROM sites WHERE subdomain = ? AND status != 'expired'").get(cleaned);
+    if (existing) {
+      throw new Error(`Subdomain "${cleaned}" is already in use. Please choose a different one.`);
+    }
+    subdomain = cleaned;
+  } else {
+    subdomain = generateSubdomain();
+  }
   const expiresIn = req.expiresIn || productConfig?.demo?.default_expiration || config.defaults.expiration;
   const expirationMs = parseExpiration(expiresIn);
   const expiresAt = expirationMs === 0

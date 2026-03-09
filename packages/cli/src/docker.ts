@@ -42,7 +42,8 @@ export function getComposeArgs(projectDir: string): string[] {
 
 export function dockerCompose(projectDir: string, cmd: string[], opts?: { stdio?: 'inherit' | 'pipe' }): string {
   const composeArgs = getComposeArgs(projectDir);
-  const fullCmd = ['docker', 'compose', ...composeArgs, ...cmd].join(' ');
+  // Quote paths that contain spaces
+  const fullCmd = ['docker', 'compose', ...composeArgs.map(a => a.includes(' ') ? `"${a}"` : a), ...cmd].join(' ');
   try {
     const result = execSync(fullCmd, {
       stdio: opts?.stdio || 'pipe',
@@ -58,7 +59,9 @@ export function dockerCompose(projectDir: string, cmd: string[], opts?: { stdio?
 
 export function dockerComposeStream(projectDir: string, cmd: string[]): void {
   const composeArgs = getComposeArgs(projectDir);
-  const child = spawn('docker', ['compose', ...composeArgs, ...cmd], {
+  // Quote paths with spaces for shell execution
+  const quotedArgs = composeArgs.map(a => a.includes(' ') ? `"${a}"` : a);
+  const child = spawn('docker', ['compose', ...quotedArgs, ...cmd], {
     stdio: 'inherit',
     cwd: projectDir,
     shell: true,
@@ -137,17 +140,32 @@ export function getContainerStatus(projectDir: string): ContainerInfo[] {
       'ps', '--format', 'json',
     ]);
     if (!output.trim()) return [];
-    // docker compose ps --format json outputs one JSON object per line
-    return output.trim().split('\n').filter(Boolean).map((line) => {
-      const obj = JSON.parse(line);
-      return {
-        name: obj.Name || obj.name || '',
-        service: obj.Service || obj.service || '',
-        status: obj.Status || obj.status || '',
-        state: obj.State || obj.state || '',
-        ports: obj.Ports || obj.ports || '',
-      };
-    });
+    // docker compose ps --format json may output multi-line JSON on Windows
+    // (backslash paths in Labels cause line breaks). Parse by finding JSON objects.
+    const results: ContainerInfo[] = [];
+    let buffer = '';
+    let depth = 0;
+    for (const char of output) {
+      if (char === '{') depth++;
+      if (depth > 0) buffer += char;
+      if (char === '}') {
+        depth--;
+        if (depth === 0 && buffer) {
+          try {
+            const obj = JSON.parse(buffer);
+            results.push({
+              name: obj.Name || obj.name || '',
+              service: obj.Service || obj.service || '',
+              status: obj.Status || obj.status || '',
+              state: obj.State || obj.state || '',
+              ports: obj.Ports || obj.ports || '',
+            });
+          } catch { /* skip malformed */ }
+          buffer = '';
+        }
+      }
+    }
+    return results;
   } catch {
     return [];
   }
@@ -162,6 +180,7 @@ export interface SiteInfo {
   product_id: string;
   created_at: string;
   expires_at: string;
+  db_engine?: string;
 }
 
 export interface ContainerStats {
@@ -191,13 +210,19 @@ export function getContainerStats(): ContainerStats[] {
 
 export function getWpContainerStats(): ContainerStats[] {
   try {
-    // Get wp-launcher managed containers + infrastructure
-    const ids = execSync(
+    // Get compose services + wp-launcher managed site containers
+    const composeIds = execSync(
       'docker ps --format "{{.ID}}" --filter "label=com.docker.compose.project"',
       { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 }
     ).trim();
-    if (!ids) return [];
-    const idList = ids.split('\n').filter(Boolean).join(' ');
+    const siteIds = execSync(
+      'docker ps --format "{{.ID}}" --filter "label=wp-launcher.managed=true"',
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 }
+    ).trim();
+    // Merge and deduplicate
+    const allIds = [...new Set([...composeIds.split('\n'), ...siteIds.split('\n')].filter(Boolean))];
+    if (allIds.length === 0) return [];
+    const idList = allIds.join(' ');
     const output = execSync(
       `docker stats --no-stream --format "{{.Name}}|{{.CPUPerc}}|{{.MemPerc}}|{{.MemUsage}}|{{.NetIO}}|{{.PIDs}}" ${idList}`,
       { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 10000 }
@@ -214,15 +239,29 @@ export function getWpContainerStats(): ContainerStats[] {
 
 export async function getSites(): Promise<SiteInfo[]> {
   try {
-    const res = await fetch('http://localhost:3000/api/sites');
-    if (!res.ok) {
+    let data: any;
+    try {
+      const res = await fetch('http://localhost:3000/api/sites');
+      if (res.ok) data = await res.json();
+    } catch { /* fall through */ }
+    if (!data) {
       const res2 = await fetch('http://localhost/api/sites');
       if (!res2.ok) return [];
-      const data = await res2.json() as any;
-      return data.sites || [];
+      data = await res2.json();
     }
-    const data = await res.json() as any;
-    return data.sites || [];
+    const sites: any[] = data?.sites || (Array.isArray(data) ? data : []);
+    // Normalize camelCase API response to snake_case for CLI
+    return sites.map((s: any) => ({
+      id: s.id,
+      subdomain: s.subdomain,
+      status: s.status,
+      site_url: s.url || s.site_url || '',
+      admin_url: s.adminUrl || s.admin_url || '',
+      product_id: s.productId || s.product_id || '',
+      created_at: s.createdAt || s.created_at || '',
+      expires_at: s.expiresAt || s.expires_at || '',
+      db_engine: s.dbEngine || s.db_engine || undefined,
+    }));
   } catch {
     return [];
   }

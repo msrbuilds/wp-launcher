@@ -29,7 +29,7 @@ const ansi = {
   italic: `${CSI}3m`,
   reset: `${CSI}0m`,
   fg: {
-    black: `${CSI}30m`,
+    black: `${CSI}38;2;0;0;0m`,       // true #000000 black
     red: `${CSI}31m`,
     green: `${CSI}32m`,
     yellow: `${CSI}33m`,
@@ -267,13 +267,13 @@ function renderSitesTab(state: DashboardState, lines: string[], W: number, maxRo
   }
 
   // Column widths
-  const cw = { sub: 24, status: 10, db: 8, url: Math.max(20, W - 70), cpu: 8, mem: 10 };
+  const cw = { sub: 24, status: 10, tmpl: 12, url: Math.max(20, W - 74), cpu: 8, mem: 10 };
 
   // Header
   const headerStr =
     ` ${ansi.bold}${ansi.fg.white}${pad('SUBDOMAIN', cw.sub)}` +
     `${pad('STATUS', cw.status)}` +
-    `${pad('DB', cw.db)}` +
+    `${pad('TEMPLATE', cw.tmpl)}` +
     `${pad('URL', cw.url)}` +
     `${pad('CPU', cw.cpu)}` +
     `${pad('MEM', cw.mem)}${ansi.reset}`;
@@ -292,7 +292,7 @@ function renderSitesTab(state: DashboardState, lines: string[], W: number, maxRo
     const rowStr =
       ` ${ansi.fg.white}${pad(truncStr(site.subdomain, cw.sub - 1), cw.sub)}${ansi.reset}` +
       `${statusColor}${pad(site.status.toUpperCase(), cw.status)}${ansi.reset}` +
-      `${ansi.fg.gray}${pad(site.product_id || 'sqlite', cw.db)}${ansi.reset}` +
+      `${ansi.fg.gray}${pad(truncStr(site.product_id || '-', cw.tmpl - 1), cw.tmpl)}${ansi.reset}` +
       `${ansi.fg.orange}${pad(truncStr(site.site_url || '-', cw.url - 1), cw.url)}${ansi.reset}` +
       `${ansi.fg.yellow}${pad(cpuStr, cw.cpu)}${ansi.reset}` +
       `${ansi.fg.magenta}${pad(memStr, cw.mem)}${ansi.reset}`;

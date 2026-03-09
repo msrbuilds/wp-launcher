@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useIsLocalMode } from '../context/SettingsContext';
 import CountdownTimer from '../components/CountdownTimer';
@@ -22,6 +22,9 @@ export default function SitesListPage() {
   const [sites, setSites] = useState<Site[]>([]);
   const [maxSites, setMaxSites] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filterTemplate, setFilterTemplate] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
 
   function fetchSites() {
     const headers: Record<string, string> = {};
@@ -48,7 +51,7 @@ export default function SitesListPage() {
   }, [token]);
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this demo site?')) return;
+    if (!confirm('Delete this site?')) return;
 
     await fetch(`/api/sites/${id}`, {
       method: 'DELETE',
@@ -56,6 +59,22 @@ export default function SitesListPage() {
     });
     fetchSites();
   }
+
+  // Derive unique templates and statuses for filters
+  const templates = useMemo(() => [...new Set(sites.map((s) => s.productId))].sort(), [sites]);
+  const statuses = useMemo(() => [...new Set(sites.map((s) => s.status))].sort(), [sites]);
+
+  // Filtered sites
+  const filtered = useMemo(() => {
+    let result = sites;
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter((s) => s.subdomain.toLowerCase().includes(q) || s.url.toLowerCase().includes(q));
+    }
+    if (filterTemplate) result = result.filter((s) => s.productId === filterTemplate);
+    if (filterStatus) result = result.filter((s) => s.status === filterStatus);
+    return result;
+  }, [sites, search, filterTemplate, filterStatus]);
 
   if (loading) {
     return (
@@ -93,11 +112,141 @@ export default function SitesListPage() {
     );
   }
 
+  // Local mode: compact table view
+  if (isLocal) {
+    return (
+      <div>
+        <div className="page-header">
+          <h2>Sites ({sites.length})</h2>
+          <p>Manage your WordPress sites</p>
+        </div>
+
+        <div className="sites-toolbar">
+          <input
+            type="text"
+            className="sites-search"
+            placeholder="Search by name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <select
+            className="sites-filter"
+            value={filterTemplate}
+            onChange={(e) => setFilterTemplate(e.target.value)}
+          >
+            <option value="">All Templates</option>
+            {templates.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <select
+            className="sites-filter"
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+          >
+            <option value="">All Statuses</option>
+            {statuses.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="card sites-table-wrap">
+          <table className="sites-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Name</th>
+                <th>Template</th>
+                <th>Created</th>
+                <th>Expires</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((site) => (
+                <tr key={site.id}>
+                  <td>
+                    <span className={`status-dot status-${site.status}`} />
+                    <span className="status-text">{site.status}</span>
+                  </td>
+                  <td>
+                    <a href={site.url} target="_blank" rel="noopener noreferrer" className="site-table-name">
+                      {site.subdomain}
+                    </a>
+                  </td>
+                  <td><span className="site-card-product">{site.productId}</span></td>
+                  <td className="site-table-date">{new Date(site.createdAt).toLocaleDateString()}</td>
+                  <td className="site-table-date"><CountdownTimer expiresAt={site.expiresAt} /></td>
+                  <td>
+                    <div className="site-table-actions">
+                      <a
+                        href={site.autoLoginUrl || site.adminUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-primary btn-xs"
+                        title="Login to WP Admin"
+                      >
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" /></svg>
+                        Login
+                      </a>
+                      <a
+                        href={site.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary btn-xs"
+                        title="Visit site"
+                      >
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582" /></svg>
+                        Visit
+                      </a>
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`docker exec wp-demo-${site.subdomain} wp --allow-root `);
+                          const btn = document.activeElement as HTMLButtonElement;
+                          const orig = btn.innerHTML;
+                          btn.textContent = 'Copied!';
+                          setTimeout(() => { btn.innerHTML = orig; }, 1500);
+                        }}
+                        title="Copy WP-CLI command prefix"
+                      >
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                        WP-CLI
+                      </button>
+                      <button
+                        className="btn btn-danger-outline btn-xs"
+                        onClick={() => handleDelete(site.id)}
+                        title="Delete site"
+                      >
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                        </svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                    No sites match your filters
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // Agency mode: card grid (unchanged)
   return (
     <div>
       <div className="page-header">
-        <h2>{isLocal ? 'Sites' : 'My Sites'} ({sites.length}{!isLocal && maxSites ? ` / ${maxSites}` : ''})</h2>
-        <p>{isLocal ? 'Manage your WordPress sites' : 'Manage your active demo sites'}</p>
+        <h2>My Sites ({sites.length}{maxSites ? ` / ${maxSites}` : ''})</h2>
+        <p>Manage your active demo sites</p>
       </div>
 
       <div className="sites-grid">
@@ -172,21 +321,6 @@ export default function SitesListPage() {
                 </svg>
                 Visit Site
               </a>
-              {isLocal && (
-                <button
-                  className="btn btn-secondary btn-site-action"
-                  onClick={() => {
-                    navigator.clipboard.writeText(`docker exec -it wp-demo-${site.subdomain} wp --allow-root`);
-                    alert('WP-CLI command copied to clipboard!');
-                  }}
-                  title="Copy WP-CLI command"
-                >
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
-                  </svg>
-                  WP-CLI
-                </button>
-              )}
               <button
                 className="btn btn-danger-outline btn-site-action"
                 onClick={() => handleDelete(site.id)}

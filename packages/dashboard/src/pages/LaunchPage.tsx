@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import CountdownTimer from '../components/CountdownTimer';
 
 interface Product {
@@ -30,6 +30,7 @@ export default function LaunchPage() {
   const { isAuthenticated, token, login } = useAuth();
   const { appMode, loading: settingsLoading } = useSettings();
   const isLocal = appMode === 'local';
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -360,11 +361,11 @@ export default function LaunchPage() {
                 </div>
                 <button
                   className="btn btn-primary btn-compact-launch"
-                  onClick={() => handleLaunch(product.id)}
-                  disabled={launchingId !== null}
+                  onClick={() => isLocal ? navigate(`/create?template=${product.id}`) : handleLaunch(product.id)}
+                  disabled={!isLocal && launchingId !== null}
                 >
                   {launchingId === product.id ? (
-                    <><span className="spinner" /> {isLocal ? 'Creating...' : 'Launching...'}</>
+                    <><span className="spinner" /> Launching...</>
                   ) : (
                     isLocal ? 'Create Site' : 'Launch Demo'
                   )}
@@ -391,11 +392,11 @@ export default function LaunchPage() {
                   <button
                     className="btn btn-primary"
                     style={{ width: '100%' }}
-                    onClick={() => handleLaunch(product.id)}
-                    disabled={launchingId !== null}
+                    onClick={() => isLocal ? navigate(`/create?template=${product.id}`) : handleLaunch(product.id)}
+                    disabled={!isLocal && launchingId !== null}
                   >
                     {launchingId === product.id ? (
-                      <><span className="spinner" /> {isLocal ? 'Creating...' : 'Launching...'}</>
+                      <><span className="spinner" /> Launching...</>
                     ) : (
                       isLocal ? 'Create Site' : 'Launch Demo'
                     )}

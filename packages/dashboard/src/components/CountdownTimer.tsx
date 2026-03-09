@@ -36,7 +36,7 @@ export default function CountdownTimer({ expiresAt }: CountdownTimerProps) {
   }, [expiresAt, neverExpires]);
 
   if (neverExpires) {
-    return <span className="countdown">Never expires</span>;
+    return <span className="countdown">Never</span>;
   }
 
   const totalMins = remaining / 60000;
