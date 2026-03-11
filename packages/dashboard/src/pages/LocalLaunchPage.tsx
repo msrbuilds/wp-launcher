@@ -52,6 +52,27 @@ export default function LocalLaunchPage() {
   const [adminPassword, setAdminPassword] = useState('admin');
   const [adminEmail, setAdminEmail] = useState('admin@localhost.test');
 
+  // PHP configuration
+  const [showPhpConfig, setShowPhpConfig] = useState(false);
+  const [phpMemoryLimit, setPhpMemoryLimit] = useState('256M');
+  const [phpUploadMaxFilesize, setPhpUploadMaxFilesize] = useState('64M');
+  const [phpPostMaxSize, setPhpPostMaxSize] = useState('64M');
+  const [phpMaxExecutionTime, setPhpMaxExecutionTime] = useState('300');
+  const [phpMaxInputVars, setPhpMaxInputVars] = useState('3000');
+  const [phpDisplayErrors, setPhpDisplayErrors] = useState('On');
+  const [phpExtensions, setPhpExtensions] = useState<string[]>([]);
+
+  const AVAILABLE_EXTENSIONS = [
+    { value: 'redis', label: 'Redis' },
+    { value: 'xdebug', label: 'Xdebug' },
+    { value: 'sockets', label: 'Sockets' },
+    { value: 'calendar', label: 'Calendar' },
+    { value: 'pcntl', label: 'PCNTL' },
+    { value: 'imap', label: 'IMAP' },
+    { value: 'ldap', label: 'LDAP' },
+    { value: 'gettext', label: 'Gettext' },
+  ];
+
   const [step, setStep] = useState<Step>('configure');
   const [creating, setCreating] = useState(false);
   const [result, setResult] = useState<SiteResult | null>(null);
@@ -102,6 +123,15 @@ export default function LocalLaunchPage() {
           adminPassword,
           adminEmail,
           ...(subdomain.trim() ? { subdomain: subdomain.trim().toLowerCase() } : {}),
+          phpConfig: {
+            memoryLimit: phpMemoryLimit,
+            uploadMaxFilesize: phpUploadMaxFilesize,
+            postMaxSize: phpPostMaxSize,
+            maxExecutionTime: phpMaxExecutionTime,
+            maxInputVars: phpMaxInputVars,
+            displayErrors: phpDisplayErrors,
+            ...(phpExtensions.length > 0 ? { extensions: phpExtensions.join(',') } : {}),
+          },
         }),
       });
       if (!res.ok) {
@@ -340,6 +370,129 @@ export default function LocalLaunchPage() {
             </div>
           </div>
         </div>
+
+        {/* PHP Configuration (collapsible) */}
+        <div style={{ marginTop: '1.5rem' }}>
+          <button
+            type="button"
+            onClick={() => setShowPhpConfig(!showPhpConfig)}
+            style={{
+              background: 'none',
+              border: '1px solid #334155',
+              borderRadius: '0.5rem',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              padding: '0.5rem 1rem',
+              width: '100%',
+              textAlign: 'left',
+              fontSize: '0.85rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <span>PHP Configuration</span>
+            <span style={{ fontSize: '0.7rem' }}>{showPhpConfig ? '\u25B2' : '\u25BC'}</span>
+          </button>
+          {showPhpConfig && (
+            <div style={{ marginTop: '0.75rem', padding: '1rem', background: '#0f172a', borderRadius: '0.5rem', border: '1px solid #1e293b' }}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Memory Limit</label>
+                  <select value={phpMemoryLimit} onChange={(e) => setPhpMemoryLimit(e.target.value)}>
+                    <option value="128M">128 MB</option>
+                    <option value="256M">256 MB</option>
+                    <option value="512M">512 MB</option>
+                    <option value="1G">1 GB</option>
+                    <option value="2G">2 GB</option>
+                    <option value="-1">Unlimited</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Upload Max Filesize</label>
+                  <select value={phpUploadMaxFilesize} onChange={(e) => setPhpUploadMaxFilesize(e.target.value)}>
+                    <option value="2M">2 MB</option>
+                    <option value="16M">16 MB</option>
+                    <option value="64M">64 MB</option>
+                    <option value="128M">128 MB</option>
+                    <option value="256M">256 MB</option>
+                    <option value="512M">512 MB</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Post Max Size</label>
+                  <select value={phpPostMaxSize} onChange={(e) => setPhpPostMaxSize(e.target.value)}>
+                    <option value="8M">8 MB</option>
+                    <option value="16M">16 MB</option>
+                    <option value="64M">64 MB</option>
+                    <option value="128M">128 MB</option>
+                    <option value="256M">256 MB</option>
+                    <option value="512M">512 MB</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Max Execution Time</label>
+                  <select value={phpMaxExecutionTime} onChange={(e) => setPhpMaxExecutionTime(e.target.value)}>
+                    <option value="30">30s</option>
+                    <option value="60">60s</option>
+                    <option value="120">120s</option>
+                    <option value="300">300s</option>
+                    <option value="600">600s</option>
+                    <option value="0">Unlimited</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Max Input Vars</label>
+                  <select value={phpMaxInputVars} onChange={(e) => setPhpMaxInputVars(e.target.value)}>
+                    <option value="1000">1,000</option>
+                    <option value="3000">3,000</option>
+                    <option value="5000">5,000</option>
+                    <option value="10000">10,000</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Display Errors</label>
+                  <select value={phpDisplayErrors} onChange={(e) => setPhpDisplayErrors(e.target.value)}>
+                    <option value="On">On</option>
+                    <option value="Off">Off</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group" style={{ marginTop: '0.5rem' }}>
+                <label>PHP Extensions <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.75rem' }}>(click to toggle)</span></label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.35rem' }}>
+                  {AVAILABLE_EXTENSIONS.map((ext) => {
+                    const active = phpExtensions.includes(ext.value);
+                    return (
+                      <button
+                        key={ext.value}
+                        type="button"
+                        onClick={() => setPhpExtensions(
+                          active ? phpExtensions.filter((e) => e !== ext.value) : [...phpExtensions, ext.value]
+                        )}
+                        style={{
+                          padding: '0.3rem 0.7rem',
+                          borderRadius: '0.35rem',
+                          border: active ? '1px solid #fb8500' : '1px solid #334155',
+                          background: active ? 'rgba(251, 133, 0, 0.15)' : 'transparent',
+                          color: active ? '#fb8500' : '#94a3b8',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {ext.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {error && <div className="alert-error" style={{ marginTop: '1rem' }}>{error}</div>}
         <button
           className="btn btn-primary btn-lg"

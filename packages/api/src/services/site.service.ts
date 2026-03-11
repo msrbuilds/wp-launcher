@@ -25,6 +25,15 @@ export interface CreateSiteRequest {
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
   phpVersion?: string;
   subdomain?: string;
+  phpConfig?: {
+    memoryLimit?: string;
+    uploadMaxFilesize?: string;
+    postMaxSize?: string;
+    maxExecutionTime?: string;
+    maxInputVars?: string;
+    displayErrors?: string;
+    extensions?: string;
+  };
 }
 
 export interface SiteRecord {
@@ -206,6 +215,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       dbEngine,
       autoLoginToken,
       localMode: config.isLocalMode,
+      phpConfig: req.phpConfig,
     });
 
     // Clear password from DB now that it's been sent to the container — it's only needed at provision time

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, MAX_SITES_PER_USER } from '../services/site.service';
+import { updatePhpConfig } from '../services/docker.service';
 import { conditionalAuth, conditionalOptionalAuth, AuthRequest } from '../middleware/userAuth';
 import { config } from '../config';
 
@@ -42,7 +43,7 @@ const siteReadLimiter = rateLimit({
 // Create a new demo site (requires auth)
 router.post('/', siteWriteLimiter, conditionalAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { productId, expiresIn, siteTitle, adminUser, adminPassword, adminEmail, dbEngine, phpVersion, subdomain } = req.body;
+    const { productId, expiresIn, siteTitle, adminUser, adminPassword, adminEmail, dbEngine, phpVersion, subdomain, phpConfig } = req.body;
 
     if (!productId) {
       res.status(400).json({ error: 'productId is required' });
@@ -61,6 +62,7 @@ router.post('/', siteWriteLimiter, conditionalAuth, async (req: AuthRequest, res
       dbEngine,
       phpVersion,
       subdomain,
+      phpConfig,
     });
 
     res.status(201).json({
@@ -199,6 +201,34 @@ router.get('/:id/ready', siteReadLimiter, async (req: AuthRequest, res: Response
       res.json({ ready: false, reason: 'site not responding' });
     }
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update PHP config on a running site (requires auth)
+router.patch('/:id/php-config', siteWriteLimiter, conditionalAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const site = getSite(req.params.id);
+    if (!site) {
+      res.status(404).json({ error: 'Site not found' });
+      return;
+    }
+
+    // Users can only update their own sites (admin bypasses)
+    if (req.userId && req.userId !== 'admin' && site.user_id !== req.userId) {
+      res.status(403).json({ error: 'You can only update your own sites' });
+      return;
+    }
+
+    if (!site.container_id || site.status !== 'running') {
+      res.status(400).json({ error: 'Site is not running' });
+      return;
+    }
+
+    await updatePhpConfig(site.container_id, req.body);
+    res.json({ status: 'updated' });
+  } catch (err: any) {
+    console.error('[sites] Error updating PHP config:', err);
     res.status(500).json({ error: err.message });
   }
 });

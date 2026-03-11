@@ -1,6 +1,53 @@
 #!/bin/bash
 set -euo pipefail
 
+# ── PHP Configuration ──────────────────────────────────────────────────────
+# Apply php.ini overrides from PHP_* env vars before Apache starts
+PHP_INI_CUSTOM="/usr/local/etc/php/conf.d/99-wp-launcher.ini"
+{
+  echo "; WP Launcher runtime PHP overrides"
+  [ -n "${PHP_MEMORY_LIMIT:-}" ]          && echo "memory_limit = ${PHP_MEMORY_LIMIT}"
+  [ -n "${PHP_UPLOAD_MAX_FILESIZE:-}" ]    && echo "upload_max_filesize = ${PHP_UPLOAD_MAX_FILESIZE}"
+  [ -n "${PHP_POST_MAX_SIZE:-}" ]          && echo "post_max_size = ${PHP_POST_MAX_SIZE}"
+  [ -n "${PHP_MAX_EXECUTION_TIME:-}" ]     && echo "max_execution_time = ${PHP_MAX_EXECUTION_TIME}"
+  [ -n "${PHP_MAX_INPUT_VARS:-}" ]         && echo "max_input_vars = ${PHP_MAX_INPUT_VARS}"
+  [ -n "${PHP_MAX_INPUT_TIME:-}" ]         && echo "max_input_time = ${PHP_MAX_INPUT_TIME}"
+  [ -n "${PHP_DISPLAY_ERRORS:-}" ]         && echo "display_errors = ${PHP_DISPLAY_ERRORS}"
+  [ -n "${PHP_ERROR_REPORTING:-}" ]        && echo "error_reporting = ${PHP_ERROR_REPORTING}"
+  [ -n "${PHP_MAX_FILE_UPLOADS:-}" ]       && echo "max_file_uploads = ${PHP_MAX_FILE_UPLOADS}"
+} > "$PHP_INI_CUSTOM"
+echo "[wp-launcher] PHP ini overrides written to ${PHP_INI_CUSTOM}"
+
+# Enable/disable PHP extensions from PHP_EXTENSIONS env (comma-separated)
+# Available: redis, xdebug, sockets, calendar, pcntl, imap, ldap, gettext
+# Always-on (in image): gd, imagick, intl, zip, exif, bcmath, opcache, mysqli, pdo_sqlite, sodium
+if [ -n "${PHP_EXTENSIONS:-}" ]; then
+    IFS=',' read -ra EXTS <<< "$PHP_EXTENSIONS"
+    for ext in "${EXTS[@]}"; do
+        ext=$(echo "$ext" | xargs)  # trim whitespace
+        [ -z "$ext" ] && continue
+        if find /usr/local/lib/php/extensions/ -name "${ext}.so" 2>/dev/null | grep -q .; then
+            # Xdebug is a Zend extension and needs special loading + config
+            if [ "$ext" = "xdebug" ]; then
+                {
+                    echo "zend_extension=xdebug.so"
+                    echo "[xdebug]"
+                    echo "xdebug.mode = ${XDEBUG_MODE:-debug}"
+                    echo "xdebug.start_with_request = ${XDEBUG_START_WITH_REQUEST:-yes}"
+                    echo "xdebug.client_host = ${XDEBUG_CLIENT_HOST:-host.docker.internal}"
+                    echo "xdebug.client_port = ${XDEBUG_CLIENT_PORT:-9003}"
+                } >> "$PHP_INI_CUSTOM"
+                echo "[wp-launcher] Xdebug enabled (mode=${XDEBUG_MODE:-debug})"
+            else
+                echo "extension=${ext}.so" >> "$PHP_INI_CUSTOM"
+            fi
+            echo "[wp-launcher] Enabled PHP extension: ${ext}"
+        else
+            echo "[wp-launcher] Warning: extension '${ext}' not found, skipping"
+        fi
+    done
+fi
+
 # Run the original WordPress entrypoint first
 docker-entrypoint.sh apache2-foreground &
 WP_PID=$!

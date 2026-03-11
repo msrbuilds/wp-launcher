@@ -2,7 +2,28 @@ ARG PHP_VERSION=8.3
 FROM wordpress:6.9-php${PHP_VERSION}-apache
 
 # Install required system packages (unzip for plugins, default-mysql-client for MySQL health checks)
-RUN apt-get update && apt-get install -y --no-install-recommends unzip default-mysql-client && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    unzip default-mysql-client libldap2-dev libc-client-dev libkrb5-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install additional PHP extensions (pre-installed but disabled — toggled at runtime via PHP_EXTENSIONS env)
+RUN docker-php-ext-install sockets gettext calendar pcntl \
+    && docker-php-ext-configure imap --with-kerberos --with-imap-ssl \
+    && docker-php-ext-install imap \
+    && docker-php-ext-configure ldap \
+    && docker-php-ext-install ldap \
+    && pecl install redis xdebug \
+    && docker-php-ext-enable redis xdebug
+
+# Disable all optional extensions by default (users enable via PHP_EXTENSIONS env var at runtime)
+RUN rm -f /usr/local/etc/php/conf.d/docker-php-ext-redis.ini \
+    && rm -f /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
+    && rm -f /usr/local/etc/php/conf.d/docker-php-ext-sockets.ini \
+    && rm -f /usr/local/etc/php/conf.d/docker-php-ext-calendar.ini \
+    && rm -f /usr/local/etc/php/conf.d/docker-php-ext-pcntl.ini \
+    && rm -f /usr/local/etc/php/conf.d/docker-php-ext-imap.ini \
+    && rm -f /usr/local/etc/php/conf.d/docker-php-ext-ldap.ini \
+    && rm -f /usr/local/etc/php/conf.d/docker-php-ext-gettext.ini
 
 # Install wp-cli
 RUN curl -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar \

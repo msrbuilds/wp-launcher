@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useIsLocalMode } from '../context/SettingsContext';
 import CountdownTimer from '../components/CountdownTimer';
@@ -16,6 +16,37 @@ interface Site {
   expiresAt: string;
 }
 
+interface PhpConfig {
+  memoryLimit: string;
+  uploadMaxFilesize: string;
+  postMaxSize: string;
+  maxExecutionTime: string;
+  maxInputVars: string;
+  displayErrors: string;
+  extensions: string[];
+}
+
+const DEFAULT_PHP_CONFIG: PhpConfig = {
+  memoryLimit: '256M',
+  uploadMaxFilesize: '64M',
+  postMaxSize: '64M',
+  maxExecutionTime: '300',
+  maxInputVars: '3000',
+  displayErrors: 'On',
+  extensions: [],
+};
+
+const AVAILABLE_EXTENSIONS = [
+  { value: 'redis', label: 'Redis' },
+  { value: 'xdebug', label: 'Xdebug' },
+  { value: 'sockets', label: 'Sockets' },
+  { value: 'calendar', label: 'Calendar' },
+  { value: 'pcntl', label: 'PCNTL' },
+  { value: 'imap', label: 'IMAP' },
+  { value: 'ldap', label: 'LDAP' },
+  { value: 'gettext', label: 'Gettext' },
+];
+
 export default function SitesListPage() {
   const { isAuthenticated, token } = useAuth();
   const isLocal = useIsLocalMode();
@@ -27,6 +58,60 @@ export default function SitesListPage() {
   const [search, setSearch] = useState('');
   const [filterTemplate, setFilterTemplate] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [expandedSite, setExpandedSite] = useState<string | null>(null);
+  const [phpConfigs, setPhpConfigs] = useState<Record<string, PhpConfig>>({});
+  const [savingPhp, setSavingPhp] = useState<string | null>(null);
+  const [phpSaveMsg, setPhpSaveMsg] = useState<Record<string, string>>({});
+
+  function getPhpConfig(siteId: string): PhpConfig {
+    return phpConfigs[siteId] || { ...DEFAULT_PHP_CONFIG };
+  }
+
+  function updatePhpField(siteId: string, field: keyof PhpConfig, value: any) {
+    setPhpConfigs((prev) => ({
+      ...prev,
+      [siteId]: { ...getPhpConfig(siteId), [field]: value },
+    }));
+  }
+
+  function toggleExtension(siteId: string, ext: string) {
+    const cfg = getPhpConfig(siteId);
+    const exts = cfg.extensions.includes(ext)
+      ? cfg.extensions.filter((e) => e !== ext)
+      : [...cfg.extensions, ext];
+    updatePhpField(siteId, 'extensions', exts);
+  }
+
+  async function handleSavePhpConfig(siteId: string) {
+    setSavingPhp(siteId);
+    setPhpSaveMsg((prev) => ({ ...prev, [siteId]: '' }));
+    try {
+      const cfg = getPhpConfig(siteId);
+      const res = await fetch(`/api/sites/${siteId}/php-config`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({
+          memoryLimit: cfg.memoryLimit,
+          uploadMaxFilesize: cfg.uploadMaxFilesize,
+          postMaxSize: cfg.postMaxSize,
+          maxExecutionTime: cfg.maxExecutionTime,
+          maxInputVars: cfg.maxInputVars,
+          displayErrors: cfg.displayErrors,
+          extensions: cfg.extensions.length > 0 ? cfg.extensions.join(',') : undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update');
+      }
+      setPhpSaveMsg((prev) => ({ ...prev, [siteId]: 'Applied! Apache reloaded.' }));
+      setTimeout(() => setPhpSaveMsg((prev) => ({ ...prev, [siteId]: '' })), 3000);
+    } catch (err: any) {
+      setPhpSaveMsg((prev) => ({ ...prev, [siteId]: `Error: ${err.message}` }));
+    } finally {
+      setSavingPhp(null);
+    }
+  }
 
   function getAuthHeaders(): Record<string, string> {
     const headers: Record<string, string> = {};
@@ -172,7 +257,8 @@ export default function SitesListPage() {
             </thead>
             <tbody>
               {filtered.map((site) => (
-                <tr key={site.id}>
+                <React.Fragment key={site.id}>
+                <tr>
                   <td>
                     <span className={`status-dot status-${site.status}`} />
                     <span className="status-text">{site.status}</span>
@@ -222,6 +308,15 @@ export default function SitesListPage() {
                         WP-CLI
                       </button>
                       <button
+                        className={`btn btn-secondary btn-xs${expandedSite === site.id ? ' btn-active' : ''}`}
+                        onClick={() => setExpandedSite(expandedSite === site.id ? null : site.id)}
+                        title="PHP Settings"
+                        style={expandedSite === site.id ? { borderColor: '#fb8500', color: '#fb8500' } : {}}
+                      >
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+                        PHP
+                      </button>
+                      <button
                         className="btn btn-danger-outline btn-xs"
                         onClick={() => handleDelete(site.id)}
                         title="Delete site"
@@ -233,6 +328,123 @@ export default function SitesListPage() {
                     </div>
                   </td>
                 </tr>
+                {expandedSite === site.id && (
+                  <tr key={`${site.id}-php`}>
+                    <td colSpan={6} style={{ padding: 0, border: 'none' }}>
+                      <div style={{ padding: '1rem 1.25rem', background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>PHP Settings</span>
+                          <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Changes apply instantly (Apache graceful reload)</span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem' }}>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Memory Limit</label>
+                            <select value={getPhpConfig(site.id).memoryLimit} onChange={(e) => updatePhpField(site.id, 'memoryLimit', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                              <option value="128M">128 MB</option>
+                              <option value="256M">256 MB</option>
+                              <option value="512M">512 MB</option>
+                              <option value="1G">1 GB</option>
+                              <option value="-1">Unlimited</option>
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Upload Max</label>
+                            <select value={getPhpConfig(site.id).uploadMaxFilesize} onChange={(e) => updatePhpField(site.id, 'uploadMaxFilesize', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                              <option value="2M">2 MB</option>
+                              <option value="16M">16 MB</option>
+                              <option value="64M">64 MB</option>
+                              <option value="128M">128 MB</option>
+                              <option value="256M">256 MB</option>
+                              <option value="512M">512 MB</option>
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Post Max Size</label>
+                            <select value={getPhpConfig(site.id).postMaxSize} onChange={(e) => updatePhpField(site.id, 'postMaxSize', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                              <option value="8M">8 MB</option>
+                              <option value="16M">16 MB</option>
+                              <option value="64M">64 MB</option>
+                              <option value="128M">128 MB</option>
+                              <option value="256M">256 MB</option>
+                              <option value="512M">512 MB</option>
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Max Exec Time</label>
+                            <select value={getPhpConfig(site.id).maxExecutionTime} onChange={(e) => updatePhpField(site.id, 'maxExecutionTime', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                              <option value="30">30s</option>
+                              <option value="60">60s</option>
+                              <option value="120">120s</option>
+                              <option value="300">300s</option>
+                              <option value="0">Unlimited</option>
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Max Input Vars</label>
+                            <select value={getPhpConfig(site.id).maxInputVars} onChange={(e) => updatePhpField(site.id, 'maxInputVars', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                              <option value="1000">1,000</option>
+                              <option value="3000">3,000</option>
+                              <option value="5000">5,000</option>
+                              <option value="10000">10,000</option>
+                            </select>
+                          </div>
+                          <div className="form-group" style={{ margin: 0 }}>
+                            <label style={{ fontSize: '0.75rem' }}>Display Errors</label>
+                            <select value={getPhpConfig(site.id).displayErrors} onChange={(e) => updatePhpField(site.id, 'displayErrors', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                              <option value="On">On</option>
+                              <option value="Off">Off</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: '0.75rem' }}>
+                          <label style={{ fontSize: '0.75rem', display: 'block', marginBottom: '0.35rem', color: '#94a3b8' }}>Extensions</label>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                            {AVAILABLE_EXTENSIONS.map((ext) => {
+                              const active = getPhpConfig(site.id).extensions.includes(ext.value);
+                              return (
+                                <button
+                                  key={ext.value}
+                                  type="button"
+                                  onClick={() => toggleExtension(site.id, ext.value)}
+                                  style={{
+                                    padding: '0.2rem 0.6rem',
+                                    borderRadius: '0.3rem',
+                                    border: active ? '1px solid #fb8500' : '1px solid #334155',
+                                    background: active ? 'rgba(251, 133, 0, 0.15)' : 'transparent',
+                                    color: active ? '#fb8500' : '#94a3b8',
+                                    cursor: 'pointer',
+                                    fontSize: '0.75rem',
+                                  }}
+                                >
+                                  {ext.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          <button
+                            className="btn btn-primary btn-xs"
+                            onClick={() => handleSavePhpConfig(site.id)}
+                            disabled={savingPhp === site.id}
+                          >
+                            {savingPhp === site.id ? (
+                              <><span className="spinner spinner-sm" /> Applying...</>
+                            ) : (
+                              'Save & Apply'
+                            )}
+                          </button>
+                          {phpSaveMsg[site.id] && (
+                            <span style={{ fontSize: '0.75rem', color: phpSaveMsg[site.id].startsWith('Error') ? '#ef4444' : '#22c55e' }}>
+                              {phpSaveMsg[site.id]}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
               ))}
               {filtered.length === 0 && (
                 <tr>

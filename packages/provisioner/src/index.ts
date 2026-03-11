@@ -86,6 +86,15 @@ interface CreateBody {
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
   autoLoginToken?: string;
   localMode?: boolean;
+  phpConfig?: {
+    memoryLimit?: string;
+    uploadMaxFilesize?: string;
+    postMaxSize?: string;
+    maxExecutionTime?: string;
+    maxInputVars?: string;
+    displayErrors?: string;
+    extensions?: string;  // comma-separated: "redis,xdebug,sockets"
+  };
 }
 
 app.post('/containers', async (req: Request, res: Response) => {
@@ -196,6 +205,18 @@ app.post('/containers', async (req: Request, res: Response) => {
     if (opts.landingPage) env.push(`WP_DEMO_LANDING_PAGE=${opts.landingPage}`);
     if (opts.autoLoginToken) env.push(`WP_AUTO_LOGIN_TOKEN=${opts.autoLoginToken}`);
     if (opts.localMode) env.push('WP_LOCAL_MODE=true');
+
+    // PHP configuration overrides
+    if (opts.phpConfig) {
+      const pc = opts.phpConfig;
+      if (pc.memoryLimit) env.push(`PHP_MEMORY_LIMIT=${pc.memoryLimit}`);
+      if (pc.uploadMaxFilesize) env.push(`PHP_UPLOAD_MAX_FILESIZE=${pc.uploadMaxFilesize}`);
+      if (pc.postMaxSize) env.push(`PHP_POST_MAX_SIZE=${pc.postMaxSize}`);
+      if (pc.maxExecutionTime) env.push(`PHP_MAX_EXECUTION_TIME=${pc.maxExecutionTime}`);
+      if (pc.maxInputVars) env.push(`PHP_MAX_INPUT_VARS=${pc.maxInputVars}`);
+      if (pc.displayErrors) env.push(`PHP_DISPLAY_ERRORS=${pc.displayErrors}`);
+      if (pc.extensions) env.push(`PHP_EXTENSIONS=${pc.extensions}`);
+    }
 
     // In local mode: no resource limits, mount persistent volume
     const useLocalMode = opts.localMode === true;
@@ -332,6 +353,81 @@ app.get('/containers/:id/status', async (req: Request, res: Response) => {
       return;
     }
     console.error('[provisioner] status error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Live-update PHP configuration on a running container (no rebuild needed)
+app.patch('/containers/:id/php-config', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+
+    const { memoryLimit, uploadMaxFilesize, postMaxSize, maxExecutionTime, maxInputVars, displayErrors, extensions } = req.body;
+
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    if (!info.State.Running) {
+      res.status(400).json({ error: 'Container is not running' });
+      return;
+    }
+
+    // Build the ini content
+    const iniLines = ['; WP Launcher runtime PHP overrides (live update)'];
+    if (memoryLimit) iniLines.push(`memory_limit = ${memoryLimit}`);
+    if (uploadMaxFilesize) iniLines.push(`upload_max_filesize = ${uploadMaxFilesize}`);
+    if (postMaxSize) iniLines.push(`post_max_size = ${postMaxSize}`);
+    if (maxExecutionTime) iniLines.push(`max_execution_time = ${maxExecutionTime}`);
+    if (maxInputVars) iniLines.push(`max_input_vars = ${maxInputVars}`);
+    if (displayErrors) iniLines.push(`display_errors = ${displayErrors}`);
+
+    // Enable extensions
+    if (extensions) {
+      const exts = extensions.split(',').map((e: string) => e.trim()).filter(Boolean);
+      for (const ext of exts) {
+        if (ext === 'xdebug') {
+          iniLines.push('zend_extension=xdebug.so');
+          iniLines.push('[xdebug]');
+          iniLines.push(`xdebug.mode = ${req.body.xdebugMode || 'debug'}`);
+          iniLines.push('xdebug.start_with_request = yes');
+          iniLines.push('xdebug.client_host = host.docker.internal');
+          iniLines.push('xdebug.client_port = 9003');
+        } else {
+          iniLines.push(`extension=${ext}.so`);
+        }
+      }
+    }
+
+    const iniContent = iniLines.join('\n');
+    const iniPath = '/usr/local/etc/php/conf.d/99-wp-launcher.ini';
+
+    // Write ini file and gracefully reload Apache
+    // Use heredoc via bash -c to avoid quoting issues
+    const script = `cat > ${iniPath} << 'PHPINI'\n${iniContent}\nPHPINI\napachectl graceful`;
+    const exec = await container.exec({
+      Cmd: ['bash', '-c', script],
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+
+    const stream = await exec.start({ hijack: true, stdin: false });
+    await new Promise<void>((resolve) => {
+      stream.on('end', resolve);
+      stream.on('error', resolve);
+      // Timeout after 10s
+      setTimeout(resolve, 10000);
+    });
+
+    console.log(`[provisioner] PHP config updated for container ${req.params.id.slice(0, 12)}`);
+    res.json({ status: 'updated' });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    console.error('[provisioner] php-config error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

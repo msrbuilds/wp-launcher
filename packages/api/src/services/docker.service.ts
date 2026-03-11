@@ -44,6 +44,15 @@ export interface CreateContainerOptions {
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
   autoLoginToken?: string;
   localMode?: boolean;
+  phpConfig?: {
+    memoryLimit?: string;
+    uploadMaxFilesize?: string;
+    postMaxSize?: string;
+    maxExecutionTime?: string;
+    maxInputVars?: string;
+    displayErrors?: string;
+    extensions?: string;
+  };
 }
 
 export async function createSiteContainer(opts: CreateContainerOptions): Promise<string> {
@@ -54,6 +63,13 @@ export async function createSiteContainer(opts: CreateContainerOptions): Promise
 
   const data = await res.json() as { containerId: string };
   return data.containerId;
+}
+
+export async function updatePhpConfig(containerId: string, phpConfig: Record<string, any>): Promise<void> {
+  await provisionerFetch(`/containers/${containerId}/php-config`, {
+    method: 'PATCH',
+    body: JSON.stringify(phpConfig),
+  });
 }
 
 export async function removeSiteContainer(containerId: string): Promise<void> {
