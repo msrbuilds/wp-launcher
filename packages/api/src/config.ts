@@ -29,6 +29,9 @@ export const config = {
   jwtSecret: requireSecret('JWT_SECRET', 'dev-jwt-secret-change-me'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
 
+  // Email provider: 'smtp' (default) or 'brevo' (HTTP API, bypasses SMTP port blocks)
+  emailProvider: (process.env.EMAIL_PROVIDER || 'smtp') as 'smtp' | 'brevo',
+
   // SMTP for sending verification emails
   smtp: {
     host: process.env.SMTP_HOST || 'localhost',
@@ -38,6 +41,9 @@ export const config = {
     pass: process.env.SMTP_PASS || '',
     from: process.env.SMTP_FROM || 'WP Launcher <noreply@localhost>',
   },
+
+  // Brevo HTTP API (alternative to SMTP — works when SMTP ports are blocked)
+  brevoApiKey: process.env.BREVO_API_KEY || process.env.SMTP_PASS || '',
 
   // Public URL for email links
   publicUrl: process.env.PUBLIC_URL || 'http://localhost',

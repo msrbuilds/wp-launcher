@@ -50,10 +50,12 @@ The installer asks you to choose an SSL certificate method:
 
 | Method | Pros | Cons | Requires |
 |---|---|---|---|
-| **Cloudflare DNS** | Single wildcard cert for all subdomains | Requires Cloudflare API token | DNS on Cloudflare |
-| **HTTP challenge** | Works with any DNS provider, no tokens needed | Each subdomain gets a separate cert (~2-3s on first visit) | Ports 80/443 open |
+| **Cloudflare DNS** | Single wildcard cert, works with Cloudflare proxy (orange cloud) | Requires Cloudflare API token | DNS on Cloudflare |
+| **HTTP challenge** | Works with any DNS provider, no tokens needed | Each subdomain gets a separate cert; **incompatible with Cloudflare proxy** | Ports 80/443 open, DNS only (no proxy) |
 
-Both methods use **Let's Encrypt** for free SSL certificates. If unsure, pick **HTTP challenge** (option 2) — it works with any DNS provider.
+Both methods use **Let's Encrypt** for free SSL certificates.
+
+> **Important**: If you use Cloudflare and want the proxy enabled (orange cloud) for DDoS protection/CDN, you **must** choose **Cloudflare DNS challenge** (option 1). HTTP challenge requires direct access to port 80, which Cloudflare proxy intercepts — causing Error 525 (SSL handshake failed). See [Cloudflare Proxy Compatibility](#cloudflare-proxy-compatibility).
 
 ## Option B: Manual Setup
 
@@ -230,14 +232,71 @@ docker compose ps
 
 At your domain registrar (Cloudflare, Namecheap, etc.), add these DNS records pointing to your server IP:
 
-| Type | Name | Value | Proxy |
-|---|---|---|---|
-| A | `demos.yourdomain.com` | `your-server-ip` | DNS only (grey cloud) |
-| A | `*.demos.yourdomain.com` | `your-server-ip` | DNS only (grey cloud) |
+| Type | Name | Value |
+|---|---|---|
+| A | `demos.yourdomain.com` | `your-server-ip` |
+| A | `*.demos.yourdomain.com` | `your-server-ip` |
 
 The wildcard record (`*`) is essential — each demo site gets a unique subdomain. The API is served at `api.demos.yourdomain.com`, which is covered by the wildcard.
 
-> **Important**: If using Cloudflare, set **both** records to "DNS only" (grey cloud), not "Proxied" (orange cloud). Traefik handles SSL directly — Cloudflare proxy will interfere with certificate issuance and cause connection errors.
+### Cloudflare Proxy Compatibility
+
+Your SSL method determines whether you can use Cloudflare proxy (orange cloud):
+
+| SSL Method | Cloudflare Proxy | Cloudflare SSL Mode | Notes |
+|---|---|---|---|
+| **Cloudflare DNS challenge** | Orange cloud (proxied) | Full | Recommended. Wildcard cert + CDN + DDoS protection |
+| **HTTP challenge** | Grey cloud (DNS only) | N/A | Traefik handles SSL directly. Cloudflare proxy **will break** cert issuance (Error 525) |
+
+**If you chose Cloudflare DNS challenge (option 1):**
+- Enable orange cloud (proxied) on all A records
+- Set Cloudflare SSL/TLS mode to **"Full"**
+- Once certs are confirmed working, you can switch to **"Full (Strict)"**
+- Check cert status: `docker compose logs traefik | grep -i "certificate obtained"`
+
+**If you chose HTTP challenge (option 2):**
+- Keep all records as **DNS only** (grey cloud) — do NOT enable Cloudflare proxy
+- Traefik handles SSL directly via Let's Encrypt
+- If you later want Cloudflare proxy, switch to the DNS challenge method (see [Switching SSL Methods](#switching-ssl-methods))
+
+### Switching SSL Methods
+
+To switch from HTTP challenge to Cloudflare DNS challenge after installation:
+
+1. Set up a Cloudflare API token (see [Cloudflare DNS Setup](cloudflare-dns-setup.md))
+2. Add credentials to `.env`:
+   ```bash
+   echo "CF_API_EMAIL=your-cloudflare-email" >> /opt/wp-launcher/.env
+   echo "CF_DNS_API_TOKEN=your-api-token" >> /opt/wp-launcher/.env
+   ```
+3. Update `traefik/traefik.yml` — replace the `httpChallenge` section:
+   ```yaml
+   certificatesResolvers:
+     letsencrypt:
+       acme:
+         email: your@email.com
+         storage: /acme/acme.json
+         dnsChallenge:
+           provider: cloudflare
+           resolvers:
+             - "1.1.1.1:53"
+             - "8.8.8.8:53"
+   ```
+4. Add CF env vars to the Traefik service in `docker-compose.override.yml`:
+   ```yaml
+   services:
+     traefik:
+       environment:
+         - CF_API_EMAIL=${CF_API_EMAIL}
+         - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+   ```
+5. Reset certs and restart:
+   ```bash
+   docker compose stop traefik
+   docker volume rm wp-launcher_traefik-certs
+   docker compose up -d traefik
+   ```
+6. Once certs are obtained, enable Cloudflare proxy (orange cloud) on your DNS records
 
 ## Verify
 
@@ -246,7 +305,35 @@ The wildcard record (`*`) is essential — each demo site gets a unique subdomai
 3. Launch a demo — it should create a site at `https://random-subdomain.demos.yourdomain.com`
 4. Check wp-admin access works (auto-login link from the dashboard)
 
-## SMTP Provider Options
+## Email Provider Options
+
+WP Launcher supports two email delivery methods:
+
+| Method | How it works | When to use |
+|---|---|---|
+| **SMTP** (default) | Connects to SMTP server on port 587/465 | When your VPS allows outbound SMTP |
+| **Brevo HTTP API** | Sends via HTTPS (port 443) | When SMTP ports are blocked (DigitalOcean, some cloud providers) |
+
+> **Important**: Many VPS providers (DigitalOcean, Vultr, etc.) block outbound SMTP ports (25, 465, 587) on new servers to prevent spam. If you get "Connection timeout" errors when sending email, switch to `EMAIL_PROVIDER=brevo`.
+
+### Option 1: Brevo HTTP API (Recommended for VPS)
+
+Uses Brevo's HTTP API over port 443 — works everywhere, even when SMTP ports are blocked.
+
+1. Create a free Brevo account at [brevo.com](https://www.brevo.com) (300 emails/day free)
+2. Go to **Settings > SMTP & API > API Keys**
+3. Create a new API key and copy it
+4. Set in `.env`:
+
+```env
+EMAIL_PROVIDER=brevo
+BREVO_API_KEY=xkeysib-your-api-key-here
+SMTP_FROM=WP Launcher <noreply@yourdomain.com>
+```
+
+Then restart: `docker compose up -d api --force-recreate`
+
+### Option 2: SMTP Providers
 
 | Provider | Free Tier | Setup |
 |---|---|---|
@@ -256,7 +343,21 @@ The wildcard record (`*`) is essential — each demo site gets a unique subdomai
 | **Amazon SES** | 62,000/month (with EC2) | `SMTP_HOST=email-smtp.us-east-1.amazonaws.com` |
 | **Resend** | 100 emails/day | `SMTP_HOST=smtp.resend.com` |
 
-For testing without email, Mailpit is included by default (dev mode). Access it via SSH tunnel:
+#### SMTP_SECURE Setting
+
+> **Critical:** `SMTP_SECURE` must match your SMTP port. Getting this wrong causes a "Connection timeout" error and emails will not send.
+
+| Port | SMTP_SECURE | Protocol | Used By |
+|---|---|---|---|
+| **587** | `false` | STARTTLS (connects plain, upgrades to TLS) | Most providers (SendGrid, Brevo, Mailgun, SES, Resend) |
+| **465** | `true` | Implicit TLS (direct encrypted connection) | Legacy / some providers |
+| **25** | `false` | Plain SMTP (no encryption) | Not recommended |
+
+**Common mistake:** Setting `SMTP_SECURE=true` with port 587. Port 587 uses STARTTLS — it starts as a plain connection and upgrades to TLS. Setting `secure=true` makes the app try a direct TLS handshake on port 587, which hangs and times out. **Always use `SMTP_SECURE=false` with port 587.**
+
+### Testing with Mailpit
+
+For testing without real email, Mailpit is included by default (dev mode). Access it via SSH tunnel:
 
 ```bash
 # From your local machine (not the VPS):
@@ -321,9 +422,12 @@ cp -r ./data ./data-backup-$(date +%Y%m%d)
 
 ### SSL certificates not issuing
 - Verify DNS records are pointing to the correct server IP
-- Ensure both A records (domain and wildcard) are set to **DNS only** (not proxied) if using Cloudflare
-- Check Traefik logs: `docker compose logs -f traefik`
-- If using Cloudflare DNS challenge, ensure your API token has `Zone:DNS:Edit` permissions
+- Check Traefik logs: `docker compose logs traefik | grep -i "acme\|cert\|error"`
+- **Error 525 (SSL handshake failed)**: You're using HTTP challenge with Cloudflare proxy enabled. Either disable Cloudflare proxy (grey cloud) or switch to DNS challenge (see [Switching SSL Methods](#switching-ssl-methods))
+- **"no valid A records found"**: DNS hasn't propagated yet — wait a few minutes and retry
+- **Using HTTP challenge**: Ensure DNS records are set to **DNS only** (grey cloud, not proxied)
+- **Using Cloudflare DNS challenge**: Ensure your API token has `Zone:DNS:Edit` permissions and CF env vars are set in both `.env` and `docker-compose.override.yml`
+- **Certs stuck**: Reset ACME data and retry: `docker compose stop traefik && docker volume rm wp-launcher_traefik-certs && docker compose up -d traefik`
 
 ### wp-admin redirect loop
 - This means WordPress doesn't detect HTTPS behind the reverse proxy
@@ -350,6 +454,7 @@ cp -r ./data ./data-backup-$(date +%Y%m%d)
 ### Email verification not working
 - Check SMTP credentials in `.env`
 - Ensure the API container has the correct SMTP vars: `docker compose exec api env | grep SMTP`
+- **"Connection timeout" error**: Almost always caused by `SMTP_SECURE=true` with port 587. Port 587 uses STARTTLS and requires `SMTP_SECURE=false`. Fix: `sed -i 's/SMTP_SECURE=true/SMTP_SECURE=false/' .env && docker compose restart api`
 - Test with Mailpit first (dev mode) before switching to production SMTP
 - View API logs for email errors: `docker compose logs -f api`
 

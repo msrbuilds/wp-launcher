@@ -1,6 +1,8 @@
 import nodemailer from 'nodemailer';
 import { config } from '../config';
 
+// ── SMTP transport (default) ──────────────────────────────────────────────────
+
 let transporter: nodemailer.Transporter;
 
 function getTransporter(): nodemailer.Transporter {
@@ -16,6 +18,60 @@ function getTransporter(): nodemailer.Transporter {
   }
   return transporter;
 }
+
+async function sendViaSMTP(to: string, subject: string, html: string): Promise<void> {
+  await getTransporter().sendMail({
+    from: config.smtp.from,
+    to,
+    subject,
+    html,
+  });
+}
+
+// ── Brevo HTTP API transport ──────────────────────────────────────────────────
+
+function parseFromAddress(from: string): { email: string; name?: string } {
+  // Parse "Name <email>" or just "email"
+  const match = from.match(/^(.+?)\s*<(.+)>$/);
+  if (match) return { name: match[1].trim(), email: match[2].trim() };
+  return { email: from.trim() };
+}
+
+async function sendViaBrevo(to: string, subject: string, html: string): Promise<void> {
+  const sender = parseFromAddress(config.smtp.from);
+
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'content-type': 'application/json',
+      'api-key': config.brevoApiKey,
+    },
+    body: JSON.stringify({
+      sender,
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Brevo API error ${res.status}: ${body}`);
+  }
+}
+
+// ── Unified send function ─────────────────────────────────────────────────────
+
+async function sendEmail(to: string, subject: string, html: string): Promise<void> {
+  if (config.emailProvider === 'brevo') {
+    await sendViaBrevo(to, subject, html);
+  } else {
+    await sendViaSMTP(to, subject, html);
+  }
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
 
 export async function sendVerificationEmail(
   email: string,
@@ -35,14 +91,8 @@ export async function sendVerificationEmail(
     </div>
   `;
 
-  await getTransporter().sendMail({
-    from: config.smtp.from,
-    to: email,
-    subject: 'Verify your email - WP Launcher Demo',
-    html,
-  });
-
-  console.log(`[email] Verification email sent to ${email}`);
+  await sendEmail(email, 'Verify your email - WP Launcher Demo', html);
+  console.log(`[email] Verification email sent to ${email} via ${config.emailProvider}`);
 }
 
 export async function sendWelcomeEmail(
@@ -57,12 +107,6 @@ export async function sendWelcomeEmail(
     </div>
   `;
 
-  await getTransporter().sendMail({
-    from: config.smtp.from,
-    to: email,
-    subject: 'Welcome to WP Launcher - Your account is ready',
-    html,
-  });
-
-  console.log(`[email] Welcome email sent to ${email}`);
+  await sendEmail(email, 'Welcome to WP Launcher - Your account is ready', html);
+  console.log(`[email] Welcome email sent to ${email} via ${config.emailProvider}`);
 }

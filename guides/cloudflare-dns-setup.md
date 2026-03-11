@@ -66,14 +66,33 @@ You should see messages about DNS challenge resolution and certificate storage.
 
 Make sure your domain has these DNS records pointing to your server IP:
 
-| Type | Name | Value |
-|------|------|-------|
-| A | `yourdomain.com` | `YOUR_SERVER_IP` |
-| A | `*.yourdomain.com` | `YOUR_SERVER_IP` |
+| Type | Name | Value | Proxy |
+|------|------|-------|-------|
+| A | `yourdomain.com` | `YOUR_SERVER_IP` | Proxied (orange cloud) |
+| A | `*.yourdomain.com` | `YOUR_SERVER_IP` | Proxied (orange cloud) |
 
-If using Cloudflare proxy (orange cloud), set both records to **DNS only** (grey cloud) so Traefik can handle SSL directly. Alternatively, you can keep the proxy enabled but you'll need to configure Cloudflare's SSL mode to **Full (Strict)**.
+### Cloudflare Proxy (Orange Cloud)
+
+Since you're using the **DNS challenge**, you **can** enable Cloudflare proxy (orange cloud) on your records. The DNS challenge validates via TXT records, not HTTP — so the proxy doesn't interfere with cert issuance.
+
+**Required Cloudflare SSL/TLS settings:**
+1. Go to **SSL/TLS > Overview** in your Cloudflare dashboard
+2. Set encryption mode to **"Full"**
+3. Once the Let's Encrypt cert is confirmed working, you can upgrade to **"Full (Strict)"**
+
+> **Warning**: Do NOT use "Flexible" mode — it causes redirect loops. Do NOT use "Full (Strict)" until the cert is issued, or you'll get Error 525.
+
+**Check cert status:**
+```bash
+docker compose logs traefik | grep -i "certificate obtained"
+```
 
 ## Troubleshooting
+
+**Error 525 (SSL handshake failed)** — Cloudflare proxy is enabled but the origin doesn't have a valid cert yet. Either:
+- Wait for the Let's Encrypt cert to be issued (check logs: `docker compose logs traefik | grep -i acme`)
+- Temporarily set Cloudflare SSL mode to "Full" (not "Full Strict")
+- If using HTTP challenge instead of DNS challenge, disable Cloudflare proxy (grey cloud) — HTTP challenge is incompatible with Cloudflare proxy
 
 **"DNS problem: NXDOMAIN"** — Your DNS records aren't set up or haven't propagated yet. Wait a few minutes and check with `dig yourdomain.com`.
 
@@ -82,3 +101,7 @@ If using Cloudflare proxy (orange cloud), set both records to **DNS only** (grey
 **"too many certificates"** — Let's Encrypt has rate limits (50 certificates per registered domain per week). This is rarely hit in normal usage.
 
 **Token stopped working** — Tokens can be revoked from Cloudflare dashboard. Check **My Profile > API Tokens** to verify it's still active.
+
+**SMTP "Connection timeout" after setup** — Not related to Cloudflare, but commonly encountered during VPS setup. If registration fails with a timeout error, check `SMTP_SECURE` in `.env`. Port 587 requires `SMTP_SECURE=false` (STARTTLS). Setting `true` with port 587 causes the connection to hang. See [VPS Deployment - SMTP Providers](vps-deployment.md#smtp-provider-options) for details.
+
+**Logs show `ChallengeTLSALPN` instead of DNS challenge** — Your `traefik.yml` doesn't have the `dnsChallenge` config. Make sure it has `dnsChallenge: { provider: cloudflare }` under `certificatesResolvers.letsencrypt.acme`, and that `CF_API_EMAIL` / `CF_DNS_API_TOKEN` are passed to the Traefik container via `docker-compose.override.yml`.

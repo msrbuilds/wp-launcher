@@ -127,6 +127,23 @@ ok "Working directory: $PROJECT_DIR"
 # ─── 3. Collect configuration ────────────────────────────────────────────────
 banner "Configuration"
 
+# --- App Mode ---
+echo -e "${BOLD}App Mode${NC}"
+echo "  1) Agency mode  — users register with email, auth required (SaaS / client demos)"
+echo "  2) Local mode   — no auth, no limits, open access (personal / dev use)"
+echo ""
+prompt -rp "$(echo -e "${CYAN}Choose app mode${NC} [1]: ")" MODE_CHOICE
+MODE_CHOICE="${MODE_CHOICE:-1}"
+
+if [ "$MODE_CHOICE" = "2" ]; then
+  APP_MODE="local"
+  ok "Mode: local (no auth, no limits)"
+else
+  APP_MODE="agency"
+  ok "Mode: agency (email auth, rate limits)"
+fi
+echo ""
+
 # --- Domain ---
 echo -e "${BOLD}Domain Setup${NC}"
 echo "  Your launcher will run at https://YOUR_DOMAIN"
@@ -176,37 +193,74 @@ if [ "$SSL_METHOD" = "1" ]; then
   done
 fi
 
-# --- SMTP ---
+# --- Email ---
 echo ""
-echo -e "${BOLD}SMTP Settings${NC} (for sending verification emails)"
-echo "  Leave blank to use the built-in Mailpit dev mailer (dev only)."
+echo -e "${BOLD}Email Settings${NC} (for sending verification emails)"
 echo ""
-prompt -rp "$(echo -e "${CYAN}SMTP host${NC} (blank = Mailpit): ")" SMTP_HOST
+echo "  1) SMTP         — Standard email (ports 587/465). May be blocked by some VPS providers."
+echo "  2) Brevo API    — HTTP API over port 443. Works everywhere, even when SMTP is blocked."
+echo "  3) Mailpit      — Built-in dev mailer (dev/testing only, no real emails sent)"
+echo ""
+prompt -rp "$(echo -e "${CYAN}Email provider${NC} [1]: ")" EMAIL_CHOICE
+EMAIL_CHOICE="${EMAIL_CHOICE:-1}"
+
+EMAIL_PROVIDER="smtp"
+SMTP_HOST=""
 SMTP_PORT=""
 SMTP_SECURE=""
 SMTP_USER=""
 SMTP_PASS=""
 SMTP_FROM=""
+BREVO_API_KEY=""
 
-if [ -n "$SMTP_HOST" ]; then
-  prompt -rp "$(echo -e "${CYAN}SMTP port${NC} [587]: ")" SMTP_PORT
-  SMTP_PORT="${SMTP_PORT:-587}"
-  prompt -rp "$(echo -e "${CYAN}SMTP secure (true/false)${NC} [false]: ")" SMTP_SECURE
-  SMTP_SECURE="${SMTP_SECURE:-false}"
-  prompt -rp "$(echo -e "${CYAN}SMTP username${NC}: ")" SMTP_USER
-  prompt -rsp "$(echo -e "${CYAN}SMTP password${NC}: ")" SMTP_PASS
+if [ "$EMAIL_CHOICE" = "2" ]; then
+  EMAIL_PROVIDER="brevo"
   echo ""
-  prompt -rp "$(echo -e "${CYAN}SMTP from address${NC} [WP Launcher <noreply@${DOMAIN}>]: ")" SMTP_FROM
+  echo -e "  ${YELLOW}Get your API key from: Brevo Dashboard > Settings > SMTP & API > API Keys${NC}"
+  prompt -rp "$(echo -e "${CYAN}Brevo API key${NC}: ")" BREVO_API_KEY
+  prompt -rp "$(echo -e "${CYAN}From address${NC} [WP Launcher <noreply@${DOMAIN}>]: ")" SMTP_FROM
   SMTP_FROM="${SMTP_FROM:-WP Launcher <noreply@${DOMAIN}>}"
+  ok "Using Brevo HTTP API (port 443 — no SMTP port needed)"
+elif [ "$EMAIL_CHOICE" = "3" ]; then
+  EMAIL_PROVIDER="smtp"
+  SMTP_HOST="mailpit"
+  SMTP_PORT="1025"
+  ok "Using Mailpit (dev only — emails visible at http://localhost:8025)"
+else
+  EMAIL_PROVIDER="smtp"
+  prompt -rp "$(echo -e "${CYAN}SMTP host${NC}: ")" SMTP_HOST
+  if [ -n "$SMTP_HOST" ]; then
+    prompt -rp "$(echo -e "${CYAN}SMTP port${NC} [587]: ")" SMTP_PORT
+    SMTP_PORT="${SMTP_PORT:-587}"
+    echo -e "  ${YELLOW}Note: Port 587 = STARTTLS (secure=false), Port 465 = Implicit TLS (secure=true)${NC}"
+    if [ "$SMTP_PORT" = "465" ]; then
+      SMTP_SECURE_DEFAULT="true"
+    else
+      SMTP_SECURE_DEFAULT="false"
+    fi
+    prompt -rp "$(echo -e "${CYAN}SMTP secure (true/false)${NC} [$SMTP_SECURE_DEFAULT]: ")" SMTP_SECURE
+    SMTP_SECURE="${SMTP_SECURE:-$SMTP_SECURE_DEFAULT}"
+    prompt -rp "$(echo -e "${CYAN}SMTP username${NC}: ")" SMTP_USER
+    prompt -rsp "$(echo -e "${CYAN}SMTP password${NC}: ")" SMTP_PASS
+    echo ""
+    prompt -rp "$(echo -e "${CYAN}SMTP from address${NC} [WP Launcher <noreply@${DOMAIN}>]: ")" SMTP_FROM
+    SMTP_FROM="${SMTP_FROM:-WP Launcher <noreply@${DOMAIN}>}"
+  fi
 fi
 
 # --- Site Limits ---
-echo ""
-echo -e "${BOLD}Site Limits${NC}"
-prompt -rp "$(echo -e "${CYAN}Max sites per user${NC} [3]: ")" MAX_SITES_PER_USER
-MAX_SITES_PER_USER="${MAX_SITES_PER_USER:-3}"
-prompt -rp "$(echo -e "${CYAN}Max total sites (global)${NC} [50]: ")" MAX_TOTAL_SITES
-MAX_TOTAL_SITES="${MAX_TOTAL_SITES:-50}"
+if [ "$APP_MODE" = "local" ]; then
+  MAX_SITES_PER_USER=0
+  MAX_TOTAL_SITES=0
+  ok "Site limits: unlimited (local mode)"
+else
+  echo ""
+  echo -e "${BOLD}Site Limits${NC}"
+  prompt -rp "$(echo -e "${CYAN}Max sites per user${NC} [3]: ")" MAX_SITES_PER_USER
+  MAX_SITES_PER_USER="${MAX_SITES_PER_USER:-3}"
+  prompt -rp "$(echo -e "${CYAN}Max total sites (global)${NC} [50]: ")" MAX_TOTAL_SITES
+  MAX_TOTAL_SITES="${MAX_TOTAL_SITES:-50}"
+fi
 
 # --- Admin API Key ---
 echo ""
@@ -237,11 +291,22 @@ ok "PROVISIONER_INTERNAL_KEY generated"
 # ─── 5. Write .env ──────────────────────────────────────────────────────────
 banner "Writing .env"
 
+# Set resource limits based on mode
+if [ "$APP_MODE" = "local" ]; then
+  CONTAINER_MEMORY=0
+  CONTAINER_CPU=0
+  JWT_EXPIRES_IN=30d
+else
+  CONTAINER_MEMORY=268435456
+  CONTAINER_CPU=0.5
+  JWT_EXPIRES_IN=7d
+fi
+
 cat > "$PROJECT_DIR/.env" <<ENVFILE
 # WP Launcher — generated by install.sh on $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
 NODE_ENV=production
-APP_MODE=agency
+APP_MODE=${APP_MODE}
 
 # Domain (subdomains will be *.BASE_DOMAIN)
 BASE_DOMAIN=${DOMAIN}
@@ -255,7 +320,7 @@ JWT_SECRET=${JWT_SECRET}
 PROVISIONER_INTERNAL_KEY=${PROVISIONER_INTERNAL_KEY}
 
 # JWT token lifetime
-JWT_EXPIRES_IN=7d
+JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
 
 # CORS
 CORS_ALLOWED_ORIGINS=https://${DOMAIN}
@@ -268,8 +333,8 @@ MAX_SITES_PER_USER=${MAX_SITES_PER_USER}
 MAX_TOTAL_SITES=${MAX_TOTAL_SITES}
 
 # Container resource limits (per demo site)
-CONTAINER_MEMORY=268435456
-CONTAINER_CPU=0.5
+CONTAINER_MEMORY=${CONTAINER_MEMORY}
+CONTAINER_CPU=${CONTAINER_CPU}
 
 # Dashboard UI
 CARD_LAYOUT=full
@@ -278,13 +343,15 @@ CARD_LAYOUT=full
 ENABLE_TLS=true
 CERT_RESOLVER=letsencrypt
 
-# SMTP
+# Email
+EMAIL_PROVIDER=${EMAIL_PROVIDER}
 SMTP_HOST=${SMTP_HOST:-mailpit}
 SMTP_PORT=${SMTP_PORT:-1025}
 SMTP_SECURE=${SMTP_SECURE:-false}
 SMTP_USER=${SMTP_USER:-}
 SMTP_PASS=${SMTP_PASS:-}
 SMTP_FROM=${SMTP_FROM:-WP Launcher <noreply@${DOMAIN}>}
+BREVO_API_KEY=${BREVO_API_KEY:-}
 
 # Let's Encrypt
 ACME_EMAIL=${ACME_EMAIL}
@@ -404,7 +471,7 @@ tls:
   options:
     default:
       minVersion: VersionTLS12
-      sniStrict: true
+      sniStrict: false
 YAML
 
 ok "TLS options configured (min TLS 1.2)"
@@ -595,3 +662,9 @@ echo -e "${YELLOW}  IMPORTANT: Make sure your DNS records are configured${NC}"
 echo -e "${YELLOW}  before visiting the site. SSL certs will be issued${NC}"
 echo -e "${YELLOW}  automatically once DNS is pointing to this server.${NC}"
 echo ""
+if [ "$SSL_METHOD" = "1" ]; then
+  echo -e "${YELLOW}  CLOUDFLARE USERS: Set your SSL/TLS mode to 'Full' (not 'Full Strict')${NC}"
+  echo -e "${YELLOW}  until the Let's Encrypt cert is issued. You can check progress with:${NC}"
+  echo -e "${YELLOW}    docker compose logs traefik | grep -i acme${NC}"
+  echo ""
+fi
