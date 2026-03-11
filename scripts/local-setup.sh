@@ -58,6 +58,10 @@ else
   fi
 fi
 
+# Create directories
+mkdir -p "$PROJECT_DIR/data"
+mkdir -p "$PROJECT_DIR/templates"
+
 # Build WordPress base image
 echo ""
 echo -e "${CYAN}Building WordPress base image...${NC}"

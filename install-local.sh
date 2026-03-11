@@ -127,9 +127,10 @@ ENVFILE
   ok ".env created with local mode defaults"
 fi
 
-# ─── 3. Create data directory ────────────────────────────────────────────────
+# ─── 3. Create data & templates directories ──────────────────────────────────
 mkdir -p "$PROJECT_DIR/data"
-ok "Data directory ready"
+mkdir -p "$PROJECT_DIR/templates"
+ok "Data and templates directories ready"
 
 # ─── 4. Build WordPress images ───────────────────────────────────────────────
 banner "Building WordPress Images"

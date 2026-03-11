@@ -15,9 +15,10 @@ else
     echo "[setup] .env already exists, skipping."
 fi
 
-# Create data directory
+# Create data and templates directories
 mkdir -p "$PROJECT_DIR/data"
-echo "[setup] Data directory ready."
+mkdir -p "$PROJECT_DIR/templates"
+echo "[setup] Data and templates directories ready."
 
 # Build WordPress image
 echo "[setup] Building WordPress Docker image..."
