@@ -247,9 +247,6 @@ echo ""
 read -rp "$(echo -e "${CYAN}Default expiration${NC} [1h]: ")" DEFAULT_EXP
 DEFAULT_EXP="${DEFAULT_EXP:-1h}"
 
-read -rp "$(echo -e "${CYAN}Max expiration${NC} [24h]: ")" MAX_EXP
-MAX_EXP="${MAX_EXP:-24h}"
-
 read -rp "$(echo -e "${CYAN}Max concurrent sites${NC} [10]: ")" MAX_SITES
 MAX_SITES="${MAX_SITES:-10}"
 
@@ -331,7 +328,6 @@ const config = {
   },
   demo: {
     default_expiration: '$DEFAULT_EXP',
-    max_expiration: '$MAX_EXP',
     max_concurrent_sites: $MAX_SITES,
     admin_user: '$ADMIN_USER',
     admin_email: '$ADMIN_EMAIL',

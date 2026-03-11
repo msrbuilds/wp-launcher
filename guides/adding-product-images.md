@@ -97,7 +97,6 @@ Create `products/woocommerce.json`:
   "themes": { "install": [], "remove": [] },
   "demo": {
     "default_expiration": "2h",
-    "max_expiration": "24h",
     "max_concurrent_sites": 5,
     "admin_user": "demo",
     "admin_email": "demo@example.com",

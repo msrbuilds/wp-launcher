@@ -36,7 +36,6 @@ export interface ProductConfig {
   };
   demo?: {
     default_expiration?: string;
-    max_expiration?: string;
     max_concurrent_sites?: number;
     admin_user?: string;
     admin_email?: string;

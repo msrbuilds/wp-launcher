@@ -85,7 +85,6 @@ Create `products/my-plugin.json`:
   },
   "demo": {
     "default_expiration": "2h",
-    "max_expiration": "24h",
     "max_concurrent_sites": 10,
     "admin_user": "demo",
 
@@ -271,7 +270,6 @@ All products appear in the dashboard dropdown for users to select.
 | `plugins.remove[]` | Default plugins to remove (e.g., "hello") | No |
 | `themes.install[]` | Array of themes to install | No |
 | `demo.default_expiration` | Default time before auto-delete (e.g., "1h", "30m", "24h") | No |
-| `demo.max_expiration` | Maximum allowed expiration | No |
 | `demo.max_concurrent_sites` | Max simultaneous demos for this product | No |
 | `demo.admin_user` | WordPress admin username for demos | No |
 

@@ -139,7 +139,7 @@ Products defined in `products/[id].json`. Key fields:
 - `plugins.preinstall[]`: source (wordpress.org/url/local), slug/url/path, activate
 - `plugins.remove[]`: plugins to uninstall
 - `themes.install[]`: source, slug, activate
-- `demo`: default_expiration, max_expiration, max_concurrent_sites, admin_user, landing_page
+- `demo`: default_expiration, max_concurrent_sites, admin_user, landing_page
 - `restrictions`: disable_file_mods, blocked_capabilities[]
 - `branding`: banner_text, description, image_url
 - `docker.image`: custom Docker image tag

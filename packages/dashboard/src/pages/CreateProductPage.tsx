@@ -69,7 +69,6 @@ export default function CreateProductPage() {
 
   // Demo settings
   const [defaultExpiration, setDefaultExpiration] = useState('24h');
-  const [maxExpiration, setMaxExpiration] = useState('7d');
   const [maxConcurrentSites, setMaxConcurrentSites] = useState(10);
   const [adminUser, setAdminUser] = useState('demo');
   const [adminEmail, setAdminEmail] = useState('demo@example.com');
@@ -213,7 +212,6 @@ export default function CreateProductPage() {
         },
         demo: {
           default_expiration: defaultExpiration,
-          max_expiration: maxExpiration,
           max_concurrent_sites: maxConcurrentSites,
           admin_user: adminUser,
           admin_email: adminEmail,
@@ -532,12 +530,6 @@ export default function CreateProductPage() {
                 <div className="form-group">
                   <label>Default Expiration</label>
                   <select value={defaultExpiration} onChange={(e) => setDefaultExpiration(e.target.value)}>
-                    {EXPIRATION_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Max Expiration</label>
-                  <select value={maxExpiration} onChange={(e) => setMaxExpiration(e.target.value)}>
                     {EXPIRATION_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>
                 </div>

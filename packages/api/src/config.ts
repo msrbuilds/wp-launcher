@@ -60,7 +60,6 @@ export const config = {
   // Defaults for demo sites
   defaults: {
     expiration: '1h',
-    maxExpiration: '24h',
     maxConcurrentSites: 50,
     maxTotalSites: isLocalMode ? 0 : parseInt(process.env.MAX_TOTAL_SITES || '50', 10),
   },

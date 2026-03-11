@@ -226,7 +226,6 @@ Full JSON structure with all available fields:
   },
   "demo": {
     "default_expiration": "1h",
-    "max_expiration": "24h",
     "max_concurrent_sites": 10,
     "admin_user": "demo",
     "admin_email": "demo@example.com",

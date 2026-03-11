@@ -198,17 +198,26 @@ Visit **http://localhost** — the dashboard is ready.
 
 | Variable | Description | Default |
 |---|---|---|
+| `APP_MODE` | `agency` (auth, limits, restrictions) or `local` (no auth, no limits) | `agency` |
 | `BASE_DOMAIN` | Your domain (subdomains will be `*.BASE_DOMAIN`) | `localhost` |
 | `NODE_ENV` | `development` or `production` | `development` |
-| `API_KEY` | Admin API key | `dev-api-key` |
+| `API_KEY` | Admin API key (bypasses rate limits, site limits, ownership checks) | (required) |
 | `JWT_SECRET` | Secret for user JWT tokens | (required) |
 | `PUBLIC_URL` | Public URL for email verification links | `http://localhost` |
-| `SMTP_HOST` | SMTP server for verification emails | — |
-| `SMTP_PORT` | SMTP port | `587` |
+| `SMTP_HOST` | SMTP server for verification emails | `mailpit` |
+| `SMTP_PORT` | SMTP port | `1025` |
 | `SMTP_USER` | SMTP username | — |
 | `SMTP_PASS` | SMTP password | — |
 | `SMTP_FROM` | Sender address for emails | — |
+| `EMAIL_PROVIDER` | `smtp` or `brevo` (HTTP API, bypasses SMTP port blocks) | `smtp` |
+| `BREVO_API_KEY` | Brevo API key (when `EMAIL_PROVIDER=brevo`) | — |
 | `WP_IMAGE` | Default WordPress image | `wp-launcher/wordpress:latest` |
+| `MAX_SITES_PER_USER` | Max active sites per user (0 = unlimited) | `3` |
+| `MAX_TOTAL_SITES` | Max total active sites across all users (0 = unlimited) | `50` |
+| `CONTAINER_MEMORY` | Per-container memory limit in bytes | `268435456` (256MB) |
+| `CONTAINER_CPU` | Per-container CPU limit | `0.5` |
+| `PRODUCT_ASSETS_PATH` | Absolute host path to `product-assets/` dir (required for local plugins) | — |
+| `ACME_EMAIL` | Email for Let's Encrypt certificate notifications | — |
 
 ### Product Config Reference
 
@@ -243,7 +252,7 @@ Three ways to include plugins:
     "preinstall": [
       { "source": "wordpress.org", "slug": "contact-form-7", "activate": true },
       { "source": "url", "url": "https://example.com/pro-plugin.zip", "activate": true },
-      { "source": "local", "path": "./product-assets/my-product/plugins/my-plugin", "activate": true }
+      { "source": "local", "path": "product-assets/my-product/plugins/my-plugin.zip", "activate": true }
     ]
   }
 }
@@ -253,7 +262,7 @@ Three ways to include plugins:
 |---|---|
 | `wordpress.org` | Downloaded from the WP plugin directory by slug |
 | `url` | Downloaded from any URL (must be a .zip) |
-| `local` | Copied from a local directory (path relative to project root) |
+| `local` | Copied from `product-assets/` directory (path relative to project root, must be a .zip) |
 
 ## Adding a Product (While Running)
 
@@ -298,7 +307,7 @@ docker compose build api && docker compose up -d api
 | `POST` | `/api/sites` | User | Create a demo site |
 | `GET` | `/api/sites` | Optional | List sites (user's or all) |
 | `GET` | `/api/sites/:id` | — | Get site details |
-| `GET` | `/api/sites/:id/ready` | — | Check if WP is fully installed |
+| `GET` | `/api/sites/:id/ready` | — | Check if site setup is complete (plugins, themes, content) |
 | `DELETE` | `/api/sites/:id` | User | Delete a demo site |
 
 ## CLI Reference
