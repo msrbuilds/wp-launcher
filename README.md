@@ -24,6 +24,7 @@ User clicks "Launch Demo"
 - **Full isolation** — Each site is a separate container, no shared databases
 - **3 database engines** — SQLite (fastest), MySQL 8.4, or MariaDB 11 per site
 - **3 PHP versions** — PHP 8.1, 8.2, or 8.3 selectable per site
+- **Per-site PHP config** — Tune memory_limit, upload size, execution time, and toggle extensions (Redis, Xdebug, etc.) per site — live, no restart needed
 - **`wpl` CLI** — Global command to start/stop services, manage sites, run WP-CLI, and more
 - **Persistent data** — Local mode sites survive container restarts via Docker volumes
 - **Auto-cleanup** — Agency mode sites auto-expire and get removed
@@ -100,7 +101,7 @@ That's it. The installer will:
 6. Open **http://localhost** in your browser
 
 **What you get:**
-- No authentication, no site limits, no WordPress restrictions
+- No authentication, no site limits, no WordPress restrictions (file mods, updates, cron all enabled)
 - Choose PHP version (8.1 / 8.2 / 8.3), database engine (MySQL / MariaDB / SQLite), and admin credentials per site
 - Sites at `http://{subdomain}.localhost` (works in Chrome, Firefox, Edge — no hosts file needed)
 - Persistent site data via Docker volumes (survives restarts)
@@ -217,7 +218,14 @@ Visit **http://localhost** — the dashboard is ready.
 | `CONTAINER_MEMORY` | Per-container memory limit in bytes | `268435456` (256MB) |
 | `CONTAINER_CPU` | Per-container CPU limit | `0.5` |
 | `PRODUCT_ASSETS_PATH` | Absolute host path to `product-assets/` dir (required for local plugins) | — |
+| `PROVISIONER_INTERNAL_KEY` | Shared secret for API ↔ provisioner communication | (required) |
+| `JWT_EXPIRES_IN` | JWT token expiry duration | `7d` |
+| `CARD_LAYOUT` | Dashboard card layout: `full` or `compact` | `full` |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated allowed CORS origins | — |
+| `SMTP_SECURE` | Use TLS for SMTP (`true` / `false`) | `false` |
 | `ACME_EMAIL` | Email for Let's Encrypt certificate notifications | — |
+| `CF_API_EMAIL` | Cloudflare API email (for DNS-01 wildcard certs) | — |
+| `CF_DNS_API_TOKEN` | Cloudflare DNS API token (for DNS-01 wildcard certs) | — |
 
 ### Product Config Reference
 
@@ -264,6 +272,38 @@ Three ways to include plugins:
 | `url` | Downloaded from any URL (must be a .zip) |
 | `local` | Copied from `product-assets/` directory (path relative to project root, must be a .zip) |
 
+### PHP Configuration
+
+Each site supports per-site PHP settings, configurable at creation time and live-updatable from the Sites dashboard (PHP button).
+
+**Configurable settings:** `memory_limit`, `upload_max_filesize`, `post_max_size`, `max_execution_time`, `max_input_vars`, `display_errors`
+
+**Optional extensions** (pre-installed in the Docker image, disabled by default):
+
+| Extension | Description |
+|---|---|
+| `redis` | Redis object cache |
+| `xdebug` | Step debugger (auto-configures for `host.docker.internal:9003`) |
+| `sockets` | Socket functions |
+| `calendar` | Calendar conversion functions |
+| `pcntl` | Process control |
+| `ldap` | LDAP directory access |
+| `gettext` | GNU gettext internationalization |
+
+PHP settings are written to `/usr/local/etc/php/conf.d/99-wp-launcher.ini` inside the container and applied via Apache graceful reload — no container restart required.
+
+### Local Mode vs Agency Mode
+
+| Behavior | Local Mode | Agency Mode |
+|---|---|---|
+| Authentication | None (auto-authenticated) | Email verification + JWT |
+| Site limits | Unlimited | Configurable per-user and global |
+| WordPress restrictions | None (full admin) | `DISALLOW_FILE_MODS`, blocked capabilities |
+| WordPress updates | Allowed (core, plugins, themes) | Blocked |
+| WP-Cron | Enabled | Disabled |
+| Site expiration | Default: never | Default: 1 hour |
+| Data persistence | Docker volumes (survives restarts) | Ephemeral (deleted on expiry) |
+
 ## Adding a Product (While Running)
 
 ```bash
@@ -308,6 +348,9 @@ docker compose build api && docker compose up -d api
 | `GET` | `/api/sites` | Optional | List sites (user's or all) |
 | `GET` | `/api/sites/:id` | — | Get site details |
 | `GET` | `/api/sites/:id/ready` | — | Check if site setup is complete (plugins, themes, content) |
+| `GET` | `/api/sites/:id/status` | — | Docker container status |
+| `GET` | `/api/sites/:id/php-config` | — | Read current PHP configuration from running site |
+| `PATCH` | `/api/sites/:id/php-config` | User | Update PHP settings (live, Apache graceful reload) |
 | `DELETE` | `/api/sites/:id` | User | Delete a demo site |
 
 ## CLI Reference

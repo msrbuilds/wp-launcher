@@ -506,6 +506,7 @@ a.btn-primary:hover {
   padding: 3rem;
   max-width: 640px;
   margin: 0 auto;
+  margin-top: 50px;
 }
 
 .site-result .result-icon {

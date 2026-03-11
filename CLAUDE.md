@@ -76,10 +76,11 @@ bash install.sh            # One-click VPS installer
 
 ## Environment Variables
 
-**Core:** `NODE_ENV`, `BASE_DOMAIN` (e.g. demo.example.com), `PUBLIC_URL`
+**Core:** `APP_MODE` (local|agency), `NODE_ENV`, `BASE_DOMAIN` (e.g. demo.example.com), `PUBLIC_URL`
 **Secrets:** `API_KEY`, `JWT_SECRET`, `PROVISIONER_INTERNAL_KEY`, `JWT_EXPIRES_IN`
 **SMTP:** `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
 **WordPress:** `WP_IMAGE`, `MAX_TOTAL_SITES` (50), `MAX_SITES_PER_USER` (3), `CONTAINER_MEMORY` (268MB), `CONTAINER_CPU` (0.5), `PRODUCT_ASSETS_PATH` (host path to product-assets/)
+**UI:** `CARD_LAYOUT` (full|compact)
 **SSL:** `ACME_EMAIL`, `CF_API_EMAIL`, `CF_DNS_API_TOKEN`
 **CORS:** `CORS_ALLOWED_ORIGINS`
 
@@ -108,6 +109,8 @@ bash install.sh            # One-click VPS installer
 - `GET /:id` — site details
 - `GET /:id/status` — Docker container status
 - `GET /:id/ready` — WordPress readiness probe (checks wp-login.php)
+- `GET /:id/php-config` — read current PHP config from running container
+- `PATCH /:id/php-config` — update PHP settings live (writes ini, Apache graceful reload)
 - `DELETE /:id` — delete site (JWT required)
 
 ### Products (`/api/products/*`)
@@ -146,7 +149,7 @@ Products defined in `products/[id].json`. Key fields:
 
 ## WordPress MU-Plugins
 
-- **wp-launcher-restrictions.php** — Blocks dangerous capabilities (install/edit plugins/themes, update_core, export/import), removes admin menus, blocks direct page access
+- **wp-launcher-restrictions.php** — Blocks dangerous capabilities (install/edit plugins/themes, update_core, export/import), removes admin menus, blocks direct page access. Skipped entirely when `WP_LOCAL_MODE=true`
 - **wp-launcher-branding.php** — Admin bar countdown timer, auto-redirect on expiry
 - **wp-launcher-autologin.php** — `?autologin={token}` for instant demo access
 
@@ -159,6 +162,9 @@ Each demo site gets:
 - Network: `wp-launcher-network`
 - Label: `wp-launcher.managed=true`
 - Entrypoint handles: DB config, WP install, plugin activation, demo content import
+- PHP config: `99-wp-launcher.ini` written at startup from PHP_* env vars, live-updatable via docker exec
+- Optional extensions pre-installed but disabled: redis, xdebug, sockets, calendar, pcntl, ldap, gettext
+- Local mode: named volume `wp-site-{subdomain}` for `/var/www/html/wp-content`, no resource limits
 
 ## Security
 
@@ -169,8 +175,8 @@ Each demo site gets:
 - CORS with configurable origins
 - bcryptjs password hashing
 - Input validation (subdomain regex, image prefix whitelist)
-- DISALLOW_FILE_MODS in WordPress
-- Capability restrictions via MU-plugin
+- DISALLOW_FILE_MODS in WordPress (agency mode only; disabled in local mode via `WP_LOCAL_MODE` env check in wp-config)
+- Capability restrictions via MU-plugin (skipped in local mode)
 - Docker socket proxy (limited API surface)
 
 ## Development Notes
