@@ -46,6 +46,7 @@ services:
       - WP_DISK_QUOTA=${WP_DISK_QUOTA:-104857600}
       - ENABLE_TLS=${ENABLE_TLS:-false}
       - CERT_RESOLVER=${CERT_RESOLVER:-letsencrypt}
+      - PRODUCT_ASSETS_PATH=${PRODUCT_ASSETS_PATH:-}
     networks:
       - provisioner-internal
       - wp-launcher-network
@@ -67,8 +68,9 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/app/data
-      - ./products:/app/products:ro
-      - ./templates:/app/templates:ro
+      - ./products:/app/products
+      - ./templates:/app/templates
+      - ./product-assets:/app/product-assets
       - ./wordpress:/app/wordpress:ro
     environment:
       - APP_MODE=${APP_MODE:-agency}

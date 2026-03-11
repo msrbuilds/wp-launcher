@@ -160,6 +160,7 @@ code {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--prussian-blue);
+  text-transform: uppercase;
 }
 
 .page-header p {
@@ -1243,5 +1244,316 @@ a.btn-primary:hover {
 
   .nav-divider {
     display: none;
+  }
+}
+
+/* ── Template Creator ── */
+.tmpl-creator {
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.tmpl-creator form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Horizontal tabs */
+.tmpl-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+
+.tmpl-tab {
+  flex: 1;
+  padding: 0.85rem 1rem;
+  background: var(--bg-surface);
+  border: none;
+  border-right: 1px solid var(--border);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.tmpl-tab:last-child {
+  border-right: none;
+}
+
+.tmpl-tab:hover {
+  color: var(--prussian-blue);
+  background: var(--white);
+}
+
+.tmpl-tab.active {
+  color: var(--orange);
+  background: var(--white);
+  border-bottom: 2px solid var(--orange);
+}
+
+.tmpl-tab-badge {
+  background: var(--orange);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 10px;
+  line-height: 1.2;
+}
+
+.tmpl-tab-content {
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.tmpl-section-body {
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.tmpl-section-body textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: var(--white);
+  color: var(--prussian-blue);
+  resize: vertical;
+  transition: border-color 0.15s ease;
+}
+
+.tmpl-section-body textarea:focus {
+  outline: none;
+  border-color: var(--orange);
+}
+
+/* Repeater items */
+.tmpl-repeater-item {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  margin-bottom: 0.75rem;
+  background: var(--bg-surface);
+}
+
+.tmpl-repeater-row {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.tmpl-repeater-row .form-group {
+  margin-bottom: 0;
+}
+
+.tmpl-repeater-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.25rem;
+  flex-shrink: 0;
+}
+
+.tmpl-remove-btn {
+  padding: 0.35rem !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Toggle switch */
+.tmpl-toggle-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tmpl-toggle-wrap input[type="checkbox"] {
+  display: none;
+}
+
+.tmpl-toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background: var(--border);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.tmpl-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--white);
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.tmpl-toggle-wrap input:checked + .tmpl-toggle {
+  background: var(--orange);
+}
+
+.tmpl-toggle-wrap input:checked + .tmpl-toggle::after {
+  transform: translateX(16px);
+}
+
+.tmpl-toggle-label {
+  font-size: 0.8rem;
+  color: var(--prussian-blue);
+  white-space: nowrap;
+}
+
+/* Checkbox grid for capabilities — uses native checkboxes */
+.tmpl-checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.tmpl-checkbox-grid label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.82rem;
+  color: var(--prussian-blue);
+}
+
+.tmpl-checkbox-grid input[type="checkbox"] {
+  display: inline-block !important;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--orange);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Hide toggle switch inside checkbox grid — use native checkbox instead */
+.tmpl-checkbox-grid .tmpl-toggle {
+  display: none;
+}
+
+/* Form hints */
+.form-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 0.3rem;
+}
+
+/* File input styling */
+.tmpl-section-body input[type="file"] {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px dashed var(--border);
+  background: var(--white);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.tmpl-section-body input[type="file"]:hover {
+  border-color: var(--orange);
+}
+
+/* Image upload areas */
+.tmpl-image-upload {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  background: var(--bg-surface);
+}
+
+.tmpl-image-upload:hover {
+  border-color: var(--orange);
+  background: var(--white);
+}
+
+.tmpl-image-upload img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tmpl-image-upload--icon {
+  width: 160px;
+  aspect-ratio: 1;
+  border-radius: var(--radius);
+}
+
+.tmpl-image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+}
+
+.tmpl-image-placeholder span {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .tmpl-tabs {
+    flex-wrap: wrap;
+  }
+
+  .tmpl-tab {
+    flex: 1 1 33.33%;
+    padding: 0.6rem 0.5rem;
+    font-size: 0.72rem;
+  }
+
+  .tmpl-repeater-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tmpl-repeater-row .form-group {
+    flex: 1 1 auto !important;
+  }
+
+  .tmpl-repeater-actions {
+    justify-content: space-between;
+    padding-top: 0.5rem;
+  }
+
+  .tmpl-checkbox-grid {
+    flex-direction: column;
+  }
+
+  .tmpl-section-body {
+    padding: 1rem;
   }
 }

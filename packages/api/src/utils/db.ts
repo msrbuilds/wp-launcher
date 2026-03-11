@@ -92,6 +92,12 @@ function initSchema(db: Database.Database): void {
       VALUES ('local-user', 'local@localhost', '', 1)
     `).run();
   }
+
+  // Auto-create admin user for API key auth (needed for FK constraint on sites)
+  db.prepare(`
+    INSERT OR IGNORE INTO users (id, email, password_hash, verified)
+    VALUES ('admin', 'admin@localhost', '', 1)
+  `).run();
 }
 
 export function closeDb(): void {

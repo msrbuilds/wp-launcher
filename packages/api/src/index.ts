@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -75,10 +76,22 @@ if (config.isLocalMode) {
 // Sites routes (rate limiting handled per-route inside the router)
 app.use('/api/sites', sitesRouter);
 
-// Templates routes (local mode starter configs)
-app.use('/api/templates', templatesRouter);
+// Templates routes (GET open, POST/DELETE require API key)
+app.use('/api/templates', (req, res, next) => {
+  if (req.method === 'GET') {
+    return next();
+  }
+  return apiKeyAuth(req, res, next);
+}, templatesRouter);
 
-// Products routes
+// Serve product-assets images (card images, icons, etc.)
+const productAssetsDir = path.resolve(config.templateConfigsDir, '..', 'product-assets');
+app.use('/api/assets', express.static(productAssetsDir, {
+  maxAge: '1h',
+  fallthrough: true,
+}));
+
+// Products routes (GET open, POST/PUT/DELETE require API key)
 app.use('/api/products', (req, res, next) => {
   if (req.method === 'GET') {
     return next();

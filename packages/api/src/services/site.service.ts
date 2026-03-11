@@ -128,15 +128,50 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const adminEmail = req.adminEmail || productConfig?.demo?.admin_email || 'demo@example.com';
   const siteTitle = req.siteTitle || productConfig?.name || 'Demo Site';
 
-  const pluginsToActivate = productConfig?.plugins?.preinstall
-    ?.map((p: any) => p.slug || p.path?.split('/').pop()?.replace(/\.zip$/, ''))
-    .filter(Boolean)
-    .join(',') || '';
+  // Separate plugins into install+activate vs install-only
+  const installAndActivate: string[] = [];  // plugins to install with --activate flag
+  const installOnly: string[] = [];          // plugins to install without activation
+  const activateOnly: string[] = [];         // already-present plugins to activate by slug
+
+  for (const p of (productConfig?.plugins?.preinstall || [])) {
+    let ref = '';
+    if (p.source === 'wordpress.org' && p.slug) {
+      ref = p.slug;
+    } else if (p.source === 'url' && p.url) {
+      ref = p.url;
+    } else if (p.source === 'local' && p.path) {
+      ref = `/product-assets/${p.path.replace(/^product-assets\//, '')}`;
+    }
+    if (!ref) continue;
+
+    if (p.activate) {
+      installAndActivate.push(ref);
+    } else {
+      installOnly.push(ref);
+    }
+  }
+
+  const installActivatePluginsList = installAndActivate.join(',');
+  const installPluginsList = installOnly.join(',');
+  const activatePluginsList = activateOnly.join(',');
 
   const pluginsToRemove = (productConfig?.plugins?.remove || []).join(',');
 
-  const activeTheme = productConfig?.themes?.install
-    ?.find((t: any) => t.activate)?.slug || '';
+  // Build theme install list
+  const installThemesList: string[] = [];
+  let activeTheme = '';
+  for (const t of (productConfig?.themes?.install || [])) {
+    if (t.source === 'wordpress.org' && t.slug) {
+      installThemesList.push(t.slug);
+      if (t.activate) activeTheme = t.slug;
+    } else if (t.source === 'url' && t.url) {
+      installThemesList.push(t.url);
+      if (t.activate) activeTheme = t.url.split('/').pop()?.replace(/\.zip$/, '') || '';
+    } else if (t.source === 'local' && t.path) {
+      installThemesList.push(`/product-assets/${t.path.replace(/^product-assets\//, '')}`);
+      if (t.activate) activeTheme = t.path.split('/').pop()?.replace(/\.zip$/, '') || '';
+    }
+  }
 
   const landingPage = productConfig?.demo?.landing_page || '';
 
@@ -161,8 +196,11 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       adminPassword,
       adminEmail,
       siteTitle,
-      activatePlugins: pluginsToActivate,
+      installActivatePlugins: installActivatePluginsList,
+      installPlugins: installPluginsList,
+      activatePlugins: activatePluginsList,
       removePlugins: pluginsToRemove,
+      installThemes: installThemesList.join(','),
       activeTheme,
       landingPage,
       dbEngine,

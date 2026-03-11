@@ -158,6 +158,10 @@ export function clearConfigCache(): void {
   configCache.clear();
 }
 
+export function clearTemplateCache(): void {
+  templateCache.clear();
+}
+
 // --- Templates (local mode starter configs, stored in templates/ directory) ---
 
 const templateCache = new Map<string, ProductConfig>();

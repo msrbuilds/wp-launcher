@@ -34,8 +34,11 @@ export interface CreateContainerOptions {
   adminPassword: string;
   adminEmail: string;
   siteTitle: string;
+  installActivatePlugins?: string;
+  installPlugins?: string;
   activatePlugins?: string;
   removePlugins?: string;
+  installThemes?: string;
   activeTheme?: string;
   landingPage?: string;
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';

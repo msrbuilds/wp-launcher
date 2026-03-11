@@ -1,7 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { config } from '../config';
 import { getUserById } from '../services/user.service';
+
+function isValidApiKey(req: Request): boolean {
+  const apiKey = req.headers['x-api-key'] as string | undefined;
+  if (!apiKey || !config.apiKey) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(apiKey), Buffer.from(config.apiKey));
+  } catch {
+    return false;
+  }
+}
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -35,6 +46,13 @@ export function conditionalOptionalAuth(req: AuthRequest, res: Response, next: N
 }
 
 export function userAuth(req: AuthRequest, res: Response, next: NextFunction): void {
+  // Allow API key as admin auth (for admin launching sites without JWT)
+  if (isValidApiKey(req)) {
+    req.userId = 'admin';
+    req.userEmail = 'admin@localhost';
+    return next();
+  }
+
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {

@@ -19,7 +19,7 @@ export default function App() {
           </NavLink>
           <nav>
             <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''}>
-              {isLocal ? 'Templates' : 'Products'}
+              {isLocal ? 'Dashboard' : 'Products'}
             </NavLink>
             <NavLink to="/sites" className={({ isActive }) => isActive ? 'active' : ''}>
               {isLocal ? 'Sites' : 'My Sites'}
@@ -34,10 +34,18 @@ export default function App() {
                 <a href="http://localhost:8025" target="_blank" rel="noopener noreferrer">
                   Mail
                 </a>
+                <NavLink to="/create-template" className="btn btn-sm" style={{ marginLeft: '0.75rem', background: 'transparent', border: '1.5px solid #fb8500', color: '#fb8500' }}>
+                  + New Template
+                </NavLink>
                 <Link to="/create" className="btn btn-primary btn-sm" style={{ marginLeft: '0.75rem', color: '#fff' }}>
                   + Create Site
                 </Link>
               </>
+            )}
+            {!isLocal && isAdmin && (
+              <NavLink to="/create-product" className="btn btn-sm" style={{ marginLeft: '0.75rem', background: 'transparent', border: '1.5px solid #fb8500', color: '#fb8500' }}>
+                + New Product
+              </NavLink>
             )}
             {!isLocal && (
               <>

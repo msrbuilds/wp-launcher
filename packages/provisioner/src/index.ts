@@ -18,6 +18,7 @@ const CONTAINER_MEMORY = parseInt(process.env.CONTAINER_MEMORY || String(256 * 1
 const CONTAINER_CPU = parseFloat(process.env.CONTAINER_CPU || '0.5');
 const WP_UPLOAD_LIMIT = process.env.WP_UPLOAD_LIMIT || String(2 * 1024 * 1024); // 2MB per file
 const WP_DISK_QUOTA = process.env.WP_DISK_QUOTA || String(100 * 1024 * 1024); // 100MB total uploads
+const PRODUCT_ASSETS_PATH = process.env.PRODUCT_ASSETS_PATH || ''; // Host path to product-assets for bind-mounting
 
 // Connect to Docker — via DOCKER_HOST (socket proxy) or local socket
 const docker = process.env.DOCKER_HOST
@@ -75,8 +76,11 @@ interface CreateBody {
   adminPassword: string;
   adminEmail: string;
   siteTitle: string;
+  installActivatePlugins?: string;
+  installPlugins?: string;
   activatePlugins?: string;
   removePlugins?: string;
+  installThemes?: string;
   activeTheme?: string;
   landingPage?: string;
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
@@ -183,8 +187,11 @@ app.post('/containers', async (req: Request, res: Response) => {
       env.push(`WP_DISK_QUOTA=${WP_DISK_QUOTA}`);
     }
 
+    if (opts.installActivatePlugins) env.push(`WP_INSTALL_PLUGINS_ACTIVATE=${opts.installActivatePlugins}`);
+    if (opts.installPlugins) env.push(`WP_INSTALL_PLUGINS=${opts.installPlugins}`);
     if (opts.activatePlugins) env.push(`WP_ACTIVATE_PLUGINS=${opts.activatePlugins}`);
     if (opts.removePlugins) env.push(`WP_REMOVE_PLUGINS=${opts.removePlugins}`);
+    if (opts.installThemes) env.push(`WP_INSTALL_THEMES=${opts.installThemes}`);
     if (opts.activeTheme) env.push(`WP_ACTIVE_THEME=${opts.activeTheme}`);
     if (opts.landingPage) env.push(`WP_DEMO_LANDING_PAGE=${opts.landingPage}`);
     if (opts.autoLoginToken) env.push(`WP_AUTO_LOGIN_TOKEN=${opts.autoLoginToken}`);
@@ -197,13 +204,23 @@ app.post('/containers', async (req: Request, res: Response) => {
       RestartPolicy: { Name: 'unless-stopped' },
     };
 
+    // Mount product-assets if local plugins/themes need to be installed
+    const needsAssets = (opts.installActivatePlugins || opts.installPlugins || opts.installThemes || '').includes('/product-assets/');
+    const assetBinds: string[] = [];
+    if (needsAssets && PRODUCT_ASSETS_PATH) {
+      assetBinds.push(`${PRODUCT_ASSETS_PATH}:/product-assets:ro`);
+    }
+
     if (useLocalMode) {
       // Named volume for wp-content persistence
-      hostConfig.Binds = [`wp-site-${opts.subdomain}:/var/www/html/wp-content`];
+      hostConfig.Binds = [`wp-site-${opts.subdomain}:/var/www/html/wp-content`, ...assetBinds];
     } else {
       // Agency mode: enforce resource limits
       hostConfig.Memory = CONTAINER_MEMORY;
       hostConfig.NanoCpus = CONTAINER_CPU * 1e9;
+      if (assetBinds.length) {
+        hostConfig.Binds = [...(hostConfig.Binds || []), ...assetBinds];
+      }
     }
 
     const container = await docker.createContainer({

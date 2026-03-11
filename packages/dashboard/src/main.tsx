@@ -11,7 +11,9 @@ import SitesListPage from './pages/SitesListPage';
 import LoginPage from './pages/LoginPage';
 import AccountPage from './pages/AccountPage';
 import VerifyPage from './pages/VerifyPage';
-import AdminPage from './pages/AdminPage';
+import AdminPage, { useAdminAuth } from './pages/AdminPage';
+import CreateTemplatePage from './pages/CreateTemplatePage';
+import CreateProductPage from './pages/CreateProductPage';
 import './index.css';
 
 function LaunchRedirect() {
@@ -22,6 +24,11 @@ function LaunchRedirect() {
   return <Navigate to="/" replace />;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAdmin } = useAdminAuth();
+  return isAdmin ? <>{children}</> : <Navigate to="/" replace />;
+}
+
 function AppRoutes() {
   const isLocal = useIsLocalMode();
 
@@ -30,6 +37,8 @@ function AppRoutes() {
       <Route path="/" element={<App />}>
         <Route index element={<LaunchPage />} />
         {isLocal && <Route path="create" element={<LocalLaunchPage />} />}
+        {isLocal && <Route path="create-template" element={<CreateTemplatePage />} />}
+        {!isLocal && <Route path="create-product" element={<AdminRoute><CreateProductPage /></AdminRoute>} />}
         <Route path="launch/:productId" element={<LaunchRedirect />} />
         <Route path="sites" element={<SitesListPage />} />
         {!isLocal && (

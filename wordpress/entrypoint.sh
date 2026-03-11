@@ -84,11 +84,32 @@ if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
         wp plugin activate sqlite-database-integration --path=/var/www/html --allow-root 2>/dev/null || true
     fi
 
-    # Activate pre-installed plugins (skip SQLite and mu-plugins)
+    # Install and activate plugins (from wp.org, URL, or local zip)
+    # WP_INSTALL_PLUGINS_ACTIVATE: comma-separated list of plugins to install AND activate
+    # WP_INSTALL_PLUGINS: comma-separated list of plugins to install only (no activate)
+    if [ -n "${WP_INSTALL_PLUGINS_ACTIVATE:-}" ]; then
+        IFS=',' read -ra INSTALL_ACT_PLUGINS <<< "$WP_INSTALL_PLUGINS_ACTIVATE"
+        for plugin in "${INSTALL_ACT_PLUGINS[@]}"; do
+            plugin=$(echo "$plugin" | xargs)
+            echo "[wp-launcher] Installing + activating plugin: $plugin"
+            wp plugin install "$plugin" --activate --path=/var/www/html --allow-root 2>/dev/null || echo "[wp-launcher] Warning: failed to install+activate $plugin"
+        done
+    fi
+
+    if [ -n "${WP_INSTALL_PLUGINS:-}" ]; then
+        IFS=',' read -ra INSTALL_PLUGINS <<< "$WP_INSTALL_PLUGINS"
+        for plugin in "${INSTALL_PLUGINS[@]}"; do
+            plugin=$(echo "$plugin" | xargs)
+            echo "[wp-launcher] Installing plugin: $plugin"
+            wp plugin install "$plugin" --path=/var/www/html --allow-root 2>/dev/null || echo "[wp-launcher] Warning: failed to install $plugin"
+        done
+    fi
+
+    # Activate plugins by slug (for plugins already present in the image)
     if [ -n "${WP_ACTIVATE_PLUGINS:-}" ]; then
         IFS=',' read -ra PLUGINS <<< "$WP_ACTIVATE_PLUGINS"
         for plugin in "${PLUGINS[@]}"; do
-            plugin=$(echo "$plugin" | xargs) # trim whitespace
+            plugin=$(echo "$plugin" | xargs)
             echo "[wp-launcher] Activating plugin: $plugin"
             wp plugin activate "$plugin" --path=/var/www/html --allow-root 2>/dev/null || true
         done
@@ -101,6 +122,16 @@ if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
             plugin=$(echo "$plugin" | xargs)
             echo "[wp-launcher] Removing plugin: $plugin"
             wp plugin delete "$plugin" --path=/var/www/html --allow-root 2>/dev/null || true
+        done
+    fi
+
+    # Install themes (from wp.org, URL, or local zip)
+    if [ -n "${WP_INSTALL_THEMES:-}" ]; then
+        IFS=',' read -ra INSTALL_THEMES <<< "$WP_INSTALL_THEMES"
+        for theme in "${INSTALL_THEMES[@]}"; do
+            theme=$(echo "$theme" | xargs)
+            echo "[wp-launcher] Installing theme: $theme"
+            wp theme install "$theme" --path=/var/www/html --allow-root 2>/dev/null || echo "[wp-launcher] Warning: failed to install $theme"
         done
     fi
 

@@ -30,6 +30,15 @@ export default function LaunchPage() {
   const { isAuthenticated, token, login } = useAuth();
   const { appMode, loading: settingsLoading } = useSettings();
   const isLocal = appMode === 'local';
+  const adminApiKey = sessionStorage.getItem('adminApiKey');
+  const isAdmin = !!adminApiKey;
+  const canLaunch = isAuthenticated || isLocal || isAdmin;
+
+  function authHeaders(): Record<string, string> {
+    if (token) return { Authorization: `Bearer ${token}` };
+    if (adminApiKey) return { 'X-API-Key': adminApiKey };
+    return {};
+  }
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -43,7 +52,7 @@ export default function LaunchPage() {
   const expiresIn = isLocal ? 'never' : '';
 
   const [email, setEmail] = useState('');
-  const [step, setStep] = useState<Step>((isAuthenticated || isLocal) ? 'launch' : 'email');
+  const [step, setStep] = useState<Step>(canLaunch ? 'launch' : 'email');
 
   useEffect(() => {
     const verifyToken = searchParams.get('token');
@@ -54,14 +63,14 @@ export default function LaunchPage() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated && (step === 'email' || step === 'check-email')) {
+    if (canLaunch && (step === 'email' || step === 'check-email')) {
       setStep('launch');
     }
-  }, [isAuthenticated]);
+  }, [canLaunch]);
 
   // Auto-launch pending product (from /launch/:productId URL)
   useEffect(() => {
-    if (!isAuthenticated || step !== 'launch' || launchingId || result) return;
+    if (!canLaunch || step !== 'launch' || launchingId || result) return;
     if (products.length === 0) return; // wait for products to load
     const pending = localStorage.getItem('pendingProductLaunch');
     if (!pending) return;
@@ -135,7 +144,7 @@ export default function LaunchPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...authHeaders(),
         },
         body: JSON.stringify({ productId, ...(expiresIn ? { expiresIn } : {}) }),
       });
@@ -167,7 +176,7 @@ export default function LaunchPage() {
       setProvisionProgress(Math.round(pct));
       try {
         const res = await fetch(`/api/sites/${siteId}/ready`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: authHeaders(),
         });
         const data = await res.json();
         if (data.ready) {
@@ -316,8 +325,8 @@ export default function LaunchPage() {
     );
   }
 
-  // Step: Launch (authenticated)
-  if (step === 'launch' && isAuthenticated) {
+  // Step: Launch (authenticated or admin)
+  if (step === 'launch' && canLaunch) {
     return (
       <div>
         <div className="hero">
