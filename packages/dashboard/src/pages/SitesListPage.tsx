@@ -42,7 +42,7 @@ const AVAILABLE_EXTENSIONS = [
   { value: 'sockets', label: 'Sockets' },
   { value: 'calendar', label: 'Calendar' },
   { value: 'pcntl', label: 'PCNTL' },
-  { value: 'imap', label: 'IMAP' },
+
   { value: 'ldap', label: 'LDAP' },
   { value: 'gettext', label: 'Gettext' },
 ];

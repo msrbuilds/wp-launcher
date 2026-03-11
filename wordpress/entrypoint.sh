@@ -19,7 +19,7 @@ PHP_INI_CUSTOM="/usr/local/etc/php/conf.d/99-wp-launcher.ini"
 echo "[wp-launcher] PHP ini overrides written to ${PHP_INI_CUSTOM}"
 
 # Enable/disable PHP extensions from PHP_EXTENSIONS env (comma-separated)
-# Available: redis, xdebug, sockets, calendar, pcntl, imap, ldap, gettext
+# Available: redis, xdebug, sockets, calendar, pcntl, ldap, gettext
 # Always-on (in image): gd, imagick, intl, zip, exif, bcmath, opcache, mysqli, pdo_sqlite, sodium
 if [ -n "${PHP_EXTENSIONS:-}" ]; then
     IFS=',' read -ra EXTS <<< "$PHP_EXTENSIONS"

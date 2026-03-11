@@ -3,13 +3,12 @@ FROM wordpress:6.9-php${PHP_VERSION}-apache
 
 # Install required system packages (unzip for plugins, default-mysql-client for MySQL health checks)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    unzip default-mysql-client libldap2-dev libc-client-dev libkrb5-dev \
+    unzip default-mysql-client libldap2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install additional PHP extensions (pre-installed but disabled — toggled at runtime via PHP_EXTENSIONS env)
+# Always-on in base image: gd, imagick, intl, zip, exif, bcmath, opcache, mysqli, pdo_sqlite, sodium
 RUN docker-php-ext-install sockets gettext calendar pcntl \
-    && docker-php-ext-configure imap --with-kerberos --with-imap-ssl \
-    && docker-php-ext-install imap \
     && docker-php-ext-configure ldap \
     && docker-php-ext-install ldap \
     && pecl install redis xdebug \
@@ -21,7 +20,6 @@ RUN rm -f /usr/local/etc/php/conf.d/docker-php-ext-redis.ini \
     && rm -f /usr/local/etc/php/conf.d/docker-php-ext-sockets.ini \
     && rm -f /usr/local/etc/php/conf.d/docker-php-ext-calendar.ini \
     && rm -f /usr/local/etc/php/conf.d/docker-php-ext-pcntl.ini \
-    && rm -f /usr/local/etc/php/conf.d/docker-php-ext-imap.ini \
     && rm -f /usr/local/etc/php/conf.d/docker-php-ext-ldap.ini \
     && rm -f /usr/local/etc/php/conf.d/docker-php-ext-gettext.ini
 
