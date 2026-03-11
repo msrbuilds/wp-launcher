@@ -65,6 +65,11 @@ export async function createSiteContainer(opts: CreateContainerOptions): Promise
   return data.containerId;
 }
 
+export async function getPhpConfig(containerId: string): Promise<Record<string, any>> {
+  const res = await provisionerFetch(`/containers/${containerId}/php-config`);
+  return await res.json() as Record<string, any>;
+}
+
 export async function updatePhpConfig(containerId: string, phpConfig: Record<string, any>): Promise<void> {
   await provisionerFetch(`/containers/${containerId}/php-config`, {
     method: 'PATCH',

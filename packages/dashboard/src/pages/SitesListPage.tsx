@@ -62,9 +62,36 @@ export default function SitesListPage() {
   const [phpConfigs, setPhpConfigs] = useState<Record<string, PhpConfig>>({});
   const [savingPhp, setSavingPhp] = useState<string | null>(null);
   const [phpSaveMsg, setPhpSaveMsg] = useState<Record<string, string>>({});
+  const [loadingPhp, setLoadingPhp] = useState<string | null>(null);
 
   function getPhpConfig(siteId: string): PhpConfig {
     return phpConfigs[siteId] || { ...DEFAULT_PHP_CONFIG };
+  }
+
+  async function fetchPhpConfig(siteId: string) {
+    setLoadingPhp(siteId);
+    try {
+      const res = await fetch(`/api/sites/${siteId}/php-config`, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        setPhpConfigs((prev) => ({
+          ...prev,
+          [siteId]: {
+            memoryLimit: data.memoryLimit || DEFAULT_PHP_CONFIG.memoryLimit,
+            uploadMaxFilesize: data.uploadMaxFilesize || DEFAULT_PHP_CONFIG.uploadMaxFilesize,
+            postMaxSize: data.postMaxSize || DEFAULT_PHP_CONFIG.postMaxSize,
+            maxExecutionTime: data.maxExecutionTime || DEFAULT_PHP_CONFIG.maxExecutionTime,
+            maxInputVars: data.maxInputVars || DEFAULT_PHP_CONFIG.maxInputVars,
+            displayErrors: data.displayErrors || DEFAULT_PHP_CONFIG.displayErrors,
+            extensions: Array.isArray(data.extensions) ? data.extensions : [],
+          },
+        }));
+      }
+    } catch {
+      // Fall back to defaults silently
+    } finally {
+      setLoadingPhp(null);
+    }
   }
 
   function updatePhpField(siteId: string, field: keyof PhpConfig, value: any) {
@@ -251,8 +278,7 @@ export default function SitesListPage() {
                 <th>Name</th>
                 <th>Template</th>
                 <th>Created</th>
-                <th>Expires</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -270,9 +296,8 @@ export default function SitesListPage() {
                   </td>
                   <td><span className="site-card-product">{site.productId}</span></td>
                   <td className="site-table-date">{new Date(site.createdAt).toLocaleDateString()}</td>
-                  <td className="site-table-date"><CountdownTimer expiresAt={site.expiresAt} /></td>
                   <td>
-                    <div className="site-table-actions">
+                    <div className="site-table-actions" style={{ justifyContent: 'flex-end' }}>
                       <a
                         href={site.autoLoginUrl || site.adminUrl}
                         target="_blank"
@@ -309,7 +334,14 @@ export default function SitesListPage() {
                       </button>
                       <button
                         className={`btn btn-secondary btn-xs${expandedSite === site.id ? ' btn-active' : ''}`}
-                        onClick={() => setExpandedSite(expandedSite === site.id ? null : site.id)}
+                        onClick={() => {
+                          if (expandedSite === site.id) {
+                            setExpandedSite(null);
+                          } else {
+                            setExpandedSite(site.id);
+                            if (!phpConfigs[site.id]) fetchPhpConfig(site.id);
+                          }
+                        }}
                         title="PHP Settings"
                         style={expandedSite === site.id ? { borderColor: '#fb8500', color: '#fb8500' } : {}}
                       >
@@ -330,12 +362,18 @@ export default function SitesListPage() {
                 </tr>
                 {expandedSite === site.id && (
                   <tr key={`${site.id}-php`}>
-                    <td colSpan={6} style={{ padding: 0, border: 'none' }}>
+                    <td colSpan={5} style={{ padding: 0, border: 'none' }}>
                       <div style={{ padding: '1rem 1.25rem', background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                           <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>PHP Settings</span>
                           <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Changes apply instantly (Apache graceful reload)</span>
                         </div>
+                        {loadingPhp === site.id ? (
+                          <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8' }}>
+                            <span className="spinner spinner-sm" /> Loading PHP config...
+                          </div>
+                        ) : (
+                        <>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem' }}>
                           <div className="form-group" style={{ margin: 0 }}>
                             <label style={{ fontSize: '0.75rem' }}>Memory Limit</label>
@@ -440,6 +478,8 @@ export default function SitesListPage() {
                             </span>
                           )}
                         </div>
+                        </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -448,7 +488,7 @@ export default function SitesListPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                     No sites match your filters
                   </td>
                 </tr>

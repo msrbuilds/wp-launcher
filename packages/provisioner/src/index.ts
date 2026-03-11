@@ -432,6 +432,83 @@ app.patch('/containers/:id/php-config', async (req: Request, res: Response) => {
   }
 });
 
+// Read current PHP config from a running container
+app.get('/containers/:id/php-config', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    if (!info.State.Running) {
+      res.status(400).json({ error: 'Container is not running' });
+      return;
+    }
+
+    const iniPath = '/usr/local/etc/php/conf.d/99-wp-launcher.ini';
+    const exec = await container.exec({
+      Cmd: ['cat', iniPath],
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+
+    const stream = await exec.start({ hijack: true, stdin: false });
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve) => {
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      stream.on('end', resolve);
+      stream.on('error', resolve);
+      setTimeout(resolve, 5000);
+    });
+
+    const raw = Buffer.concat(chunks).toString('utf-8');
+    // Parse ini content into structured config
+    const config: Record<string, string> = {};
+    const extensions: string[] = [];
+
+    for (const line of raw.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith(';') || trimmed.startsWith('[')) continue;
+
+      // Extension lines
+      if (trimmed.startsWith('zend_extension=') || trimmed.startsWith('extension=')) {
+        const ext = trimmed.replace(/^(zend_)?extension=/, '').replace(/\.so$/, '');
+        if (ext && !extensions.includes(ext)) extensions.push(ext);
+        continue;
+      }
+
+      // Xdebug sub-settings (skip, we just track the extension)
+      if (trimmed.startsWith('xdebug.')) continue;
+
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx > 0) {
+        const key = trimmed.slice(0, eqIdx).trim();
+        const val = trimmed.slice(eqIdx + 1).trim();
+        config[key] = val;
+      }
+    }
+
+    res.json({
+      memoryLimit: config['memory_limit'] || '',
+      uploadMaxFilesize: config['upload_max_filesize'] || '',
+      postMaxSize: config['post_max_size'] || '',
+      maxExecutionTime: config['max_execution_time'] || '',
+      maxInputVars: config['max_input_vars'] || '',
+      displayErrors: config['display_errors'] || '',
+      extensions,
+    });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    console.error('[provisioner] get php-config error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/containers', async (_req: Request, res: Response) => {
   try {
     const containers = await docker.listContainers({

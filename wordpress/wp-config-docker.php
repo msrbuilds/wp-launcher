@@ -44,14 +44,14 @@ define( 'NONCE_SALT',       getenv( 'WORDPRESS_NONCE_SALT' )       ?: 'wp-launch
 // Table prefix
 $table_prefix = getenv( 'WORDPRESS_TABLE_PREFIX' ) ?: 'wp_';
 
-// Demo site restrictions
-define( 'DISALLOW_FILE_MODS', true );
-define( 'DISALLOW_FILE_EDIT', true );
-define( 'AUTOMATIC_UPDATER_DISABLED', true );
-define( 'WP_AUTO_UPDATE_CORE', false );
-
-// Disable cron (demo sites don't need scheduled tasks)
-define( 'DISABLE_WP_CRON', true );
+// Demo site restrictions (disabled in local mode)
+if ( getenv( 'WP_LOCAL_MODE' ) !== 'true' ) {
+    define( 'DISALLOW_FILE_MODS', true );
+    define( 'DISALLOW_FILE_EDIT', true );
+    define( 'AUTOMATIC_UPDATER_DISABLED', true );
+    define( 'WP_AUTO_UPDATE_CORE', false );
+    define( 'DISABLE_WP_CRON', true );
+}
 
 // Debug settings
 define( 'WP_DEBUG', (bool) getenv( 'WP_DEBUG' ) );
