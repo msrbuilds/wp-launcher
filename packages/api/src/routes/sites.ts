@@ -1,9 +1,22 @@
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
+import crypto from 'crypto';
 import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, MAX_SITES_PER_USER } from '../services/site.service';
 import { conditionalAuth, conditionalOptionalAuth, AuthRequest } from '../middleware/userAuth';
+import { config } from '../config';
 
 const router = Router();
+
+// Skip rate limiting for admin (API key) requests
+function isAdminRequest(req: Request): boolean {
+  const apiKey = req.headers['x-api-key'] as string | undefined;
+  if (!apiKey || !config.apiKey) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(apiKey), Buffer.from(config.apiKey));
+  } catch {
+    return false;
+  }
+}
 
 // Tight limit on write operations (create/delete) — 10 per 15 min per IP
 const siteWriteLimiter = rateLimit({
@@ -12,6 +25,7 @@ const siteWriteLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: isAdminRequest,
 });
 
 // Generous limit on read/polling operations — 120 per 15 min per IP
@@ -22,6 +36,7 @@ const siteReadLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: isAdminRequest,
 });
 
 // Create a new demo site (requires auth)
@@ -168,18 +183,16 @@ router.get('/:id/ready', siteReadLimiter, async (req: AuthRequest, res: Response
       return;
     }
 
-    // Probe the site's login page via the internal Docker network
-    // The container name is wp-demo-{subdomain}
-    const internalUrl = `http://wp-demo-${site.subdomain}/wp-login.php`;
+    // Probe the ready marker file written by entrypoint.sh after ALL setup completes
+    // (plugins, themes, demo content — not just WP core install)
+    const markerUrl = `http://wp-demo-${site.subdomain}/.wp-launcher-ready`;
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3000);
-      const probe = await fetch(internalUrl, {
-        redirect: 'manual',
+      const probe = await fetch(markerUrl, {
         signal: controller.signal,
       });
       clearTimeout(timeout);
-      // wp-login.php returns 200 when WP is installed, or redirects to install.php if not
       const ready = probe.status === 200;
       res.json({ ready });
     } catch {

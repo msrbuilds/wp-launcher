@@ -205,7 +205,8 @@ app.post('/containers', async (req: Request, res: Response) => {
     };
 
     // Mount product-assets if local plugins/themes need to be installed
-    const needsAssets = (opts.installActivatePlugins || opts.installPlugins || opts.installThemes || '').includes('/product-assets/');
+    const allRefs = [opts.installActivatePlugins, opts.installPlugins, opts.installThemes].filter(Boolean).join(',');
+    const needsAssets = allRefs.includes('/product-assets/');
     const assetBinds: string[] = [];
     if (needsAssets && PRODUCT_ASSETS_PATH) {
       assetBinds.push(`${PRODUCT_ASSETS_PATH}:/product-assets:ro`);
@@ -281,10 +282,27 @@ app.delete('/containers/:id', async (req: Request, res: Response) => {
         }
       }
 
+      // Get subdomain from labels for volume cleanup
+      const siteId = info.Config?.Labels?.['wp-launcher.site-id'];
+
       if (info.State.Running) {
         await container.stop({ t: 5 });
       }
       await container.remove({ v: true });
+
+      // Clean up named volume (wp-site-{subdomain}) if it exists
+      if (siteId) {
+        const volumeName = `wp-site-${siteId}`;
+        try {
+          const volume = docker.getVolume(volumeName);
+          await volume.remove();
+          console.log(`[provisioner] Removed volume: ${volumeName}`);
+        } catch (volErr: any) {
+          if (volErr.statusCode !== 404) {
+            console.error(`[provisioner] Volume cleanup error (${volumeName}):`, volErr.message);
+          }
+        }
+      }
     } catch (err: any) {
       if (err.statusCode === 404) {
         res.json({ status: 'already_removed' });

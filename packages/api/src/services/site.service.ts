@@ -64,8 +64,8 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const db = getDb();
   const productConfig = getProductConfig(req.productId);
 
-  // If user is provided, enforce max active sites per user (0 = unlimited)
-  if (req.userId && MAX_SITES_PER_USER > 0) {
+  // If user is provided, enforce max active sites per user (0 = unlimited, admin bypasses)
+  if (req.userId && req.userId !== 'admin' && MAX_SITES_PER_USER > 0) {
     const activeSiteCount = db
       .prepare("SELECT COUNT(*) as count FROM sites WHERE user_id = ? AND status = 'running'")
       .get(req.userId) as { count: number };
@@ -257,8 +257,8 @@ export async function deleteSite(id: string, userId?: string, userEmail?: string
     throw new Error('Site not found');
   }
 
-  // If userId provided, ensure user owns the site
-  if (userId && site.user_id !== userId) {
+  // If userId provided, ensure user owns the site (admin bypasses)
+  if (userId && userId !== 'admin' && site.user_id !== userId) {
     throw new Error('You can only delete your own sites');
   }
 

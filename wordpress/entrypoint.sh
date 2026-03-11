@@ -66,6 +66,21 @@ if [ "$DB_ENGINE" = "mysql" ] || [ "$DB_ENGINE" = "mariadb" ]; then
     rm -rf /var/www/html/wp-content/plugins/sqlite-database-integration
 fi
 
+# Remove any stale ready marker from a previous run
+rm -f /var/www/html/.wp-launcher-ready
+
+# Helper: trim whitespace from comma-separated items into a bash array
+parse_csv() {
+    local input="$1"
+    local -n arr=$2
+    IFS=',' read -ra RAW <<< "$input"
+    for item in "${RAW[@]}"; do
+        local trimmed
+        trimmed=$(echo "$item" | xargs)
+        [ -n "$trimmed" ] && arr+=("$trimmed")
+    done
+}
+
 # Install WordPress if not already installed
 if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
     echo "[wp-launcher] Installing WordPress..."
@@ -85,54 +100,53 @@ if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
     fi
 
     # Install and activate plugins (from wp.org, URL, or local zip)
-    # WP_INSTALL_PLUGINS_ACTIVATE: comma-separated list of plugins to install AND activate
-    # WP_INSTALL_PLUGINS: comma-separated list of plugins to install only (no activate)
+    # WP-CLI supports multiple slugs/paths in one command — much faster than one-at-a-time
     if [ -n "${WP_INSTALL_PLUGINS_ACTIVATE:-}" ]; then
-        IFS=',' read -ra INSTALL_ACT_PLUGINS <<< "$WP_INSTALL_PLUGINS_ACTIVATE"
-        for plugin in "${INSTALL_ACT_PLUGINS[@]}"; do
-            plugin=$(echo "$plugin" | xargs)
-            echo "[wp-launcher] Installing + activating plugin: $plugin"
-            wp plugin install "$plugin" --activate --path=/var/www/html --allow-root 2>/dev/null || echo "[wp-launcher] Warning: failed to install+activate $plugin"
-        done
+        PLUGINS=()
+        parse_csv "$WP_INSTALL_PLUGINS_ACTIVATE" PLUGINS
+        if [ ${#PLUGINS[@]} -gt 0 ]; then
+            echo "[wp-launcher] Installing + activating ${#PLUGINS[@]} plugins..."
+            wp plugin install "${PLUGINS[@]}" --activate --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher] Warning: some plugins failed to install+activate"
+        fi
     fi
 
     if [ -n "${WP_INSTALL_PLUGINS:-}" ]; then
-        IFS=',' read -ra INSTALL_PLUGINS <<< "$WP_INSTALL_PLUGINS"
-        for plugin in "${INSTALL_PLUGINS[@]}"; do
-            plugin=$(echo "$plugin" | xargs)
-            echo "[wp-launcher] Installing plugin: $plugin"
-            wp plugin install "$plugin" --path=/var/www/html --allow-root 2>/dev/null || echo "[wp-launcher] Warning: failed to install $plugin"
-        done
+        PLUGINS=()
+        parse_csv "$WP_INSTALL_PLUGINS" PLUGINS
+        if [ ${#PLUGINS[@]} -gt 0 ]; then
+            echo "[wp-launcher] Installing ${#PLUGINS[@]} plugins..."
+            wp plugin install "${PLUGINS[@]}" --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher] Warning: some plugins failed to install"
+        fi
     fi
 
     # Activate plugins by slug (for plugins already present in the image)
     if [ -n "${WP_ACTIVATE_PLUGINS:-}" ]; then
-        IFS=',' read -ra PLUGINS <<< "$WP_ACTIVATE_PLUGINS"
-        for plugin in "${PLUGINS[@]}"; do
-            plugin=$(echo "$plugin" | xargs)
-            echo "[wp-launcher] Activating plugin: $plugin"
-            wp plugin activate "$plugin" --path=/var/www/html --allow-root 2>/dev/null || true
-        done
+        PLUGINS=()
+        parse_csv "$WP_ACTIVATE_PLUGINS" PLUGINS
+        if [ ${#PLUGINS[@]} -gt 0 ]; then
+            echo "[wp-launcher] Activating ${#PLUGINS[@]} plugins..."
+            wp plugin activate "${PLUGINS[@]}" --path=/var/www/html --allow-root 2>/dev/null || true
+        fi
     fi
 
-    # Remove unwanted plugins
+    # Remove unwanted plugins (batch)
     if [ -n "${WP_REMOVE_PLUGINS:-}" ]; then
-        IFS=',' read -ra REMOVE_PLUGINS <<< "$WP_REMOVE_PLUGINS"
-        for plugin in "${REMOVE_PLUGINS[@]}"; do
-            plugin=$(echo "$plugin" | xargs)
-            echo "[wp-launcher] Removing plugin: $plugin"
-            wp plugin delete "$plugin" --path=/var/www/html --allow-root 2>/dev/null || true
-        done
+        PLUGINS=()
+        parse_csv "$WP_REMOVE_PLUGINS" PLUGINS
+        if [ ${#PLUGINS[@]} -gt 0 ]; then
+            echo "[wp-launcher] Removing ${#PLUGINS[@]} plugins..."
+            wp plugin delete "${PLUGINS[@]}" --path=/var/www/html --allow-root 2>/dev/null || true
+        fi
     fi
 
-    # Install themes (from wp.org, URL, or local zip)
+    # Install themes (batch)
     if [ -n "${WP_INSTALL_THEMES:-}" ]; then
-        IFS=',' read -ra INSTALL_THEMES <<< "$WP_INSTALL_THEMES"
-        for theme in "${INSTALL_THEMES[@]}"; do
-            theme=$(echo "$theme" | xargs)
-            echo "[wp-launcher] Installing theme: $theme"
-            wp theme install "$theme" --path=/var/www/html --allow-root 2>/dev/null || echo "[wp-launcher] Warning: failed to install $theme"
-        done
+        THEMES=()
+        parse_csv "$WP_INSTALL_THEMES" THEMES
+        if [ ${#THEMES[@]} -gt 0 ]; then
+            echo "[wp-launcher] Installing ${#THEMES[@]} themes..."
+            wp theme install "${THEMES[@]}" --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher] Warning: some themes failed to install"
+        fi
     fi
 
     # Set active theme if specified
@@ -160,6 +174,10 @@ fi
 # Ensure wp-content is writable by Apache (media uploads, plugin updates, etc.)
 chown -R www-data:www-data /var/www/html/wp-content
 chmod -R 755 /var/www/html/wp-content
+
+# Write ready marker — dashboard polls this to know ALL setup (plugins, themes, etc.) is done
+echo "ready" > /var/www/html/.wp-launcher-ready
+echo "[wp-launcher] Ready marker written."
 
 # Keep the container running with the Apache process
 wait $WP_PID

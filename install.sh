@@ -217,9 +217,16 @@ if [ "$EMAIL_CHOICE" = "2" ]; then
   EMAIL_PROVIDER="brevo"
   echo ""
   echo -e "  ${YELLOW}Get your API key from: Brevo Dashboard > Settings > SMTP & API > API Keys${NC}"
+  echo -e "  ${YELLOW}The key starts with 'xkeysib-' and is different from the SMTP password.${NC}"
   prompt -rp "$(echo -e "${CYAN}Brevo API key${NC}: ")" BREVO_API_KEY
+  echo -e "  ${YELLOW}Format: Name <email> (e.g. WP Launcher <noreply@${DOMAIN}>)${NC}"
   prompt -rp "$(echo -e "${CYAN}From address${NC} [WP Launcher <noreply@${DOMAIN}>]: ")" SMTP_FROM
   SMTP_FROM="${SMTP_FROM:-WP Launcher <noreply@${DOMAIN}>}"
+  # Auto-wrap plain email addresses in Name <email> format
+  if [[ "$SMTP_FROM" =~ ^[^\ \<]+@[^\ \>]+$ ]]; then
+    SMTP_FROM="WP Launcher <${SMTP_FROM}>"
+    echo -e "  ${YELLOW}Auto-formatted to: ${SMTP_FROM}${NC}"
+  fi
   ok "Using Brevo HTTP API (port 443 — no SMTP port needed)"
 elif [ "$EMAIL_CHOICE" = "3" ]; then
   EMAIL_PROVIDER="smtp"
@@ -243,8 +250,14 @@ else
     prompt -rp "$(echo -e "${CYAN}SMTP username${NC}: ")" SMTP_USER
     prompt -rsp "$(echo -e "${CYAN}SMTP password${NC}: ")" SMTP_PASS
     echo ""
+    echo -e "  ${YELLOW}Format: Name <email> (e.g. WP Launcher <noreply@${DOMAIN}>)${NC}"
     prompt -rp "$(echo -e "${CYAN}SMTP from address${NC} [WP Launcher <noreply@${DOMAIN}>]: ")" SMTP_FROM
     SMTP_FROM="${SMTP_FROM:-WP Launcher <noreply@${DOMAIN}>}"
+    # Auto-wrap plain email addresses in Name <email> format
+    if [[ "$SMTP_FROM" =~ ^[^\ \<]+@[^\ \>]+$ ]]; then
+      SMTP_FROM="WP Launcher <${SMTP_FROM}>"
+      echo -e "  ${YELLOW}Auto-formatted to: ${SMTP_FROM}${NC}"
+    fi
   fi
 fi
 
@@ -336,6 +349,9 @@ MAX_TOTAL_SITES=${MAX_TOTAL_SITES}
 CONTAINER_MEMORY=${CONTAINER_MEMORY}
 CONTAINER_CPU=${CONTAINER_CPU}
 
+# Product assets path (host path for bind-mounting local plugins/themes into containers)
+PRODUCT_ASSETS_PATH=${PROJECT_DIR}/product-assets
+
 # Dashboard UI
 CARD_LAYOUT=full
 
@@ -350,7 +366,7 @@ SMTP_PORT=${SMTP_PORT:-1025}
 SMTP_SECURE=${SMTP_SECURE:-false}
 SMTP_USER=${SMTP_USER:-}
 SMTP_PASS=${SMTP_PASS:-}
-SMTP_FROM=${SMTP_FROM:-WP Launcher <noreply@${DOMAIN}>}
+SMTP_FROM="${SMTP_FROM:-WP Launcher <noreply@${DOMAIN}>}"
 BREVO_API_KEY=${BREVO_API_KEY:-}
 
 # Let's Encrypt

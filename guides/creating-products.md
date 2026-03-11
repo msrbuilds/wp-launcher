@@ -154,12 +154,19 @@ Default blocked capabilities: `install_plugins`, `install_themes`, `edit_plugins
    product-assets/your-product/themes/my-theme.zip
    ```
 
-2. Build the Docker image:
+2. Ensure `PRODUCT_ASSETS_PATH` is set in `.env` to the **absolute host path** of the `product-assets/` directory:
+   ```bash
+   # Example for VPS (install.sh sets this automatically)
+   PRODUCT_ASSETS_PATH=/opt/wp-launcher/product-assets
+   ```
+   This is required so containers can access local plugin/theme zip files at runtime.
+
+3. Build the Docker image:
    ```bash
    bash scripts/build-wp-image.sh your-product
    ```
 
-3. Restart the API to pick up the new product:
+4. Restart the API to pick up the new product:
    ```bash
    docker compose restart api
    ```

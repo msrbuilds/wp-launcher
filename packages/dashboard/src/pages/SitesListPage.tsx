@@ -19,6 +19,8 @@ interface Site {
 export default function SitesListPage() {
   const { isAuthenticated, token } = useAuth();
   const isLocal = useIsLocalMode();
+  const adminApiKey = sessionStorage.getItem('adminApiKey') || '';
+  const isAdmin = !!adminApiKey;
   const [sites, setSites] = useState<Site[]>([]);
   const [maxSites, setMaxSites] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,11 +28,16 @@ export default function SitesListPage() {
   const [filterTemplate, setFilterTemplate] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
-  function fetchSites() {
+  function getAuthHeaders(): Record<string, string> {
     const headers: Record<string, string> = {};
     if (token) headers.Authorization = `Bearer ${token}`;
+    if (adminApiKey) headers['X-API-Key'] = adminApiKey;
+    return headers;
+  }
 
-    fetch('/api/sites', { headers })
+  function fetchSites() {
+    const url = isAdmin ? '/api/sites?all=true' : '/api/sites';
+    fetch(url, { headers: getAuthHeaders() })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -55,7 +62,7 @@ export default function SitesListPage() {
 
     await fetch(`/api/sites/${id}`, {
       method: 'DELETE',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: getAuthHeaders(),
     });
     fetchSites();
   }
@@ -84,7 +91,7 @@ export default function SitesListPage() {
     );
   }
 
-  if (!isAuthenticated && !isLocal) {
+  if (!isAuthenticated && !isLocal && !isAdmin) {
     return (
       <div className="card empty-state">
         <h3>Log in to see your sites</h3>

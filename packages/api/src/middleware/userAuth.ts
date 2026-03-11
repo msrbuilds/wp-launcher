@@ -80,6 +80,13 @@ export function userAuth(req: AuthRequest, res: Response, next: NextFunction): v
 }
 
 export function optionalUserAuth(req: AuthRequest, _res: Response, next: NextFunction): void {
+  // Allow API key as admin auth
+  if (isValidApiKey(req)) {
+    req.userId = 'admin';
+    req.userEmail = 'admin@localhost';
+    return next();
+  }
+
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
