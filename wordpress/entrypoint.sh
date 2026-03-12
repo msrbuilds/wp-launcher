@@ -74,26 +74,24 @@ if [ "$DB_ENGINE" = "mysql" ] || [ "$DB_ENGINE" = "mariadb" ]; then
     DB_PASS="${WORDPRESS_DB_PASSWORD:-wordpress}"
     DB_NAME="${WORDPRESS_DB_NAME:-wordpress}"
 
+    # Use PHP mysqli to test connection — the MariaDB CLI client doesn't support
+    # MySQL 8.4's caching_sha2_password auth, but PHP's mysqli extension does.
     echo "[wp-launcher] Waiting for ${DB_ENGINE} at ${DB_HOST}..."
     DB_READY=false
-    for i in $(seq 1 120); do
-        # Use --connect-timeout to prevent hanging; check exit code (not grep — --silent suppresses output)
-        if mysqladmin ping -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --connect-timeout=3 2>/dev/null; then
-            # Server is up — now check if the database actually exists and accepts queries
-            if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --connect-timeout=3 -e "USE ${DB_NAME};" 2>/dev/null; then
-                echo "[wp-launcher] ${DB_ENGINE} is ready — database '${DB_NAME}' accessible (after ${i}s)."
-                DB_READY=true
-                break
-            else
-                [ "$((i % 10))" = "0" ] && echo "[wp-launcher] Server up but database '${DB_NAME}' not ready yet (${i}s)..."
-            fi
-        else
-            [ "$((i % 15))" = "0" ] && echo "[wp-launcher] Still waiting for ${DB_ENGINE} at ${DB_HOST} (${i}s)..."
+    for i in $(seq 1 90); do
+        if php -r "
+            \$c = @new mysqli('$DB_HOST', '$DB_USER', '$DB_PASS', '$DB_NAME');
+            exit(\$c->connect_errno ? 1 : 0);
+        " 2>/dev/null; then
+            echo "[wp-launcher] ${DB_ENGINE} is ready (after ${i}s)."
+            DB_READY=true
+            break
         fi
+        [ "$((i % 15))" = "0" ] && echo "[wp-launcher] Still waiting for ${DB_ENGINE} at ${DB_HOST} (${i}s)..."
         sleep 1
     done
     if [ "$DB_READY" = "false" ]; then
-        echo "[wp-launcher] ERROR: ${DB_ENGINE} at ${DB_HOST} did not become ready after 120s."
+        echo "[wp-launcher] ERROR: ${DB_ENGINE} at ${DB_HOST} did not become ready after 90s."
     fi
 else
     # SQLite mode — set up database directory and drop-in
