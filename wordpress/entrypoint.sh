@@ -175,13 +175,16 @@ if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
     fi
 
     # Install and activate plugins (from wp.org, URL, or local zip)
-    # WP-CLI supports multiple slugs/paths in one command — much faster than one-at-a-time
+    # Install one-at-a-time so a failure/fatal in one plugin doesn't block the rest
     if [ -n "${WP_INSTALL_PLUGINS_ACTIVATE:-}" ]; then
         PLUGINS=()
         parse_csv "$WP_INSTALL_PLUGINS_ACTIVATE" PLUGINS
         if [ ${#PLUGINS[@]} -gt 0 ]; then
             echo "[wp-launcher] Installing + activating ${#PLUGINS[@]} plugins..."
-            wp plugin install "${PLUGINS[@]}" --activate --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher] Warning: some plugins failed to install+activate"
+            for plugin in "${PLUGINS[@]}"; do
+                echo "[wp-launcher]   → $plugin"
+                wp plugin install "$plugin" --activate --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher]   ⚠ Failed: $plugin"
+            done
         fi
     fi
 
@@ -190,7 +193,10 @@ if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
         parse_csv "$WP_INSTALL_PLUGINS" PLUGINS
         if [ ${#PLUGINS[@]} -gt 0 ]; then
             echo "[wp-launcher] Installing ${#PLUGINS[@]} plugins..."
-            wp plugin install "${PLUGINS[@]}" --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher] Warning: some plugins failed to install"
+            for plugin in "${PLUGINS[@]}"; do
+                echo "[wp-launcher]   → $plugin"
+                wp plugin install "$plugin" --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher]   ⚠ Failed: $plugin"
+            done
         fi
     fi
 

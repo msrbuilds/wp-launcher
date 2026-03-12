@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import Docker from 'dockerode';
+import { execSync } from 'child_process';
 
 const app = express();
 app.use(express.json());
@@ -18,7 +19,8 @@ const CONTAINER_MEMORY = parseInt(process.env.CONTAINER_MEMORY || String(256 * 1
 const CONTAINER_CPU = parseFloat(process.env.CONTAINER_CPU || '0.5');
 const WP_UPLOAD_LIMIT = process.env.WP_UPLOAD_LIMIT || String(2 * 1024 * 1024); // 2MB per file
 const WP_DISK_QUOTA = process.env.WP_DISK_QUOTA || String(100 * 1024 * 1024); // 100MB total uploads
-const PRODUCT_ASSETS_PATH = process.env.PRODUCT_ASSETS_PATH || ''; // Host path to product-assets for bind-mounting
+// PRODUCT_ASSETS_PATH is passed through env for reference but the provisioner
+// reads from its own /product-assets mount (set in docker-compose.yml)
 
 // Connect to Docker — via DOCKER_HOST (socket proxy) or local socket
 const docker = process.env.DOCKER_HOST
@@ -230,24 +232,17 @@ app.post('/containers', async (req: Request, res: Response) => {
       RestartPolicy: { Name: 'unless-stopped' },
     };
 
-    // Mount product-assets if local plugins/themes need to be installed
+    // Check if local plugins/themes need product-assets
     const allRefs = [opts.installActivatePlugins, opts.installPlugins, opts.installThemes].filter(Boolean).join(',');
     const needsAssets = allRefs.includes('/product-assets/');
-    const assetBinds: string[] = [];
-    if (needsAssets && PRODUCT_ASSETS_PATH) {
-      assetBinds.push(`${PRODUCT_ASSETS_PATH}:/product-assets:ro`);
-    }
 
     if (useLocalMode) {
       // Named volume for wp-content persistence
-      hostConfig.Binds = [`wp-site-${opts.subdomain}:/var/www/html/wp-content`, ...assetBinds];
+      hostConfig.Binds = [`wp-site-${opts.subdomain}:/var/www/html/wp-content`];
     } else {
       // Agency mode: enforce resource limits
       hostConfig.Memory = CONTAINER_MEMORY;
       hostConfig.NanoCpus = CONTAINER_CPU * 1e9;
-      if (assetBinds.length) {
-        hostConfig.Binds = [...(hostConfig.Binds || []), ...assetBinds];
-      }
     }
 
     const container = await docker.createContainer({
@@ -272,6 +267,19 @@ app.post('/containers', async (req: Request, res: Response) => {
     });
 
     await container.start();
+
+    // Copy local plugin/theme assets into the container (avoids bind mount path issues on Windows)
+    // The provisioner has /product-assets mounted via docker-compose.yml
+    if (needsAssets) {
+      try {
+        const tarBuffer = execSync('tar cf - -C / product-assets', { maxBuffer: 200 * 1024 * 1024 });
+        await container.putArchive(tarBuffer, { path: '/' });
+        console.log(`[provisioner] Copied product-assets into ${containerName}`);
+      } catch (copyErr: any) {
+        console.error(`[provisioner] Warning: failed to copy product-assets into ${containerName}:`, copyErr.message);
+      }
+    }
+
     res.json({ containerId: container.id });
   } catch (err: any) {
     console.error('[provisioner] create error:', err.message);

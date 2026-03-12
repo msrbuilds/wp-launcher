@@ -49,6 +49,8 @@ services:
       - ENABLE_TLS=${ENABLE_TLS:-false}
       - CERT_RESOLVER=${CERT_RESOLVER:-letsencrypt}
       - PRODUCT_ASSETS_PATH=${PRODUCT_ASSETS_PATH:-}
+    volumes:
+      - ${PRODUCT_ASSETS_PATH:-./product-assets}:/product-assets:ro
     networks:
       - provisioner-internal
       - wp-launcher-network
