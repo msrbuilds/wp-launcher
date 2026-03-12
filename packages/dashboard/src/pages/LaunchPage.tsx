@@ -33,6 +33,7 @@ export default function LaunchPage() {
   const adminApiKey = sessionStorage.getItem('adminApiKey');
   const isAdmin = !!adminApiKey;
   const canLaunch = isAuthenticated || isLocal || isAdmin;
+  const [siteReady, setSiteReady] = useState(true);
 
   function authHeaders(): Record<string, string> {
     if (token) return { Authorization: `Bearer ${token}` };
@@ -139,6 +140,7 @@ export default function LaunchPage() {
     setLaunchingId(productId);
     setError('');
     setResult(null);
+    setSiteReady(true);
     try {
       const res = await fetch('/api/sites', {
         method: 'POST',
@@ -164,15 +166,15 @@ export default function LaunchPage() {
   }
 
   async function pollUntilReady(siteId: string) {
-    const maxAttempts = 30; // 30 x 2s = 60s max
-    const expectedAttempts = 8; // typical ready in ~16s
+    const maxAttempts = 60; // 60 x 2s = 120s max (MySQL sites need longer)
+    const expectedAttempts = 10; // typical ready in ~20s
     setProvisionProgress(0);
     for (let i = 0; i < maxAttempts; i++) {
       await new Promise((r) => setTimeout(r, 2000));
       // Progress: fast to 80%, then slow crawl to 95%
       const pct = i < expectedAttempts
         ? Math.min(80, ((i + 1) / expectedAttempts) * 80)
-        : 80 + Math.min(15, (i - expectedAttempts) * 2);
+        : 80 + Math.min(15, (i - expectedAttempts) * 0.7);
       setProvisionProgress(Math.round(pct));
       try {
         const res = await fetch(`/api/sites/${siteId}/ready`, {
@@ -182,6 +184,7 @@ export default function LaunchPage() {
         if (data.ready) {
           setProvisionProgress(100);
           await new Promise((r) => setTimeout(r, 400)); // brief pause at 100%
+          setSiteReady(true);
           setStep('result');
           return;
         }
@@ -189,7 +192,9 @@ export default function LaunchPage() {
         // ignore fetch errors, keep polling
       }
     }
+    // Timed out — show result but with warning
     setProvisionProgress(100);
+    setSiteReady(false);
     setStep('result');
   }
 
@@ -236,8 +241,20 @@ export default function LaunchPage() {
 
     return (
       <div className="card site-result">
-        <div className="result-icon">&#10003;</div>
-        <h3>Your demo site is ready!</h3>
+        {siteReady ? (
+          <>
+            <div className="result-icon">&#10003;</div>
+            <h3>Your demo site is ready!</h3>
+          </>
+        ) : (
+          <>
+            <div className="result-icon" style={{ background: '#fef3c7', color: '#d97706' }}>&#9888;</div>
+            <h3>Site is still setting up...</h3>
+            <p style={{ color: '#92400e', fontSize: '0.875rem', margin: '0 0 1rem' }}>
+              WordPress is still installing. This can take up to 2 minutes for MySQL sites. Please wait a moment before clicking login.
+            </p>
+          </>
+        )}
 
         <div className="cred-rows">
           <div className="cred-row">
