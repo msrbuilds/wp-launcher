@@ -116,6 +116,9 @@ CONTAINER_CPU=0
 # WordPress image
 WP_IMAGE=wp-launcher/wordpress:latest
 
+# Product assets path (host path for bind-mounting local plugins/themes into containers)
+PRODUCT_ASSETS_PATH=${PROJECT_DIR}/product-assets
+
 # SMTP (Mailpit — catches all emails locally)
 SMTP_HOST=mailpit
 SMTP_PORT=1025
