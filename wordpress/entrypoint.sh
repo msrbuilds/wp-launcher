@@ -74,12 +74,12 @@ if [ "$DB_ENGINE" = "mysql" ] || [ "$DB_ENGINE" = "mariadb" ]; then
     DB_PASS="${WORDPRESS_DB_PASSWORD:-wordpress}"
     DB_NAME="${WORDPRESS_DB_NAME:-wordpress}"
 
-    echo "[wp-launcher] Waiting for ${DB_ENGINE} at ${DB_HOST} (DB_NAME=${DB_NAME}, DB_USER=${DB_USER})..."
+    echo "[wp-launcher] Waiting for ${DB_ENGINE} at ${DB_HOST}..."
     DB_READY=false
     for i in $(seq 1 120); do
-        # Use --connect-timeout to prevent hanging on unreachable hosts
-        if mysqladmin ping -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --connect-timeout=3 --silent 2>&1 | grep -q alive; then
-            # Server is up — now check if the database actually exists
+        # Use --connect-timeout to prevent hanging; check exit code (not grep — --silent suppresses output)
+        if mysqladmin ping -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --connect-timeout=3 2>/dev/null; then
+            # Server is up — now check if the database actually exists and accepts queries
             if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --connect-timeout=3 -e "USE ${DB_NAME};" 2>/dev/null; then
                 echo "[wp-launcher] ${DB_ENGINE} is ready — database '${DB_NAME}' accessible (after ${i}s)."
                 DB_READY=true
@@ -88,17 +88,12 @@ if [ "$DB_ENGINE" = "mysql" ] || [ "$DB_ENGINE" = "mariadb" ]; then
                 [ "$((i % 10))" = "0" ] && echo "[wp-launcher] Server up but database '${DB_NAME}' not ready yet (${i}s)..."
             fi
         else
-            [ "$((i % 15))" = "0" ] && echo "[wp-launcher] Still waiting for ${DB_ENGINE} server at ${DB_HOST} (${i}s)..."
+            [ "$((i % 15))" = "0" ] && echo "[wp-launcher] Still waiting for ${DB_ENGINE} at ${DB_HOST} (${i}s)..."
         fi
         sleep 1
     done
     if [ "$DB_READY" = "false" ]; then
         echo "[wp-launcher] ERROR: ${DB_ENGINE} at ${DB_HOST} did not become ready after 120s."
-        # Log diagnostic info
-        echo "[wp-launcher] Trying to reach ${DB_HOST}:"
-        mysqladmin ping -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --connect-timeout=5 2>&1 || true
-        echo "[wp-launcher] DNS lookup:"
-        getent hosts "$DB_HOST" 2>&1 || echo "  DNS resolution failed"
     fi
 else
     # SQLite mode — set up database directory and drop-in
