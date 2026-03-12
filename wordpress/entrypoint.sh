@@ -18,6 +18,26 @@ PHP_INI_CUSTOM="/usr/local/etc/php/conf.d/99-wp-launcher.ini"
 } > "$PHP_INI_CUSTOM"
 echo "[wp-launcher] PHP ini overrides written to ${PHP_INI_CUSTOM}"
 
+# ── Email (msmtp) Configuration ──────────────────────────────────────────
+# Route PHP mail() through msmtp to the configured SMTP server (e.g. Mailpit)
+MSMTP_HOST="${WP_SMTP_HOST:-mailpit}"
+MSMTP_PORT="${WP_SMTP_PORT:-1025}"
+MSMTP_FROM="${WP_SMTP_FROM:-noreply@localhost}"
+
+cat > /etc/msmtprc <<MSMTP
+account default
+host ${MSMTP_HOST}
+port ${MSMTP_PORT}
+from ${MSMTP_FROM}
+auth off
+tls off
+MSMTP
+chmod 644 /etc/msmtprc
+
+# Tell PHP to use msmtp for sending mail
+echo "sendmail_path = /usr/bin/msmtp -t" >> "$PHP_INI_CUSTOM"
+echo "[wp-launcher] Email relay configured (${MSMTP_HOST}:${MSMTP_PORT})"
+
 # Enable/disable PHP extensions from PHP_EXTENSIONS env (comma-separated)
 # Available: redis, xdebug, sockets, calendar, pcntl, ldap, gettext
 # Always-on (in image): gd, imagick, intl, zip, exif, bcmath, opcache, mysqli, pdo_sqlite, sodium

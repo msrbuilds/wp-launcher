@@ -1,9 +1,9 @@
 ARG PHP_VERSION=8.3
 FROM wordpress:6.9-php${PHP_VERSION}-apache
 
-# Install required system packages (unzip for plugins, default-mysql-client for MySQL health checks)
+# Install required system packages (unzip for plugins, default-mysql-client for MySQL health checks, msmtp for email relay)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    unzip default-mysql-client libldap2-dev \
+    unzip default-mysql-client libldap2-dev msmtp msmtp-mta \
     && rm -rf /var/lib/apt/lists/*
 
 # Install additional PHP extensions (pre-installed but disabled — toggled at runtime via PHP_EXTENSIONS env)
