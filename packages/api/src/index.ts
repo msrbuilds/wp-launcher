@@ -76,9 +76,9 @@ if (config.isLocalMode) {
 // Sites routes (rate limiting handled per-route inside the router)
 app.use('/api/sites', sitesRouter);
 
-// Templates routes (GET open, POST/DELETE require API key)
+// Templates routes (GET open, POST/DELETE require API key — skipped in local mode)
 app.use('/api/templates', (req, res, next) => {
-  if (req.method === 'GET') {
+  if (req.method === 'GET' || config.isLocalMode) {
     return next();
   }
   return apiKeyAuth(req, res, next);
