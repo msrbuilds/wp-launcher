@@ -68,19 +68,31 @@ if [ "$DB_ENGINE" = "mysql" ] || [ "$DB_ENGINE" = "mariadb" ]; then
     rm -f /var/www/html/wp-content/db.php
     rm -rf /var/www/html/wp-content/plugins/sqlite-database-integration
 
-    # Wait for database to be ready (up to 90s — MySQL 8.4 can take 30-60s on first init)
-    echo "[wp-launcher] Waiting for ${DB_ENGINE} at ${WORDPRESS_DB_HOST:-localhost}..."
+    # Wait for database to be fully ready (up to 90s — MySQL 8.4 can take 30-60s on first init)
+    # Two checks: 1) server accepts connections, 2) the 'wordpress' database actually exists
+    DB_HOST="${WORDPRESS_DB_HOST:-localhost}"
+    DB_USER="${WORDPRESS_DB_USER:-wordpress}"
+    DB_PASS="${WORDPRESS_DB_PASSWORD:-wordpress}"
+    DB_NAME="${WORDPRESS_DB_NAME:-wordpress}"
+
+    echo "[wp-launcher] Waiting for ${DB_ENGINE} at ${DB_HOST}..."
     DB_READY=false
     for i in $(seq 1 90); do
-        if mysqladmin ping -h "${WORDPRESS_DB_HOST:-localhost}" -u "${WORDPRESS_DB_USER:-wordpress}" -p"${WORDPRESS_DB_PASSWORD:-wordpress}" --silent 2>/dev/null; then
-            echo "[wp-launcher] ${DB_ENGINE} is ready (after ${i}s)."
-            DB_READY=true
-            break
+        # First check: can we connect at all?
+        if mysqladmin ping -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --silent 2>/dev/null; then
+            # Second check: does the database exist and accept queries?
+            if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -e "USE ${DB_NAME};" 2>/dev/null; then
+                echo "[wp-launcher] ${DB_ENGINE} is ready — database '${DB_NAME}' accessible (after ${i}s)."
+                DB_READY=true
+                break
+            else
+                [ "$((i % 10))" = "0" ] && echo "[wp-launcher] MySQL server up but '${DB_NAME}' database not ready yet (${i}s)..."
+            fi
         fi
         sleep 1
     done
     if [ "$DB_READY" = "false" ]; then
-        echo "[wp-launcher] ERROR: ${DB_ENGINE} at ${WORDPRESS_DB_HOST:-localhost} did not become ready after 90s."
+        echo "[wp-launcher] ERROR: ${DB_ENGINE} at ${DB_HOST} did not become ready after 90s."
         echo "[wp-launcher] The database container may have crashed or run out of memory."
     fi
 else
@@ -137,15 +149,27 @@ parse_csv() {
 # Install WordPress if not already installed
 if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
     echo "[wp-launcher] Installing WordPress..."
-    wp core install \
-        --path=/var/www/html \
-        --url="${WP_SITE_URL}" \
-        --title="${WP_SITE_TITLE:-Demo Site}" \
-        --admin_user="${WP_ADMIN_USER:-demo}" \
-        --admin_password="${WP_ADMIN_PASSWORD:-demo123}" \
-        --admin_email="${WP_ADMIN_EMAIL:-demo@example.com}" \
-        --skip-email \
-        --allow-root
+    WP_INSTALLED=false
+    for attempt in 1 2 3; do
+        if wp core install \
+            --path=/var/www/html \
+            --url="${WP_SITE_URL}" \
+            --title="${WP_SITE_TITLE:-Demo Site}" \
+            --admin_user="${WP_ADMIN_USER:-demo}" \
+            --admin_password="${WP_ADMIN_PASSWORD:-demo123}" \
+            --admin_email="${WP_ADMIN_EMAIL:-demo@example.com}" \
+            --skip-email \
+            --allow-root 2>&1; then
+            WP_INSTALLED=true
+            break
+        else
+            echo "[wp-launcher] wp core install attempt ${attempt} failed, retrying in 5s..."
+            sleep 5
+        fi
+    done
+    if [ "$WP_INSTALLED" = "false" ]; then
+        echo "[wp-launcher] ERROR: wp core install failed after 3 attempts."
+    fi
 
     if [ "$DB_ENGINE" != "mysql" ] && [ "$DB_ENGINE" != "mariadb" ]; then
         echo "[wp-launcher] Activating SQLite Database Integration plugin..."
