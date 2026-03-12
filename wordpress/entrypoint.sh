@@ -68,32 +68,37 @@ if [ "$DB_ENGINE" = "mysql" ] || [ "$DB_ENGINE" = "mariadb" ]; then
     rm -f /var/www/html/wp-content/db.php
     rm -rf /var/www/html/wp-content/plugins/sqlite-database-integration
 
-    # Wait for database to be fully ready (up to 90s — MySQL 8.4 can take 30-60s on first init)
-    # Two checks: 1) server accepts connections, 2) the 'wordpress' database actually exists
+    # Wait for database to be fully ready (up to 120s — MySQL 8.4 can take 30-60s on first init)
     DB_HOST="${WORDPRESS_DB_HOST:-localhost}"
     DB_USER="${WORDPRESS_DB_USER:-wordpress}"
     DB_PASS="${WORDPRESS_DB_PASSWORD:-wordpress}"
     DB_NAME="${WORDPRESS_DB_NAME:-wordpress}"
 
-    echo "[wp-launcher] Waiting for ${DB_ENGINE} at ${DB_HOST}..."
+    echo "[wp-launcher] Waiting for ${DB_ENGINE} at ${DB_HOST} (DB_NAME=${DB_NAME}, DB_USER=${DB_USER})..."
     DB_READY=false
-    for i in $(seq 1 90); do
-        # First check: can we connect at all?
-        if mysqladmin ping -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --silent 2>/dev/null; then
-            # Second check: does the database exist and accept queries?
-            if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" -e "USE ${DB_NAME};" 2>/dev/null; then
+    for i in $(seq 1 120); do
+        # Use --connect-timeout to prevent hanging on unreachable hosts
+        if mysqladmin ping -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --connect-timeout=3 --silent 2>&1 | grep -q alive; then
+            # Server is up — now check if the database actually exists
+            if mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --connect-timeout=3 -e "USE ${DB_NAME};" 2>/dev/null; then
                 echo "[wp-launcher] ${DB_ENGINE} is ready — database '${DB_NAME}' accessible (after ${i}s)."
                 DB_READY=true
                 break
             else
-                [ "$((i % 10))" = "0" ] && echo "[wp-launcher] MySQL server up but '${DB_NAME}' database not ready yet (${i}s)..."
+                [ "$((i % 10))" = "0" ] && echo "[wp-launcher] Server up but database '${DB_NAME}' not ready yet (${i}s)..."
             fi
+        else
+            [ "$((i % 15))" = "0" ] && echo "[wp-launcher] Still waiting for ${DB_ENGINE} server at ${DB_HOST} (${i}s)..."
         fi
         sleep 1
     done
     if [ "$DB_READY" = "false" ]; then
-        echo "[wp-launcher] ERROR: ${DB_ENGINE} at ${DB_HOST} did not become ready after 90s."
-        echo "[wp-launcher] The database container may have crashed or run out of memory."
+        echo "[wp-launcher] ERROR: ${DB_ENGINE} at ${DB_HOST} did not become ready after 120s."
+        # Log diagnostic info
+        echo "[wp-launcher] Trying to reach ${DB_HOST}:"
+        mysqladmin ping -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" --connect-timeout=5 2>&1 || true
+        echo "[wp-launcher] DNS lookup:"
+        getent hosts "$DB_HOST" 2>&1 || echo "  DNS resolution failed"
     fi
 else
     # SQLite mode — set up database directory and drop-in
