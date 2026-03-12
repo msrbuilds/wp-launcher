@@ -1,0 +1,17 @@
+# Force Unix line endings for shell scripts (prevents CRLF issues on Windows)
+*.sh text eol=lf
+bin/wpl text eol=lf
+
+# WordPress entrypoint
+wordpress/entrypoint.sh text eol=lf
+
+# Dockerfiles
+Dockerfile text eol=lf
+wordpress/Dockerfile text eol=lf
+
+# Compose files
+docker-compose*.yml text eol=lf
+
+# Keep Windows batch files as CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
