@@ -68,15 +68,21 @@ if [ "$DB_ENGINE" = "mysql" ] || [ "$DB_ENGINE" = "mariadb" ]; then
     rm -f /var/www/html/wp-content/db.php
     rm -rf /var/www/html/wp-content/plugins/sqlite-database-integration
 
-    # Wait for database to be ready
+    # Wait for database to be ready (up to 90s — MySQL 8.4 can take 30-60s on first init)
     echo "[wp-launcher] Waiting for ${DB_ENGINE} at ${WORDPRESS_DB_HOST:-localhost}..."
-    for i in $(seq 1 60); do
+    DB_READY=false
+    for i in $(seq 1 90); do
         if mysqladmin ping -h "${WORDPRESS_DB_HOST:-localhost}" -u "${WORDPRESS_DB_USER:-wordpress}" -p"${WORDPRESS_DB_PASSWORD:-wordpress}" --silent 2>/dev/null; then
-            echo "[wp-launcher] ${DB_ENGINE} is ready."
+            echo "[wp-launcher] ${DB_ENGINE} is ready (after ${i}s)."
+            DB_READY=true
             break
         fi
         sleep 1
     done
+    if [ "$DB_READY" = "false" ]; then
+        echo "[wp-launcher] ERROR: ${DB_ENGINE} at ${WORDPRESS_DB_HOST:-localhost} did not become ready after 90s."
+        echo "[wp-launcher] The database container may have crashed or run out of memory."
+    fi
 else
     # SQLite mode — set up database directory and drop-in
     mkdir -p "${WORDPRESS_DB_DIR:-/var/www/html/wp-content/database}"

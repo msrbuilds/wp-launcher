@@ -144,6 +144,11 @@ app.post('/containers', async (req: Request, res: Response) => {
         console.log(`[provisioner] ${DB_IMAGE} pulled.`);
       }
 
+      // DB sidecars need more memory than WP containers — MySQL 8.4 requires ~512MB minimum.
+      // Apply a separate, higher limit (2x the WP container limit, minimum 512MB).
+      const DB_MIN_MEMORY = 512 * 1024 * 1024; // 512MB
+      const dbMemory = CONTAINER_MEMORY > 0 ? Math.max(CONTAINER_MEMORY * 2, DB_MIN_MEMORY) : 0;
+
       const dbSidecar = await docker.createContainer({
         Image: DB_IMAGE,
         name: dbContainerName,
@@ -161,8 +166,8 @@ app.post('/containers', async (req: Request, res: Response) => {
         },
         HostConfig: {
           NetworkMode: DOCKER_NETWORK,
-          Memory: CONTAINER_MEMORY,
-          NanoCpus: CONTAINER_CPU * 1e9,
+          ...(dbMemory > 0 ? { Memory: dbMemory } : {}),
+          ...(CONTAINER_CPU > 0 ? { NanoCpus: CONTAINER_CPU * 1e9 } : {}),
           RestartPolicy: { Name: 'unless-stopped' },
         },
       });
