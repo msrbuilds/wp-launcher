@@ -26,6 +26,8 @@ product-assets/**/themes/*/
 !product-assets/**/*.zip
 !product-assets/**/demo-content.xml
 
+#Ignore products
+elementor.json
 # OS files
 .DS_Store
 Thumbs.db

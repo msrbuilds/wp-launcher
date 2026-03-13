@@ -417,9 +417,7 @@ export default function LaunchPage() {
                   {product.branding?.image_url ? (
                     <img src={product.branding.image_url} alt={product.name} />
                   ) : product.branding?.logo_url ? (
-                    <div className="product-card-placeholder" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <img src={product.branding.logo_url} alt={product.name} style={{ maxWidth: '64px', maxHeight: '64px', objectFit: 'contain' }} />
-                    </div>
+                    <img src={product.branding.logo_url} alt={product.name} />
                   ) : (
                     <div className="product-card-placeholder">
                       {product.name.charAt(0).toUpperCase()}
