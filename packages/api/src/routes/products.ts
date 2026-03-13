@@ -174,21 +174,28 @@ router.put('/:id', (req: Request, res: Response) => {
 router.delete('/:id', (req: Request, res: Response) => {
   const id = req.params.id;
 
-  // Remove from DB
-  const db = require('../utils/db').getDb();
-  const result = db.prepare('DELETE FROM products WHERE id = ?').run(id);
-
-  // Remove JSON file if it exists
+  // Check if product exists (DB or file) before deleting
   const productFilePath = path.join(config.productConfigsDir, `${id}.json`);
-  if (fs.existsSync(productFilePath)) {
+  const fileExists = fs.existsSync(productFilePath);
+
+  const db = require('../utils/db').getDb();
+  const dbExists = !!db.prepare('SELECT id FROM products WHERE id = ?').get(id);
+
+  if (!dbExists && !fileExists) {
+    throw new NotFoundError('Product not found');
+  }
+
+  // Remove from DB
+  if (dbExists) {
+    db.prepare('DELETE FROM products WHERE id = ?').run(id);
+  }
+
+  // Remove JSON file
+  if (fileExists) {
     fs.unlinkSync(productFilePath);
   }
 
   clearConfigCache();
-
-  if (result.changes === 0 && !fs.existsSync(productFilePath)) {
-    throw new NotFoundError('Product not found');
-  }
 
   res.json({ success: true });
 });
