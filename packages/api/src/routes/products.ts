@@ -4,6 +4,8 @@ import fs from 'fs';
 import path from 'path';
 import { listProducts, getProductConfig, saveProductConfig, ProductConfig, clearConfigCache } from '../services/product.service';
 import { config } from '../config';
+import { NotFoundError, ValidationError } from '../utils/errors';
+import { productConfigSchema } from '../utils/schemas';
 
 const router = Router();
 
@@ -29,30 +31,21 @@ const upload = multer({ dest: uploadDir, limits: { fileSize: 100 * 1024 * 1024 }
 
 // List all products
 router.get('/', (_req: Request, res: Response) => {
-  try {
-    const products = listProducts();
-    res.json(products.map(sanitizeProduct));
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+  const products = listProducts();
+  res.json(products.map(sanitizeProduct));
 });
 
 // Get a specific product config
 router.get('/:id', (req: Request, res: Response) => {
-  try {
-    const product = getProductConfig(req.params.id);
-    if (!product) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
-    if (req.query.full === 'true') {
-      res.json(product);
-      return;
-    }
-    res.json(sanitizeProduct(product));
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  const product = getProductConfig(req.params.id);
+  if (!product) {
+    throw new NotFoundError('Product not found');
   }
+  if (req.query.full === 'true') {
+    res.json(product);
+    return;
+  }
+  res.json(sanitizeProduct(product));
 });
 
 // Create or update a product (with file uploads)
@@ -63,32 +56,30 @@ router.post('/', upload.fields([
   { name: 'card_image', maxCount: 1 },
   { name: 'card_icon', maxCount: 1 },
 ]), (req: Request, res: Response) => {
+  const configStr = req.body.config;
+  if (!configStr) {
+    throw new ValidationError('config field is required (JSON string)');
+  }
+
+  let rawConfig: any;
   try {
-    const configStr = req.body.config;
-    if (!configStr) {
-      res.status(400).json({ error: 'config field is required (JSON string)' });
-      return;
-    }
+    rawConfig = JSON.parse(configStr);
+  } catch {
+    throw new ValidationError('Invalid JSON in config field');
+  }
 
-    let productConfig: ProductConfig;
-    try {
-      productConfig = JSON.parse(configStr);
-    } catch {
-      res.status(400).json({ error: 'Invalid JSON in config field' });
-      return;
-    }
+  const parseResult = productConfigSchema.safeParse(rawConfig);
+  if (!parseResult.success) {
+    throw new ValidationError(`Invalid product config: ${parseResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ')}`);
+  }
 
-    if (!productConfig.id || !productConfig.name) {
-      res.status(400).json({ error: 'id and name are required' });
-      return;
-    }
+  let productConfig: ProductConfig = parseResult.data as ProductConfig;
 
-    // Sanitize ID
-    productConfig.id = productConfig.id.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    if (!productConfig.id) {
-      res.status(400).json({ error: 'Invalid product ID' });
-      return;
-    }
+  // Sanitize ID
+  productConfig.id = productConfig.id.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  if (!productConfig.id) {
+    throw new ValidationError('Invalid product ID');
+  }
 
     // Ensure product-assets directory exists
     const assetsDir = path.resolve(config.productConfigsDir, '..', 'product-assets', productConfig.id);
@@ -165,54 +156,41 @@ router.post('/', upload.fields([
     clearConfigCache();
 
     res.json({ success: true, product: productConfig });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
 // Legacy PUT for simple config updates (API key protected in index.ts)
 router.put('/:id', (req: Request, res: Response) => {
-  try {
-    const productConfig = { ...req.body, id: req.params.id };
+  const productConfig = { ...req.body, id: req.params.id };
 
-    if (!productConfig.name) {
-      res.status(400).json({ error: 'name is required' });
-      return;
-    }
-
-    saveProductConfig(productConfig);
-    res.json(productConfig);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  if (!productConfig.name) {
+    throw new ValidationError('name is required');
   }
+
+  saveProductConfig(productConfig);
+  res.json(productConfig);
 });
 
 // Delete a product
 router.delete('/:id', (req: Request, res: Response) => {
-  try {
-    const id = req.params.id;
+  const id = req.params.id;
 
-    // Remove from DB
-    const db = require('../utils/db').getDb();
-    const result = db.prepare('DELETE FROM products WHERE id = ?').run(id);
+  // Remove from DB
+  const db = require('../utils/db').getDb();
+  const result = db.prepare('DELETE FROM products WHERE id = ?').run(id);
 
-    // Remove JSON file if it exists
-    const productFilePath = path.join(config.productConfigsDir, `${id}.json`);
-    if (fs.existsSync(productFilePath)) {
-      fs.unlinkSync(productFilePath);
-    }
-
-    clearConfigCache();
-
-    if (result.changes === 0 && !fs.existsSync(productFilePath)) {
-      res.status(404).json({ error: 'Product not found' });
-      return;
-    }
-
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  // Remove JSON file if it exists
+  const productFilePath = path.join(config.productConfigsDir, `${id}.json`);
+  if (fs.existsSync(productFilePath)) {
+    fs.unlinkSync(productFilePath);
   }
+
+  clearConfigCache();
+
+  if (result.changes === 0 && !fs.existsSync(productFilePath)) {
+    throw new NotFoundError('Product not found');
+  }
+
+  res.json({ success: true });
 });
 
 export default router;

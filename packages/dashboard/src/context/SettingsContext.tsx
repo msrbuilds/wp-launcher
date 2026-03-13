@@ -5,6 +5,7 @@ interface Settings {
   cardLayout: 'full' | 'compact';
   baseDomain: string;
   loading: boolean;
+  error: string;
 }
 
 const SettingsContext = createContext<Settings>({
@@ -12,6 +13,7 @@ const SettingsContext = createContext<Settings>({
   cardLayout: 'full',
   baseDomain: 'localhost',
   loading: true,
+  error: '',
 });
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
@@ -20,6 +22,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     cardLayout: 'full',
     baseDomain: 'localhost',
     loading: true,
+    error: '',
   });
 
   useEffect(() => {
@@ -31,10 +34,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           cardLayout: data.cardLayout || 'full',
           baseDomain: data.baseDomain || 'localhost',
           loading: false,
+          error: '',
         });
       })
       .catch(() => {
-        setSettings((prev) => ({ ...prev, loading: false }));
+        setSettings((prev) => ({ ...prev, loading: false, error: 'Failed to load settings' }));
       });
   }, []);
 

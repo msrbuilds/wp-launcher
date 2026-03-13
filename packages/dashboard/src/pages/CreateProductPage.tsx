@@ -1,23 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-
-interface PluginEntry {
-  source: 'wordpress.org' | 'url' | 'local';
-  slug?: string;
-  url?: string;
-  file?: File | null;
-  filename?: string;
-  activate: boolean;
-}
-
-interface ThemeEntry {
-  source: 'wordpress.org' | 'url' | 'local';
-  slug?: string;
-  url?: string;
-  file?: File | null;
-  filename?: string;
-  activate: boolean;
-}
+import type { PluginEntry, ThemeEntry } from '../types/product';
+import PluginRepeater from '../components/PluginRepeater';
+import ThemeRepeater from '../components/ThemeRepeater';
+import ImageUpload from '../components/ImageUpload';
 
 const DB_OPTIONS = [
   { label: 'SQLite (fastest)', value: 'sqlite' },
@@ -93,8 +79,6 @@ export default function CreateProductPage() {
   const [bannerText, setBannerText] = useState('This is a temporary demo site. It will expire in {time_remaining}.');
   const [cardImagePreview, setCardImagePreview] = useState<string | null>(null);
   const [cardIconPreview, setCardIconPreview] = useState<string | null>(null);
-  const cardImageRef = useRef<HTMLInputElement>(null);
-  const cardIconRef = useRef<HTMLInputElement>(null);
   const [cardImageFile, setCardImageFile] = useState<File | null>(null);
   const [cardIconFile, setCardIconFile] = useState<File | null>(null);
 
@@ -115,36 +99,6 @@ export default function CreateProductPage() {
     { id: 'branding', label: 'Branding' },
   ];
 
-  // ── Plugin repeater ──
-  function addPlugin() {
-    setPlugins([...plugins, { source: 'wordpress.org', slug: '', activate: true }]);
-  }
-
-  function updatePlugin(index: number, updates: Partial<PluginEntry>) {
-    const updated = [...plugins];
-    updated[index] = { ...updated[index], ...updates };
-    setPlugins(updated);
-  }
-
-  function removePlugin(index: number) {
-    setPlugins(plugins.filter((_, i) => i !== index));
-  }
-
-  // ── Theme repeater ──
-  function addTheme() {
-    setThemes([...themes, { source: 'wordpress.org', slug: '', activate: false }]);
-  }
-
-  function updateTheme(index: number, updates: Partial<ThemeEntry>) {
-    const updated = [...themes];
-    updated[index] = { ...updated[index], ...updates };
-    setThemes(updated);
-  }
-
-  function removeTheme(index: number) {
-    setThemes(themes.filter((_, i) => i !== index));
-  }
-
   // ── Capability toggles ──
   function toggleCapability(cap: string) {
     setBlockedCapabilities(prev =>
@@ -158,22 +112,11 @@ export default function CreateProductPage() {
     );
   }
 
-  // ── Image upload handlers ──
-  function handleCardImage(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCardImageFile(file);
+  // ── Image helpers ──
+  function handleImageFile(file: File, setFile: (f: File | null) => void, setPreview: (s: string | null) => void) {
+    setFile(file);
     const reader = new FileReader();
-    reader.onload = () => setCardImagePreview(reader.result as string);
-    reader.readAsDataURL(file);
-  }
-
-  function handleCardIcon(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCardIconFile(file);
-    const reader = new FileReader();
-    reader.onload = () => setCardIconPreview(reader.result as string);
+    reader.onload = () => setPreview(reader.result as string);
     reader.readAsDataURL(file);
   }
 
@@ -355,172 +298,22 @@ export default function CreateProductPage() {
 
         {/* ── Plugins ── */}
           {activeSection === 'plugins' && (
-            <div className="tmpl-section-body">
-              {plugins.map((plugin, i) => (
-                <div key={i} className="tmpl-repeater-item">
-                  <div className="tmpl-repeater-row">
-                    <div className="form-group" style={{ flex: '0 0 140px' }}>
-                      <label>Source</label>
-                      <select value={plugin.source} onChange={(e) => updatePlugin(i, { source: e.target.value as any })}>
-                        <option value="wordpress.org">WordPress.org</option>
-                        <option value="url">URL</option>
-                        <option value="local">Upload Zip</option>
-                      </select>
-                    </div>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      {plugin.source === 'wordpress.org' && (
-                        <>
-                          <label>Plugin Slug</label>
-                          <input
-                            type="text"
-                            value={plugin.slug || ''}
-                            onChange={(e) => updatePlugin(i, { slug: e.target.value })}
-                            placeholder="e.g. woocommerce"
-                          />
-                        </>
-                      )}
-                      {plugin.source === 'url' && (
-                        <>
-                          <label>Download URL</label>
-                          <input
-                            type="url"
-                            value={plugin.url || ''}
-                            onChange={(e) => updatePlugin(i, { url: e.target.value })}
-                            placeholder="https://example.com/plugin.zip"
-                          />
-                        </>
-                      )}
-                      {plugin.source === 'local' && (
-                        <>
-                          <label>Zip File</label>
-                          <input
-                            type="file"
-                            accept=".zip"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] || null;
-                              updatePlugin(i, { file, filename: file?.name });
-                            }}
-                          />
-                          {plugin.filename && <span className="form-hint">{plugin.filename}</span>}
-                        </>
-                      )}
-                    </div>
-                    <div className="tmpl-repeater-actions">
-                      <label className="tmpl-toggle-wrap">
-                        <input
-                          type="checkbox"
-                          checked={plugin.activate}
-                          onChange={(e) => updatePlugin(i, { activate: e.target.checked })}
-                        />
-                        <span className="tmpl-toggle" />
-                        <span className="tmpl-toggle-label">Activate</span>
-                      </label>
-                      <button type="button" className="btn btn-danger btn-xs tmpl-remove-btn" onClick={() => removePlugin(i)} title="Remove">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <button type="button" className="btn btn-secondary btn-sm" onClick={addPlugin}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Plugin
-              </button>
-              <div className="form-group" style={{ marginTop: '1.25rem' }}>
-                <label>Remove Default Plugins <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.75rem' }}>(comma-separated slugs)</span></label>
-                <input
-                  type="text"
-                  value={removePlugins}
-                  onChange={(e) => setRemovePlugins(e.target.value)}
-                  placeholder="hello, akismet"
-                />
-              </div>
-            </div>
+            <PluginRepeater
+              plugins={plugins}
+              onChange={setPlugins}
+              removePlugins={removePlugins}
+              onRemovePluginsChange={setRemovePlugins}
+            />
           )}
 
         {/* ── Themes ── */}
           {activeSection === 'themes' && (
-            <div className="tmpl-section-body">
-              {themes.map((theme, i) => (
-                <div key={i} className="tmpl-repeater-item">
-                  <div className="tmpl-repeater-row">
-                    <div className="form-group" style={{ flex: '0 0 140px' }}>
-                      <label>Source</label>
-                      <select value={theme.source} onChange={(e) => updateTheme(i, { source: e.target.value as any })}>
-                        <option value="wordpress.org">WordPress.org</option>
-                        <option value="url">URL</option>
-                        <option value="local">Upload Zip</option>
-                      </select>
-                    </div>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      {theme.source === 'wordpress.org' && (
-                        <>
-                          <label>Theme Slug</label>
-                          <input
-                            type="text"
-                            value={theme.slug || ''}
-                            onChange={(e) => updateTheme(i, { slug: e.target.value })}
-                            placeholder="e.g. flavor"
-                          />
-                        </>
-                      )}
-                      {theme.source === 'url' && (
-                        <>
-                          <label>Download URL</label>
-                          <input
-                            type="url"
-                            value={theme.url || ''}
-                            onChange={(e) => updateTheme(i, { url: e.target.value })}
-                            placeholder="https://example.com/theme.zip"
-                          />
-                        </>
-                      )}
-                      {theme.source === 'local' && (
-                        <>
-                          <label>Zip File</label>
-                          <input
-                            type="file"
-                            accept=".zip"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0] || null;
-                              updateTheme(i, { file, filename: file?.name });
-                            }}
-                          />
-                          {theme.filename && <span className="form-hint">{theme.filename}</span>}
-                        </>
-                      )}
-                    </div>
-                    <div className="tmpl-repeater-actions">
-                      <label className="tmpl-toggle-wrap">
-                        <input
-                          type="checkbox"
-                          checked={theme.activate}
-                          onChange={(e) => updateTheme(i, { activate: e.target.checked })}
-                        />
-                        <span className="tmpl-toggle" />
-                        <span className="tmpl-toggle-label">Activate</span>
-                      </label>
-                      <button type="button" className="btn btn-danger btn-xs tmpl-remove-btn" onClick={() => removeTheme(i)} title="Remove">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <button type="button" className="btn btn-secondary btn-sm" onClick={addTheme}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Theme
-              </button>
-              <div className="form-group" style={{ marginTop: '1.25rem' }}>
-                <label>Remove Default Themes <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.75rem' }}>(comma-separated slugs)</span></label>
-                <input
-                  type="text"
-                  value={removeThemes}
-                  onChange={(e) => setRemoveThemes(e.target.value)}
-                  placeholder="twentytwentyfive"
-                />
-              </div>
-            </div>
+            <ThemeRepeater
+              themes={themes}
+              onChange={setThemes}
+              removeThemes={removeThemes}
+              onRemoveThemesChange={setRemoveThemes}
+            />
           )}
 
         {/* ── Demo Settings ── */}
@@ -648,34 +441,21 @@ export default function CreateProductPage() {
                 />
               </div>
               <div className="form-row">
-                <div className="form-group">
-                  <label>Card Image <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.75rem' }}>(3:2 ratio recommended)</span></label>
-                  <input ref={cardImageRef} type="file" accept="image/*" onChange={handleCardImage} style={{ display: 'none' }} />
-                  <div
-                    className="tmpl-image-upload"
-                    onClick={() => cardImageRef.current?.click()}
-                  >
-                    {cardImagePreview ? (
-                      <img src={cardImagePreview} alt="Card preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <span style={{ color: '#94a3b8' }}>Click to upload</span>
-                    )}
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label>Card Icon <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.75rem' }}>(square, 160px)</span></label>
-                  <input ref={cardIconRef} type="file" accept="image/*" onChange={handleCardIcon} style={{ display: 'none' }} />
-                  <div
-                    className="tmpl-image-upload tmpl-image-upload--icon"
-                    onClick={() => cardIconRef.current?.click()}
-                  >
-                    {cardIconPreview ? (
-                      <img src={cardIconPreview} alt="Icon preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <span style={{ color: '#94a3b8' }}>Click to upload</span>
-                    )}
-                  </div>
-                </div>
+                <ImageUpload
+                  label="Card Image"
+                  hint="3:2 ratio recommended"
+                  preview={cardImagePreview}
+                  onFileSelect={(file) => handleImageFile(file, setCardImageFile, setCardImagePreview)}
+                  onClear={() => { setCardImageFile(null); setCardImagePreview(null); }}
+                />
+                <ImageUpload
+                  label="Card Icon"
+                  hint="Square, 160px"
+                  preview={cardIconPreview}
+                  onFileSelect={(file) => handleImageFile(file, setCardIconFile, setCardIconPreview)}
+                  onClear={() => { setCardIconFile(null); setCardIconPreview(null); }}
+                  className="tmpl-image-upload--icon"
+                />
               </div>
             </div>
           )}

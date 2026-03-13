@@ -80,14 +80,20 @@ export default function LaunchPage() {
     if (found) handleLaunch(found.id);
   }, [isAuthenticated, step, products, launchingId, result]);
 
+  const [fetchError, setFetchError] = useState('');
+
   useEffect(() => {
     if (settingsLoading) return;
+    setFetchError('');
     fetch(isLocal ? '/api/templates' : '/api/products')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setProducts(data);
       })
-      .catch(() => setProducts([]));
+      .catch(() => {
+        setProducts([]);
+        setFetchError('Failed to load products. Please refresh the page.');
+      });
     fetch('/api/settings')
       .then((res) => res.json())
       .then((data) => {
@@ -357,8 +363,13 @@ export default function LaunchPage() {
 
         {error && <div className="alert-error">{error}</div>}
 
+        {fetchError && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.75rem 1rem', borderRadius: '6px', marginBottom: '1rem' }}>
+            {fetchError}
+          </div>
+        )}
         <div className={`product-grid ${cardLayout === 'compact' ? 'product-grid-compact' : ''}`}>
-          {products.length === 0 && (
+          {products.length === 0 && !fetchError && (
             <div className="card empty-state">
               <h3>No {isLocal ? 'templates' : 'products'} available</h3>
               <p>{isLocal

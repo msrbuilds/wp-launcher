@@ -3,7 +3,8 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { SettingsProvider } from './context/SettingsContext';
 import { AuthProvider } from './context/AuthContext';
-import { useIsLocalMode } from './context/SettingsContext';
+import { useIsLocalMode, useSettings } from './context/SettingsContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import App from './App';
 import LaunchPage from './pages/LaunchPage';
 import LocalLaunchPage from './pages/LocalLaunchPage';
@@ -30,7 +31,10 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
+  const { loading } = useSettings();
   const isLocal = useIsLocalMode();
+
+  if (loading) return null;
 
   return (
     <Routes>
@@ -65,7 +69,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <SettingsProvider>
       <AuthProvider>
         <BrowserRouter>
-          <AppRoutes />
+          <ErrorBoundary>
+            <AppRoutes />
+          </ErrorBoundary>
         </BrowserRouter>
       </AuthProvider>
     </SettingsProvider>

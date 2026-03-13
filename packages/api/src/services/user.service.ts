@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { getDb } from '../utils/db';
+import { ValidationError, UnauthorizedError, NotFoundError } from '../utils/errors';
 
 export interface UserRecord {
   id: string;
@@ -21,48 +22,52 @@ export async function registerUser(email: string): Promise<{
 }> {
   const db = getDb();
 
-  // Check if user already exists
-  const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRecord | undefined;
+  const registerTxn = db.transaction((email: string) => {
+    // Check if user already exists — atomic with insert
+    const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRecord | undefined;
 
-  if (existing && existing.verified) {
-    // User already verified — return existing with a new verification token for re-login
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour
-    db.prepare('UPDATE users SET verification_token = ?, verification_expires_at = ? WHERE id = ?')
-      .run(token, expiresAt, existing.id);
-    return {
-      user: { ...existing, verification_token: token, verification_expires_at: expiresAt },
-      verificationToken: token,
-      isNew: false,
-    };
-  }
+    if (existing && existing.verified) {
+      // User already verified — return existing with a new verification token for re-login
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+      db.prepare('UPDATE users SET verification_token = ?, verification_expires_at = ? WHERE id = ?')
+        .run(token, expiresAt, existing.id);
+      return {
+        user: { ...existing, verification_token: token, verification_expires_at: expiresAt },
+        verificationToken: token,
+        isNew: false,
+      };
+    }
 
-  if (existing && !existing.verified) {
-    // Not yet verified — update token and resend
+    if (existing && !existing.verified) {
+      // Not yet verified — update token and resend
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 3600000).toISOString();
+      db.prepare('UPDATE users SET verification_token = ?, verification_expires_at = ? WHERE id = ?')
+        .run(token, expiresAt, existing.id);
+      return {
+        user: { ...existing, verification_token: token, verification_expires_at: expiresAt },
+        verificationToken: token,
+        isNew: false,
+      };
+    }
+
+    // Create new user — no password yet; user sets it after email verification
+    const id = uuidv4();
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 3600000).toISOString();
-    db.prepare('UPDATE users SET verification_token = ?, verification_expires_at = ? WHERE id = ?')
-      .run(token, expiresAt, existing.id);
-    return {
-      user: { ...existing, verification_token: token, verification_expires_at: expiresAt },
-      verificationToken: token,
-      isNew: false,
-    };
-  }
 
-  // Create new user — no password yet; user sets it after email verification
-  const id = uuidv4();
-  const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + 3600000).toISOString();
+    db.prepare(`
+      INSERT INTO users (id, email, password_hash, verified, verification_token, verification_expires_at)
+      VALUES (?, ?, '', 0, ?, ?)
+    `).run(id, email, token, expiresAt);
 
-  db.prepare(`
-    INSERT INTO users (id, email, password_hash, verified, verification_token, verification_expires_at)
-    VALUES (?, ?, '', 0, ?, ?)
-  `).run(id, email, token, expiresAt);
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord;
 
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord;
+    return { user, verificationToken: token, isNew: true };
+  });
 
-  return { user, verificationToken: token, isNew: true };
+  return registerTxn(email);
 }
 
 export async function verifyUserEmail(token: string): Promise<{
@@ -72,40 +77,44 @@ export async function verifyUserEmail(token: string): Promise<{
 }> {
   const db = getDb();
 
-  const user = db.prepare('SELECT * FROM users WHERE verification_token = ?').get(token) as UserRecord | undefined;
+  const verifyTxn = db.transaction((token: string) => {
+    const user = db.prepare('SELECT * FROM users WHERE verification_token = ?').get(token) as UserRecord | undefined;
 
-  if (!user) {
-    throw new Error('Invalid or expired verification token');
-  }
+    if (!user) {
+      throw new ValidationError('Invalid or expired verification token');
+    }
 
-  if (user.verification_expires_at && new Date(user.verification_expires_at) < new Date()) {
-    throw new Error('Verification token has expired. Please request a new one.');
-  }
+    if (user.verification_expires_at && new Date(user.verification_expires_at) < new Date()) {
+      throw new ValidationError('Verification token has expired. Please request a new one.');
+    }
 
-  const wasAlreadyVerified = user.verified === 1;
-  let needsPassword = false;
-  let passwordSetToken: string | null = null;
+    const wasAlreadyVerified = user.verified === 1;
+    let needsPassword = false;
+    let passwordSetToken: string | null = null;
 
-  if (!wasAlreadyVerified) {
-    // First-time verification — mark verified but require password set
-    needsPassword = true;
-    passwordSetToken = crypto.randomBytes(32).toString('hex');
-    const tokenExpiresAt = new Date(Date.now() + 900000).toISOString(); // 15 minutes
+    if (!wasAlreadyVerified) {
+      // First-time verification — mark verified but require password set
+      needsPassword = true;
+      passwordSetToken = crypto.randomBytes(32).toString('hex');
+      const tokenExpiresAt = new Date(Date.now() + 900000).toISOString(); // 15 minutes
 
-    db.prepare(`
-      UPDATE users SET verified = 1, verification_token = ?, verification_expires_at = ?,
-      updated_at = datetime('now') WHERE id = ?
-    `).run(passwordSetToken, tokenExpiresAt, user.id);
-  } else {
-    // Already verified — just clear the token (magic-link login)
-    db.prepare(`
-      UPDATE users SET verification_token = NULL, verification_expires_at = NULL,
-      updated_at = datetime('now') WHERE id = ?
-    `).run(user.id);
-  }
+      db.prepare(`
+        UPDATE users SET verified = 1, verification_token = ?, verification_expires_at = ?,
+        updated_at = datetime('now') WHERE id = ?
+      `).run(passwordSetToken, tokenExpiresAt, user.id);
+    } else {
+      // Already verified — just clear the token (magic-link login)
+      db.prepare(`
+        UPDATE users SET verification_token = NULL, verification_expires_at = NULL,
+        updated_at = datetime('now') WHERE id = ?
+      `).run(user.id);
+    }
 
-  const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as UserRecord;
-  return { user: updatedUser, needsPassword, passwordSetToken };
+    const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as UserRecord;
+    return { user: updatedUser, needsPassword, passwordSetToken };
+  });
+
+  return verifyTxn(token);
 }
 
 export async function setInitialPassword(token: string, newPassword: string): Promise<UserRecord> {
@@ -114,11 +123,11 @@ export async function setInitialPassword(token: string, newPassword: string): Pr
   const user = db.prepare('SELECT * FROM users WHERE verification_token = ? AND verified = 1').get(token) as UserRecord | undefined;
 
   if (!user) {
-    throw new Error('Invalid or expired password-set token');
+    throw new ValidationError('Invalid or expired password-set token');
   }
 
   if (user.verification_expires_at && new Date(user.verification_expires_at) < new Date()) {
-    throw new Error('Password-set token has expired. Please register again.');
+    throw new ValidationError('Password-set token has expired. Please register again.');
   }
 
   const hash = await bcrypt.hash(newPassword, 10);
@@ -135,20 +144,20 @@ export async function loginUser(email: string, password: string): Promise<UserRe
 
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRecord | undefined;
   if (!user) {
-    throw new Error('Invalid email or password');
+    throw new UnauthorizedError('Invalid email or password');
   }
 
   if (!user.verified) {
-    throw new Error('Please verify your email first');
+    throw new UnauthorizedError('Please verify your email first');
   }
 
   if (!user.password_hash) {
-    throw new Error('Please complete your account setup first');
+    throw new UnauthorizedError('Please complete your account setup first');
   }
 
   const valid = await bcrypt.compare(password, user.password_hash);
   if (!valid) {
-    throw new Error('Invalid email or password');
+    throw new UnauthorizedError('Invalid email or password');
   }
 
   return user;
@@ -159,12 +168,12 @@ export async function updatePassword(userId: string, currentPassword: string, ne
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as UserRecord | undefined;
   if (!user) {
-    throw new Error('User not found');
+    throw new NotFoundError('User not found');
   }
 
   const valid = await bcrypt.compare(currentPassword, user.password_hash);
   if (!valid) {
-    throw new Error('Current password is incorrect');
+    throw new ValidationError('Current password is incorrect');
   }
 
   const hash = await bcrypt.hash(newPassword, 10);

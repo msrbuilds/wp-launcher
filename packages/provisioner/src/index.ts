@@ -245,28 +245,47 @@ app.post('/containers', async (req: Request, res: Response) => {
       hostConfig.NanoCpus = CONTAINER_CPU * 1e9;
     }
 
-    const container = await docker.createContainer({
-      Image: opts.image,
-      name: containerName,
-      Env: env,
-      Labels: {
-        'traefik.enable': 'true',
-        [`traefik.http.routers.${opts.subdomain}.rule`]: `Host(\`${opts.subdomain}.${BASE_DOMAIN}\`)`,
-        [`traefik.http.services.${opts.subdomain}.loadbalancer.server.port`]: '80',
-        ...(ENABLE_TLS ? {
-          [`traefik.http.routers.${opts.subdomain}.entrypoints`]: 'websecure',
-          [`traefik.http.routers.${opts.subdomain}.tls`]: 'true',
-          [`traefik.http.routers.${opts.subdomain}.tls.certresolver`]: CERT_RESOLVER,
-        } : {}),
-        'wp-launcher.managed': 'true',
-        'wp-launcher.site-id': opts.subdomain,
-        'wp-launcher.expires-at': opts.expiresAt,
-        ...(dbContainerId ? { 'wp-launcher.db-container': dbContainerId } : {}),
-      },
-      HostConfig: hostConfig,
-    });
+    let container;
+    try {
+      container = await docker.createContainer({
+        Image: opts.image,
+        name: containerName,
+        Env: env,
+        Labels: {
+          'traefik.enable': 'true',
+          [`traefik.http.routers.${opts.subdomain}.rule`]: `Host(\`${opts.subdomain}.${BASE_DOMAIN}\`)`,
+          [`traefik.http.services.${opts.subdomain}.loadbalancer.server.port`]: '80',
+          ...(ENABLE_TLS ? {
+            [`traefik.http.routers.${opts.subdomain}.entrypoints`]: 'websecure',
+            [`traefik.http.routers.${opts.subdomain}.tls`]: 'true',
+            [`traefik.http.routers.${opts.subdomain}.tls.certresolver`]: CERT_RESOLVER,
+          } : {}),
+          'wp-launcher.managed': 'true',
+          'wp-launcher.site-id': opts.subdomain,
+          'wp-launcher.expires-at': opts.expiresAt,
+          ...(dbContainerId ? { 'wp-launcher.db-container': dbContainerId } : {}),
+        },
+        HostConfig: hostConfig,
+      });
 
-    await container.start();
+      await container.start();
+    } catch (wpErr: any) {
+      // Rollback: clean up DB sidecar if it was created
+      if (dbContainerId) {
+        try {
+          const dbSidecar = docker.getContainer(dbContainerId);
+          const dbInfo = await dbSidecar.inspect();
+          if (dbInfo.State.Running) {
+            await dbSidecar.stop({ t: 5 });
+          }
+          await dbSidecar.remove({ v: true });
+          console.log(`[provisioner] Rolled back DB sidecar ${dbContainerId.slice(0, 12)} after WP container failure`);
+        } catch (cleanupErr: any) {
+          console.error('[provisioner] Failed to clean up DB sidecar during rollback:', cleanupErr.message);
+        }
+      }
+      throw wpErr;
+    }
 
     // Copy local plugin/theme assets into the container (avoids bind mount path issues on Windows)
     // The provisioner has /product-assets mounted via docker-compose.yml

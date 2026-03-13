@@ -147,6 +147,8 @@ export default function SitesListPage() {
     return headers;
   }
 
+  const [fetchError, setFetchError] = useState('');
+
   function fetchSites() {
     const url = isAdmin ? '/api/sites?all=true' : '/api/sites';
     fetch(url, { headers: getAuthHeaders() })
@@ -159,8 +161,12 @@ export default function SitesListPage() {
           if (data.maxSites != null) setMaxSites(data.maxSites);
         }
         setLoading(false);
+        setFetchError('');
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setLoading(false);
+        setFetchError('Failed to load sites. Please check your connection.');
+      });
   }
 
   useEffect(() => {
@@ -210,6 +216,14 @@ export default function SitesListPage() {
         <p>
           <a href="/login">Log in</a> or <a href="/">create an account</a> to manage your demo sites.
         </p>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.75rem 1rem', borderRadius: '6px', margin: '2rem' }}>
+        {fetchError}
       </div>
     );
   }

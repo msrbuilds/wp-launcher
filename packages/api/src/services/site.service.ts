@@ -9,6 +9,7 @@ import {
   getContainerStatus,
 } from './docker.service';
 import { getProductConfig } from './product.service';
+import { ConflictError, ValidationError, NotFoundError, ForbiddenError } from '../utils/errors';
 
 export const MAX_SITES_PER_USER = config.isLocalMode ? 0 : parseInt(process.env.MAX_SITES_PER_USER || '3', 10);
 
@@ -73,54 +74,18 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const db = getDb();
   const productConfig = getProductConfig(req.productId);
 
-  // If user is provided, enforce max active sites per user (0 = unlimited, admin bypasses)
-  if (req.userId && req.userId !== 'admin' && MAX_SITES_PER_USER > 0) {
-    const activeSiteCount = db
-      .prepare("SELECT COUNT(*) as count FROM sites WHERE user_id = ? AND status = 'running'")
-      .get(req.userId) as { count: number };
-
-    if (activeSiteCount.count >= MAX_SITES_PER_USER) {
-      throw new Error(`You already have ${MAX_SITES_PER_USER} active demo sites. Please delete one before creating a new one.`);
-    }
-  }
-
-  // Check global total site limit
-  const totalActive = db
-    .prepare("SELECT COUNT(*) as count FROM sites WHERE status = 'running'")
-    .get() as { count: number };
-
-  if (config.defaults.maxTotalSites > 0 && totalActive.count >= config.defaults.maxTotalSites) {
-    throw new Error('Our servers are currently at capacity. Please try again in a few minutes.');
-  }
-
-  // Check concurrent site limit per product
-  const activeSiteCount = db
-    .prepare("SELECT COUNT(*) as count FROM sites WHERE product_id = ? AND status = 'running'")
-    .get(req.productId) as { count: number };
-
-  const maxConcurrent = productConfig?.demo?.max_concurrent_sites ?? config.defaults.maxConcurrentSites;
-  if (maxConcurrent > 0 && activeSiteCount.count >= maxConcurrent) {
-    throw new Error(`Maximum concurrent sites (${maxConcurrent}) reached for this product.`);
-  }
-
-  const id = uuidv4();
-
-  // Use custom subdomain if provided, otherwise generate one
+  // Validate subdomain early (before transaction) if custom
   let subdomain: string;
   if (req.subdomain) {
     const cleaned = req.subdomain.toLowerCase().trim();
     if (!isValidSubdomain(cleaned)) {
-      throw new Error('Invalid subdomain. Use 3-63 lowercase letters, numbers, and hyphens (no leading/trailing hyphens).');
-    }
-    // Check uniqueness
-    const existing = db.prepare("SELECT id FROM sites WHERE subdomain = ? AND status != 'expired'").get(cleaned);
-    if (existing) {
-      throw new Error(`Subdomain "${cleaned}" is already in use. Please choose a different one.`);
+      throw new ValidationError('Invalid subdomain. Use 3-63 lowercase letters, numbers, and hyphens (no leading/trailing hyphens).');
     }
     subdomain = cleaned;
   } else {
     subdomain = generateSubdomain();
   }
+
   const expiresIn = req.expiresIn || productConfig?.demo?.default_expiration || config.defaults.expiration;
   const expirationMs = parseExpiration(expiresIn);
   const expiresAt = expirationMs === 0
@@ -136,6 +101,54 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const autoLoginToken = crypto.randomBytes(32).toString('base64url'); // for one-click login
   const adminEmail = req.adminEmail || productConfig?.demo?.admin_email || 'demo@example.com';
   const siteTitle = req.siteTitle || productConfig?.name || 'Demo Site';
+
+  const id = uuidv4();
+  const maxConcurrent = productConfig?.demo?.max_concurrent_sites ?? config.defaults.maxConcurrentSites;
+
+  // Atomic transaction: check all limits + insert site record
+  const insertSiteTxn = db.transaction(() => {
+    // Check per-user limit
+    if (req.userId && req.userId !== 'admin' && MAX_SITES_PER_USER > 0) {
+      const userCount = db
+        .prepare("SELECT COUNT(*) as count FROM sites WHERE user_id = ? AND status = 'running'")
+        .get(req.userId) as { count: number };
+      if (userCount.count >= MAX_SITES_PER_USER) {
+        throw new ConflictError(`You already have ${MAX_SITES_PER_USER} active demo sites. Please delete one before creating a new one.`);
+      }
+    }
+
+    // Check global total site limit
+    const totalActive = db
+      .prepare("SELECT COUNT(*) as count FROM sites WHERE status = 'running'")
+      .get() as { count: number };
+    if (config.defaults.maxTotalSites > 0 && totalActive.count >= config.defaults.maxTotalSites) {
+      throw new ConflictError('Our servers are currently at capacity. Please try again in a few minutes.');
+    }
+
+    // Check concurrent site limit per product
+    const productCount = db
+      .prepare("SELECT COUNT(*) as count FROM sites WHERE product_id = ? AND status = 'running'")
+      .get(req.productId) as { count: number };
+    if (maxConcurrent > 0 && productCount.count >= maxConcurrent) {
+      throw new ConflictError(`Maximum concurrent sites (${maxConcurrent}) reached for this product.`);
+    }
+
+    // Check subdomain uniqueness
+    if (req.subdomain) {
+      const existing = db.prepare("SELECT id FROM sites WHERE subdomain = ? AND status != 'expired'").get(subdomain);
+      if (existing) {
+        throw new ConflictError(`Subdomain "${subdomain}" is already in use. Please choose a different one.`);
+      }
+    }
+
+    // Insert site record
+    db.prepare(`
+      INSERT INTO sites (id, subdomain, product_id, user_id, status, site_url, admin_url, admin_user, admin_password, auto_login_token, expires_at)
+      VALUES (?, ?, ?, ?, 'creating', ?, ?, ?, ?, ?, ?)
+    `).run(id, subdomain, req.productId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt);
+  });
+
+  insertSiteTxn();
 
   // Separate plugins into install+activate vs install-only
   const installAndActivate: string[] = [];  // plugins to install with --activate flag
@@ -189,11 +202,6 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const image = productConfig?.docker?.image
     || (phpVersion ? `wp-launcher/wordpress:php${phpVersion}` : config.wpImage);
   const dbEngine = req.dbEngine || productConfig?.database || 'sqlite';
-
-  db.prepare(`
-    INSERT INTO sites (id, subdomain, product_id, user_id, status, site_url, admin_url, admin_user, admin_password, auto_login_token, expires_at)
-    VALUES (?, ?, ?, ?, 'creating', ?, ?, ?, ?, ?, ?)
-  `).run(id, subdomain, req.productId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt);
 
   try {
     const containerId = await createSiteContainer({
@@ -264,21 +272,23 @@ export async function deleteSite(id: string, userId?: string, userEmail?: string
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(id) as SiteRecord | undefined;
 
   if (!site) {
-    throw new Error('Site not found');
+    throw new NotFoundError('Site not found');
   }
 
   // If userId provided, ensure user owns the site (admin bypasses)
   if (userId && userId !== 'admin' && site.user_id !== userId) {
-    throw new Error('You can only delete your own sites');
+    throw new ForbiddenError('You can only delete your own sites');
   }
 
   if (site.container_id) {
     await removeSiteContainer(site.container_id);
   }
 
-  db.prepare("UPDATE sites SET status = 'expired', deleted_at = datetime('now') WHERE id = ?").run(id);
-
-  logSiteAction(site, 'deleted', userEmail);
+  const deleteTxn = db.transaction(() => {
+    db.prepare("UPDATE sites SET status = 'expired', deleted_at = datetime('now') WHERE id = ?").run(id);
+    logSiteAction(site, 'deleted', userEmail);
+  });
+  deleteTxn();
 }
 
 export async function getSiteStatus(id: string): Promise<{ dbStatus: string; containerStatus: string }> {
@@ -286,7 +296,7 @@ export async function getSiteStatus(id: string): Promise<{ dbStatus: string; con
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(id) as SiteRecord | undefined;
 
   if (!site) {
-    throw new Error('Site not found');
+    throw new NotFoundError('Site not found');
   }
 
   const containerStatus = site.container_id

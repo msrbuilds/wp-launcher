@@ -10,12 +10,14 @@ const nouns = [
   'wave', 'yard', 'arch', 'brook', 'cliff', 'drift', 'edge', 'field',
 ];
 
+import crypto from 'crypto';
+
 function randomItem<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+  return arr[crypto.randomInt(arr.length)];
 }
 
 function randomSuffix(): string {
-  return Math.random().toString(36).substring(2, 6);
+  return crypto.randomBytes(3).toString('hex');
 }
 
 export function generateSubdomain(): string {

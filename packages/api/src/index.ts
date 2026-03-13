@@ -12,6 +12,8 @@ import adminRouter from './routes/admin';
 import templatesRouter from './routes/templates';
 import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cleanup.service';
 import { closeDb } from './utils/db';
+import { AppError } from './utils/errors';
+import { Request, Response, NextFunction } from 'express';
 
 const app = express();
 
@@ -98,6 +100,16 @@ app.use('/api/products', (req, res, next) => {
   }
   return apiKeyAuth(req, res, next);
 }, productsRouter);
+
+// Global error handler
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json({ error: err.message });
+    return;
+  }
+  console.error('[api] Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 // Start server
 const server = app.listen(config.port, () => {
