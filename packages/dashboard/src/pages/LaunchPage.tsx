@@ -11,6 +11,7 @@ interface Product {
     description?: string;
     image_url?: string;
     logo_url?: string;
+    icon_url?: string;
   };
 }
 
@@ -382,8 +383,8 @@ export default function LaunchPage() {
             products.map((product) => (
               <div key={product.id} className="product-card-compact card">
                 <div className="product-compact-icon">
-                  {product.branding?.image_url ? (
-                    <img src={product.branding.image_url} alt={product.name} />
+                  {(product.branding?.logo_url || product.branding?.image_url) ? (
+                    <img src={product.branding?.logo_url || product.branding?.image_url} alt={product.name} />
                   ) : (
                     <div className="product-compact-placeholder">
                       {product.name.charAt(0).toUpperCase()}
@@ -415,10 +416,22 @@ export default function LaunchPage() {
                 <div className="product-card-image">
                   {product.branding?.image_url ? (
                     <img src={product.branding.image_url} alt={product.name} />
+                  ) : product.branding?.logo_url ? (
+                    <div className="product-card-placeholder" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img src={product.branding.logo_url} alt={product.name} style={{ maxWidth: '64px', maxHeight: '64px', objectFit: 'contain' }} />
+                    </div>
                   ) : (
                     <div className="product-card-placeholder">
                       {product.name.charAt(0).toUpperCase()}
                     </div>
+                  )}
+                  {product.branding?.image_url && product.branding?.logo_url && (
+                    <img
+                      src={product.branding.logo_url}
+                      alt=""
+                      className="product-card-icon-overlay"
+                      style={{ position: 'absolute', bottom: '8px', right: '8px', width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', background: '#fff' }}
+                    />
                   )}
                 </div>
                 <div className="product-card-body">

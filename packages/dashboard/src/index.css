@@ -374,10 +374,15 @@ a.btn-primary:hover {
   border-bottom: 1px solid var(--border);
 }
 
-.product-card-image img {
+.product-card-image > img {
   max-width: 120px;
   max-height: 120px;
   object-fit: contain;
+}
+
+.product-card-image > img.product-card-icon-overlay {
+  max-width: none;
+  max-height: none;
 }
 
 .product-card-placeholder {
