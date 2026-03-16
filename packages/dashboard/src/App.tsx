@@ -69,9 +69,11 @@ export default function App() {
                 <span className="nav-divider" />
                 {isAuthenticated ? (
                   <>
-                    <NavLink to="/account" className={({ isActive }) => isActive ? 'active' : ''}>
-                      Account
-                    </NavLink>
+                    {!isAdmin && (
+                      <NavLink to="/account" className={({ isActive }) => isActive ? 'active' : ''}>
+                        Account
+                      </NavLink>
+                    )}
                     <span className="nav-action" onClick={logout}>
                       Log out
                     </span>
