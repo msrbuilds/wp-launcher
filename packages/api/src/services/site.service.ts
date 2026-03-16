@@ -291,6 +291,44 @@ export async function deleteSite(id: string, userId?: string, userEmail?: string
   deleteTxn();
 }
 
+export function extendSite(id: string, duration: string, userId?: string, userEmail?: string): { expiresAt: string } {
+  const db = getDb();
+  const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(id) as SiteRecord | undefined;
+
+  if (!site) throw new NotFoundError('Site not found');
+  if (site.status !== 'running') throw new ValidationError('Only running sites can be extended');
+
+  if (userId && userId !== 'admin' && site.user_id !== userId) {
+    throw new ForbiddenError('You can only extend your own sites');
+  }
+
+  // Check feature flag
+  const flag = db.prepare("SELECT value FROM settings WHERE key = 'feature.siteExtend'").get() as { value: string } | undefined;
+  if (flag && flag.value === 'false') {
+    throw new ForbiddenError('Site extension is not enabled');
+  }
+
+  const extensionMs = parseExpiration(duration);
+  if (extensionMs === 0) throw new ValidationError('Extension duration cannot be "never"');
+
+  // Extend from current expiration (or now if already past)
+  const currentExpiry = new Date(site.expires_at).getTime();
+  const base = Math.max(currentExpiry, Date.now());
+  const newExpiresAt = new Date(base + extensionMs).toISOString();
+
+  // Cap at 7 days from now
+  const maxExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).getTime();
+  const finalExpiresAt = new Date(Math.min(new Date(newExpiresAt).getTime(), maxExpiry)).toISOString();
+
+  const extendTxn = db.transaction(() => {
+    db.prepare('UPDATE sites SET expires_at = ? WHERE id = ?').run(finalExpiresAt, id);
+    logSiteAction(site, 'extended', userEmail);
+  });
+  extendTxn();
+
+  return { expiresAt: finalExpiresAt };
+}
+
 export async function getSiteStatus(id: string): Promise<{ dbStatus: string; containerStatus: string }> {
   const db = getDb();
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(id) as SiteRecord | undefined;

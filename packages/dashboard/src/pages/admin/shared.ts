@@ -60,4 +60,5 @@ export const FEATURE_META: { key: string; label: string; description: string }[]
   { key: 'templates', label: 'Save as Template', description: 'Allow users to export running sites as reusable templates' },
   { key: 'customDomains', label: 'Custom Domains', description: 'Allow users to set custom domains on their sites (agency mode only)' },
   { key: 'phpConfig', label: 'PHP Configuration', description: 'Allow users to modify PHP settings on running sites' },
+  { key: 'siteExtend', label: 'Site Extend', description: 'Allow users to extend the expiration of their running sites' },
 ];

@@ -58,6 +58,7 @@ export default function SitesListPage() {
   const canTemplate = features.templates;
   const canDomain = features.customDomains;
   const canPhp = features.phpConfig;
+  const canExtend = features.siteExtend;
   const [sites, setSites] = useState<Site[]>([]);
   const [maxSites, setMaxSites] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -384,6 +385,35 @@ export default function SitesListPage() {
     fetchSites();
   }
 
+  const [extendOpen, setExtendOpen] = useState<string | null>(null);
+  const EXTEND_OPTIONS = [
+    { label: '30 minutes', value: '30m' },
+    { label: '1 hour', value: '1h' },
+    { label: '2 hours', value: '2h' },
+    { label: '6 hours', value: '6h' },
+    { label: '1 day', value: '1d' },
+  ];
+
+  async function handleExtend(siteId: string, duration: string) {
+    setExtendOpen(null);
+    try {
+      const res = await fetch(`/api/sites/${siteId}/extend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ duration }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to extend site' }));
+        alert(err.error || 'Failed to extend site');
+        return;
+      }
+      fetchSites();
+    } catch {
+      alert('Failed to extend site');
+    }
+  }
+
   // Derive unique templates and statuses for filters
   const templates = useMemo(() => [...new Set(sites.map((s) => s.productId))].sort(), [sites]);
   const statuses = useMemo(() => [...new Set(sites.map((s) => s.status))].sort(), [sites]);
@@ -632,6 +662,42 @@ export default function SitesListPage() {
                         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                         PHP
                       </button>
+                      )}
+                      {canExtend && site.status === 'running' && (
+                        <div style={{ position: 'relative' }}>
+                          <button
+                            className="btn btn-outline btn-xs"
+                            onClick={() => setExtendOpen(extendOpen === site.id ? null : site.id)}
+                            title="Extend expiration"
+                          >
+                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                            Extend
+                          </button>
+                          {extendOpen === site.id && (
+                            <div style={{
+                              position: 'absolute', top: '100%', right: 0, marginTop: 4,
+                              background: '#fff', border: '1px solid var(--border)', borderRadius: 8,
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: 140,
+                              padding: '0.25rem 0',
+                            }}>
+                              {EXTEND_OPTIONS.map(opt => (
+                                <button
+                                  key={opt.value}
+                                  onClick={() => handleExtend(site.id, opt.value)}
+                                  style={{
+                                    display: 'block', width: '100%', padding: '0.4rem 0.75rem',
+                                    border: 'none', background: 'none', cursor: 'pointer',
+                                    textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)',
+                                  }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
+                                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                                >
+                                  + {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                       <button
                         className="btn btn-danger-outline btn-xs"
@@ -1076,6 +1142,23 @@ export default function SitesListPage() {
                 PHP Settings
               </button>
               )}
+              {canExtend && site.status === 'running' && (
+              <>
+                <div style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Extend by</div>
+                {EXTEND_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => { handleExtend(site.id, opt.value); setActionsOpen(null); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                    + {opt.label}
+                  </button>
+                ))}
+              </>
+              )}
               <div style={{ borderTop: '1px solid #2d3748', margin: '0.25rem 0' }} />
               <button
                 onClick={() => { handleDelete(site.id); setActionsOpen(null); }}
@@ -1257,6 +1340,41 @@ export default function SitesListPage() {
                 </svg>
                 Visit Site
               </a>
+              {canExtend && site.status === 'running' && (
+                <div style={{ position: 'relative' }}>
+                  <button
+                    className="btn btn-outline btn-site-action"
+                    onClick={() => setExtendOpen(extendOpen === site.id ? null : site.id)}
+                    title="Extend expiration"
+                  >
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                  </button>
+                  {extendOpen === site.id && (
+                    <div style={{
+                      position: 'absolute', bottom: '100%', right: 0, marginBottom: 4,
+                      background: '#fff', border: '1px solid var(--border)', borderRadius: 8,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: 140,
+                      padding: '0.25rem 0',
+                    }}>
+                      {EXTEND_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => handleExtend(site.id, opt.value)}
+                          style={{
+                            display: 'block', width: '100%', padding: '0.4rem 0.75rem',
+                            border: 'none', background: 'none', cursor: 'pointer',
+                            textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
+                          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                        >
+                          + {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <button
                 className="btn btn-danger-outline btn-site-action"
                 onClick={() => handleDelete(site.id)}

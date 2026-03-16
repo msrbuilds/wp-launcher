@@ -117,6 +117,7 @@ function initSchema(db: Database.Database): void {
     'feature.templates': 'false',
     'feature.customDomains': 'false',
     'feature.phpConfig': 'false',
+    'feature.siteExtend': 'false',
     'branding.siteTitle': 'WP Launcher',
     'branding.logoUrl': '',
     'branding.cardLayout': '',

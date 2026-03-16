@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
-import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, MAX_SITES_PER_USER } from '../services/site.service';
+import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, MAX_SITES_PER_USER } from '../services/site.service';
 import { getPhpConfig, updatePhpConfig, updateAutoLoginToken } from '../services/docker.service';
 import { takeSnapshot, listSnapshots, restoreSnapshotToSite, deleteSnapshot, cloneSite } from '../services/snapshot.service';
 import { exportSiteAsTemplate } from '../services/template-export.service';
@@ -165,6 +165,16 @@ router.post('/:id/autologin', siteWriteLimiter, conditionalAuth, asyncHandler(as
     autoLoginUrl: `${site.site_url}/wp-login.php?autologin=${token}`,
     expiresIn: 60,
   });
+}));
+
+// Extend site expiration
+router.post('/:id/extend', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { duration } = req.body;
+  if (!duration || typeof duration !== 'string') {
+    throw new ValidationError('Duration is required (e.g., "30m", "1h", "1d")');
+  }
+  const result = extendSite(req.params.id, duration, req.userId, req.userEmail);
+  res.json({ message: 'Site extended', expiresAt: result.expiresAt });
 }));
 
 // Get site status

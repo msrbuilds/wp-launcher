@@ -6,6 +6,7 @@ export interface FeatureFlags {
   templates: boolean;
   customDomains: boolean;
   phpConfig: boolean;
+  siteExtend: boolean;
 }
 
 export interface Branding {
@@ -40,6 +41,7 @@ const DEFAULT_FEATURES: FeatureFlags = {
   templates: true,
   customDomains: true,
   phpConfig: true,
+  siteExtend: false,
 };
 
 const DEFAULT_BRANDING: Branding = {
