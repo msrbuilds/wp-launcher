@@ -39,15 +39,13 @@ export default function App() {
             <img src={branding.logoUrl || '/logo-square.png'} alt={branding.siteTitle} style={{ width: 28, height: 28, objectFit: 'contain' }} />
             {branding.siteTitle}
             {isLocal && <span className="mode-badge">Local</span>}
-            {isAdmin && version && !updateAvailable && <span className="version-badge">v{version}</span>}
-            {isAdmin && updateAvailable && (
+            {isAdmin && version && (
               <span
-                className="version-badge version-badge-update"
-                onClick={(e) => { e.preventDefault(); navigate('/admin/system'); }}
-                title={`Update available: v${updateAvailable}`}
+                className={`version-badge${updateAvailable ? ' version-badge-update' : ''}`}
+                onClick={updateAvailable ? (e) => { e.preventDefault(); navigate('/admin/system'); } : undefined}
+                title={updateAvailable ? `Update available: v${updateAvailable}` : `v${version}`}
               >
-                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19.5v-15m0 0l-6.75 6.75M12 4.5l6.75 6.75" /></svg>
-                v{updateAvailable}
+                v{version}
               </span>
             )}
           </NavLink>
