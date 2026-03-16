@@ -1,5 +1,19 @@
 # WP Launcher
 
+[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/msrbuilds/wp-launcher/releases)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Docker](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![WordPress](https://img.shields.io/badge/WordPress-6.9-21759B?logo=wordpress&logoColor=white)](https://wordpress.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](https://github.com/msrbuilds/wp-launcher/pulls)
+
+[Website](https://wplauncher.msrbuilds.com) &middot; [Documentation](https://wplauncher.msrbuilds.com/docs/) &middot; [Get in Touch](https://msrbuilds.com/lets-talk/) &middot; [Report a Bug](https://github.com/msrbuilds/wp-launcher/issues)
+
+---
+
 Docker-based WordPress environment with two modes:
 
 - **Local Mode** — Full-featured local WordPress development tool (like Local by Flywheel / Laragon) with multi-PHP, multi-DB support, and a `wpl` CLI
