@@ -44,6 +44,8 @@ export default function CreateProductPage() {
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [tags, setTags] = useState('');
   const [database, setDatabase] = useState('sqlite');
 
   // WordPress
@@ -130,9 +132,12 @@ export default function CreateProductPage() {
         throw new Error('Product ID and Name are required');
       }
 
+      const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean);
       const configObj = {
         id: productId,
         name,
+        ...(category && { category }),
+        ...(tagsArray.length > 0 && { tags: tagsArray }),
         wordpress: { version: wpVersion, locale: wpLocale },
         plugins: {
           preinstall: plugins.map(p => {
@@ -285,6 +290,30 @@ export default function CreateProductPage() {
                   placeholder="Shown on the product card in the launch page"
                   rows={2}
                 />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="prod-category">Category</label>
+                  <input
+                    id="prod-category"
+                    type="text"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="e.g. Plugins, Themes, Starter"
+                  />
+                  <span className="form-hint">Used for filtering on the launch page.</span>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="prod-tags">Tags</label>
+                  <input
+                    id="prod-tags"
+                    type="text"
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="e.g. ecommerce, starter, blog"
+                  />
+                  <span className="form-hint">Comma-separated. Used for search.</span>
+                </div>
               </div>
             </div>
           )}

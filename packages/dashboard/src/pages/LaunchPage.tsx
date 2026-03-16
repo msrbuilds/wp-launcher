@@ -7,6 +7,8 @@ import CountdownTimer from '../components/CountdownTimer';
 interface Product {
   id: string;
   name: string;
+  category?: string;
+  tags?: string[];
   branding?: {
     description?: string;
     image_url?: string;
@@ -48,6 +50,22 @@ export default function LaunchPage() {
 
   const [email, setEmail] = useState('');
   const [step, setStep] = useState<Step>(canLaunch ? 'launch' : 'email');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Derive categories from products
+  const categories = [...new Set(products.map(p => p.category).filter(Boolean))] as string[];
+  const filteredProducts = products.filter(p => {
+    if (filterCategory && p.category !== filterCategory) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchName = p.name.toLowerCase().includes(q);
+      const matchDesc = p.branding?.description?.toLowerCase().includes(q);
+      const matchTags = p.tags?.some(t => t.toLowerCase().includes(q));
+      if (!matchName && !matchDesc && !matchTags) return false;
+    }
+    return true;
+  });
 
   useEffect(() => {
     const verifyToken = searchParams.get('token');
@@ -366,8 +384,42 @@ export default function LaunchPage() {
             {fetchError}
           </div>
         )}
+        {/* Category filter + search (only show if there are categories or multiple products) */}
+        {(categories.length > 0 || products.length > 3) && (
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {products.length > 3 && (
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{ padding: '0.4rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.82rem', minWidth: '180px', background: 'var(--white)', color: 'var(--prussian-blue)' }}
+              />
+            )}
+            {categories.length > 0 && (
+              <>
+                <button
+                  className={`btn btn-xs ${!filterCategory ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setFilterCategory('')}
+                >
+                  All
+                </button>
+                {categories.map(cat => (
+                  <button
+                    key={cat}
+                    className={`btn btn-xs ${filterCategory === cat ? 'btn-primary' : 'btn-outline'}`}
+                    onClick={() => setFilterCategory(filterCategory === cat ? '' : cat)}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
         <div className={`product-grid ${cardLayout === 'compact' ? 'product-grid-compact' : ''}`}>
-          {products.length === 0 && !fetchError && (
+          {filteredProducts.length === 0 && !fetchError && (
             <div className="card empty-state">
               <h3>No {isLocal ? 'templates' : 'products'} available</h3>
               <p>{isLocal
@@ -377,7 +429,7 @@ export default function LaunchPage() {
             </div>
           )}
           {cardLayout === 'compact' ? (
-            products.map((product) => (
+            filteredProducts.map((product) => (
               <div key={product.id} className="product-card-compact card">
                 <div className="product-compact-icon">
                   {(product.branding?.logo_url || product.branding?.image_url) ? (
@@ -408,7 +460,7 @@ export default function LaunchPage() {
               </div>
             ))
           ) : (
-            products.map((product) => (
+            filteredProducts.map((product) => (
               <div key={product.id} className="product-card card">
                 <div className="product-card-image">
                   {product.branding?.image_url ? (

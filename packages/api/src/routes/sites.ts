@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
-import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, MAX_SITES_PER_USER } from '../services/site.service';
+import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, getSiteLogsByUser, MAX_SITES_PER_USER } from '../services/site.service';
 import { getPhpConfig, updatePhpConfig, updateAutoLoginToken } from '../services/docker.service';
 import { takeSnapshot, listSnapshots, restoreSnapshotToSite, deleteSnapshot, cloneSite } from '../services/snapshot.service';
 import { exportSiteAsTemplate } from '../services/template-export.service';
@@ -175,6 +175,12 @@ router.post('/:id/extend', siteWriteLimiter, conditionalAuth, asyncHandler(async
   }
   const result = extendSite(req.params.id, duration, req.userId, req.userEmail);
   res.json({ message: 'Site extended', expiresAt: result.expiresAt });
+}));
+
+// Get user's own activity log
+router.get('/my/activity', siteReadLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const logs = getSiteLogsByUser(req.userId!);
+  res.json(logs);
 }));
 
 // Get site status

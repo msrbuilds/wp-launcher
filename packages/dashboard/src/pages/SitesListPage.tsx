@@ -84,6 +84,8 @@ export default function SitesListPage() {
   const [domainSaving, setDomainSaving] = useState<string | null>(null);
   const [domainError, setDomainError] = useState<Record<string, string>>({});
   const [actionsOpen, setActionsOpen] = useState<string | null>(null);
+  const [activityLog, setActivityLog] = useState<{ action: string; subdomain: string; product_id: string; created_at: string; site_url: string | null }[]>([]);
+  const [showActivity, setShowActivity] = useState(false);
 
   function getPhpConfig(siteId: string): PhpConfig {
     return phpConfigs[siteId] || { ...DEFAULT_PHP_CONFIG };
@@ -367,6 +369,13 @@ export default function SitesListPage() {
         setLoading(false);
         setFetchError('Failed to load sites. Please check your connection.');
       });
+  }
+
+  function fetchActivity() {
+    fetch('/api/sites/my/activity', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setActivityLog(data.slice(0, 20)); })
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -1388,6 +1397,48 @@ export default function SitesListPage() {
           </div>
         ))}
       </div>
+
+      {/* Activity Timeline */}
+      {!isLocal && (
+        <div className="card" style={{ marginTop: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showActivity ? '0.75rem' : 0 }}>
+            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>Recent Activity</h3>
+            <button
+              className="btn btn-xs btn-outline"
+              onClick={() => { setShowActivity(!showActivity); if (!showActivity && activityLog.length === 0) fetchActivity(); }}
+            >
+              {showActivity ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {showActivity && (
+            activityLog.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>No activity yet.</p>
+            ) : (
+              <div style={{ maxHeight: '300px', overflow: 'auto' }}>
+                {activityLog.map((log, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.5rem 0', borderBottom: i < activityLog.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    <div style={{
+                      width: 8, height: 8, borderRadius: '50%', marginTop: 6, flexShrink: 0,
+                      background: log.action === 'created' ? '#22c55e' : log.action === 'deleted' ? '#ef4444' : log.action === 'extended' ? '#3b82f6' : '#f59e0b',
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.82rem' }}>
+                        <strong style={{ textTransform: 'capitalize' }}>{log.action}</strong>
+                        {' '}
+                        <span style={{ color: 'var(--orange)', fontWeight: 500 }}>{log.subdomain}</span>
+                        {log.product_id && <span style={{ color: 'var(--text-muted)' }}> ({log.product_id})</span>}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-light)' }}>
+                        {new Date(log.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+      )}
 
       {/* Save as Template Modal (agency mode) */}
       {templateModal && (
