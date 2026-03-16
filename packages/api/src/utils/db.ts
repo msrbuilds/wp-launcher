@@ -112,11 +112,11 @@ function initSchema(db: Database.Database): void {
 
   // Seed default feature flags and branding
   const defaultSettings: Record<string, string> = {
-    'feature.cloning': 'true',
-    'feature.snapshots': 'true',
-    'feature.templates': 'true',
-    'feature.customDomains': 'true',
-    'feature.phpConfig': 'true',
+    'feature.cloning': 'false',
+    'feature.snapshots': 'false',
+    'feature.templates': 'false',
+    'feature.customDomains': 'false',
+    'feature.phpConfig': 'false',
     'branding.siteTitle': 'WP Launcher',
     'branding.logoUrl': '',
     'branding.cardLayout': '',
