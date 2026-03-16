@@ -8,6 +8,7 @@ import {
   removeSiteContainer,
   getContainerStatus,
 } from './docker.service';
+import { fireWebhookEvent } from './webhook.service';
 import { getProductConfig } from './product.service';
 import { ConflictError, ValidationError, NotFoundError, ForbiddenError } from '../utils/errors';
 
@@ -238,6 +239,11 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
   logSiteAction(site, 'created', req.userEmail);
 
+  fireWebhookEvent('site.created', {
+    siteId: site.id, subdomain: site.subdomain, productId: site.product_id,
+    siteUrl: site.site_url, expiresAt: site.expires_at, userEmail: req.userEmail,
+  }).catch(() => {});
+
   return { ...site, oneTimePassword: adminPassword };
 }
 
@@ -289,6 +295,11 @@ export async function deleteSite(id: string, userId?: string, userEmail?: string
     logSiteAction(site, 'deleted', userEmail);
   });
   deleteTxn();
+
+  fireWebhookEvent('site.deleted', {
+    siteId: site.id, subdomain: site.subdomain, productId: site.product_id,
+    siteUrl: site.site_url, userEmail,
+  }).catch(() => {});
 }
 
 export function extendSite(id: string, duration: string, userId?: string, userEmail?: string): { expiresAt: string } {

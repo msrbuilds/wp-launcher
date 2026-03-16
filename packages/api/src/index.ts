@@ -214,6 +214,12 @@ if (config.isLocalMode) {
       const info = readVersionInfo();
       const currentVersion = info.version || '0.0.0';
 
+      // In local/development mode, skip update checks — dev is always "latest"
+      if (config.isLocalMode || config.nodeEnv === 'development') {
+        res.json({ currentVersion, latestVersion: currentVersion, updateAvailable: false, source: 'local' });
+        return;
+      }
+
       // Fetch latest release from GitHub API
       const response = await fetch('https://api.github.com/repos/msrbuilds/wp-launcher/releases/latest', {
         headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'WP-Launcher' },
@@ -357,7 +363,7 @@ if (config.isLocalMode) {
       res.status(400).json({ error: 'features object is required' });
       return;
     }
-    const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend'];
+    const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks'];
     const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
     for (const [name, enabled] of Object.entries(features)) {
       if (allowed.includes(name)) {

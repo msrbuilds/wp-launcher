@@ -147,3 +147,30 @@ export async function exportAssets(containerId: string, plugins: string[], theme
   });
   return await res.json() as { exported: { type: string; slug: string; path: string }[] };
 }
+
+// Site Password Protection
+
+export async function setSitePassword(containerId: string, password: string | null, scope?: string): Promise<void> {
+  await provisionerFetch(`/containers/${containerId}/site-password`, {
+    method: 'PATCH',
+    body: JSON.stringify({ password: password || '', scope: scope || 'frontend' }),
+  });
+}
+
+export async function getSitePasswordStatus(containerId: string): Promise<{ protected: boolean; scope: string | null }> {
+  const res = await provisionerFetch(`/containers/${containerId}/site-password`);
+  return await res.json() as { protected: boolean; scope: string | null };
+}
+
+// Export Site as ZIP
+
+export async function exportSiteZip(containerId: string): Promise<{ exportId: string; path: string; sizeBytes: number; dbEngine: string }> {
+  const res = await provisionerFetch(`/containers/${containerId}/export-zip`, {
+    method: 'POST',
+  });
+  return await res.json() as { exportId: string; path: string; sizeBytes: number; dbEngine: string };
+}
+
+export function getExportDownloadUrl(exportId: string): string {
+  return `${PROVISIONER_URL}/exports/${exportId}/download`;
+}

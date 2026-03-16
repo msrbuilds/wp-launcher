@@ -386,10 +386,12 @@ export default function LaunchPage() {
         )}
         {/* Category filter + search (only show if there are categories or multiple products) */}
         {(categories.length > 0 || products.length > 3) && (
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {products.length > 3 && (
               <input
                 type="text"
+                id="product-search"
+                name="product-search"
                 placeholder="Search products..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}

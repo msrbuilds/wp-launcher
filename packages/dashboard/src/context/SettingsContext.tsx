@@ -7,6 +7,9 @@ export interface FeatureFlags {
   customDomains: boolean;
   phpConfig: boolean;
   siteExtend: boolean;
+  sitePassword: boolean;
+  exportZip: boolean;
+  webhooks: boolean;
 }
 
 export interface Branding {
@@ -42,6 +45,9 @@ const DEFAULT_FEATURES: FeatureFlags = {
   customDomains: true,
   phpConfig: true,
   siteExtend: false,
+  sitePassword: false,
+  exportZip: false,
+  webhooks: false,
 };
 
 const DEFAULT_BRANDING: Branding = {

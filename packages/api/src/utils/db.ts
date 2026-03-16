@@ -108,6 +108,15 @@ function initSchema(db: Database.Database): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      events TEXT NOT NULL DEFAULT 'site.created,site.expired,site.deleted',
+      secret TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Seed default feature flags and branding
@@ -118,6 +127,9 @@ function initSchema(db: Database.Database): void {
     'feature.customDomains': 'false',
     'feature.phpConfig': 'false',
     'feature.siteExtend': 'false',
+    'feature.sitePassword': 'false',
+    'feature.exportZip': 'false',
+    'feature.webhooks': 'false',
     'branding.siteTitle': 'WP Launcher',
     'branding.logoUrl': '',
     'branding.cardLayout': '',

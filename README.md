@@ -1,6 +1,6 @@
 # WP Launcher
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/msrbuilds/wp-launcher/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](https://github.com/msrbuilds/wp-launcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
@@ -46,6 +46,9 @@ User clicks "Launch Demo"
 - **Email testing** — Built-in Mailpit catches all outgoing emails locally
 - **Multi-product** — Host demos for multiple products from a single installation
 - **Wildcard subdomains** — Each site gets a unique URL like `coral-sunset-7x3k.localhost`
+- **Site password protection** — Optional basic auth on frontend only, admin only, or entire site for private previews
+- **Export site as ZIP** — Download wp-content + DB dump as tar.gz to migrate demo customizations
+- **Webhook notifications** — HMAC-SHA256 signed HTTP POST on site.created/expired/deleted with admin UI for management
 - **Modern dashboard** — React SPA with real-time provisioning progress
 
 ## Architecture

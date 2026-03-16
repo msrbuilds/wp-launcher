@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, getSiteLogsByUser, MAX_SITES_PER_USER } from '../services/site.service';
-import { getPhpConfig, updatePhpConfig, updateAutoLoginToken } from '../services/docker.service';
+import { getPhpConfig, updatePhpConfig, updateAutoLoginToken, setSitePassword, getSitePasswordStatus, exportSiteZip, getExportDownloadUrl } from '../services/docker.service';
 import { takeSnapshot, listSnapshots, restoreSnapshotToSite, deleteSnapshot, cloneSite } from '../services/snapshot.service';
 import { exportSiteAsTemplate } from '../services/template-export.service';
 import { setCustomDomain, getCustomDomain, removeCustomDomain, getDnsInstructions } from '../services/domain.service';
@@ -11,6 +11,12 @@ import { config } from '../config';
 import { asyncHandler } from '../utils/asyncHandler';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors';
 import { validatePhpConfig } from '../utils/phpConfigValidation';
+import { getDb } from '../utils/db';
+
+function isFeatureEnabled(key: string): boolean {
+  const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(`feature.${key}`) as { value: string } | undefined;
+  return row?.value === 'true';
+}
 
 const router = Router();
 
@@ -322,6 +328,79 @@ router.post('/:id/export-template', siteWriteLimiter, conditionalAuth, asyncHand
   }
   const config = await exportSiteAsTemplate(req.params.id, templateId, templateName || templateId, req.userId);
   res.status(201).json(config);
+}));
+
+// --- Site Password Protection ---
+
+router.get('/:id/password', siteReadLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!isFeatureEnabled('sitePassword')) throw new ForbiddenError('Site password protection is disabled');
+  const site = getSite(req.params.id);
+  if (!site) throw new NotFoundError('Site not found');
+  if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only view your own sites');
+  if (!site.container_id) throw new ValidationError('Site has no container');
+  const status = await getSitePasswordStatus(site.container_id);
+  res.json(status);
+}));
+
+router.patch('/:id/password', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!isFeatureEnabled('sitePassword')) throw new ForbiddenError('Site password protection is disabled');
+  const site = getSite(req.params.id);
+  if (!site) throw new NotFoundError('Site not found');
+  if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only modify your own sites');
+  if (!site.container_id || site.status !== 'running') throw new ValidationError('Site is not running');
+  const { password, scope } = req.body;
+  if (password && (typeof password !== 'string' || password.length < 4)) throw new ValidationError('Password must be at least 4 characters');
+  const validScopes = ['frontend', 'admin', 'all'];
+  if (scope && !validScopes.includes(scope)) throw new ValidationError('Scope must be frontend, admin, or all');
+  await setSitePassword(site.container_id, password || null, scope);
+  res.json({ status: password ? 'protected' : 'unprotected', scope: password ? (scope || 'frontend') : null });
+}));
+
+// --- Export Site as ZIP ---
+
+router.post('/:id/export-zip', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!isFeatureEnabled('exportZip')) throw new ForbiddenError('Site export is disabled');
+  const site = getSite(req.params.id);
+  if (!site) throw new NotFoundError('Site not found');
+  if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only export your own sites');
+  if (!site.container_id || site.status !== 'running') throw new ValidationError('Site is not running');
+  const result = await exportSiteZip(site.container_id);
+  res.json({
+    downloadUrl: `/api/sites/${req.params.id}/export-zip/${result.exportId}/download`,
+    sizeBytes: result.sizeBytes,
+    dbEngine: result.dbEngine,
+  });
+}));
+
+router.get('/:id/export-zip/:exportId/download', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const site = getSite(req.params.id);
+  if (!site) throw new NotFoundError('Site not found');
+  if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('Access denied');
+  const { exportId } = req.params;
+  if (!/^export-\d+$/.test(exportId)) throw new ValidationError('Invalid export ID');
+  // Proxy the download from provisioner
+  const downloadUrl = getExportDownloadUrl(exportId);
+  const provRes = await fetch(downloadUrl, {
+    headers: { 'x-internal-key': process.env.PROVISIONER_INTERNAL_KEY || '' },
+  });
+  if (!provRes.ok) throw new NotFoundError('Export not found or already downloaded');
+  res.setHeader('Content-Type', 'application/gzip');
+  res.setHeader('Content-Disposition', `attachment; filename="${site.subdomain}-export.tar.gz"`);
+  const body = provRes.body;
+  if (body) {
+    const reader = body.getReader();
+    const pump = async () => {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+      res.end();
+    };
+    await pump();
+  } else {
+    res.end();
+  }
 }));
 
 // Delete a site (requires auth - users can only delete their own)

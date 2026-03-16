@@ -389,7 +389,7 @@ a.btn-primary:hover {
 /* ── Hero section ── */
 .hero {
   text-align: left;
-  padding: 1rem 0 0;
+  padding: 0;
 }
 
 .hero h2 {
@@ -405,7 +405,7 @@ a.btn-primary:hover {
 .hero p {
   color: var(--text-muted);
   font-size: 1rem;
-  max-width: 520px;
+  max-width: 100%;
 }
 
 /* ── Product cards grid ── */
@@ -413,7 +413,7 @@ a.btn-primary:hover {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1.5rem;
-  margin-top: 2rem;
+  margin-top: 1rem;
 }
 
 .product-card {

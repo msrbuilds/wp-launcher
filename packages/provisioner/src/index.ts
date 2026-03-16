@@ -1142,6 +1142,308 @@ app.delete('/custom-domains/:subdomain', (req: Request, res: Response) => {
   }
 });
 
+// --- Site Password Protection ---
+// Write an .htpasswd file + .htaccess rewrite to password-protect the frontend
+
+app.patch('/containers/:id/site-password', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+
+    const { password, scope } = req.body; // scope: 'frontend' | 'admin' | 'all'
+    const protectScope = scope || 'frontend';
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    if (!info.State.Running) {
+      res.status(400).json({ error: 'Container is not running' });
+      return;
+    }
+
+    if (!password) {
+      // Remove password protection — clean up all related files and restore .htaccess
+      const exec = await container.exec({
+        Cmd: ['bash', '-c', 'rm -f /var/www/html/.htpasswd /var/www/html/.wpl-password-protect /var/www/html/.wpl-htaccess-auth && sed -i "/# WP Launcher Password Protection/,/# END WP Launcher Password Protection/d" /var/www/html/.htaccess 2>/dev/null; true'],
+        AttachStdout: true, AttachStderr: true,
+      });
+      const stream = await exec.start({ hijack: true, stdin: false });
+      await new Promise<void>((resolve) => { stream.on('end', resolve); setTimeout(resolve, 5000); });
+
+      console.log(`[provisioner] Password protection removed for ${req.params.id.slice(0, 12)}`);
+      res.json({ status: 'removed' });
+      return;
+    }
+
+    // Generate bcrypt hash using htpasswd (available in Apache image)
+    const exec = await container.exec({
+      Cmd: ['htpasswd', '-nbB', 'demo', password],
+      AttachStdout: true, AttachStderr: true,
+    });
+    const stream = await exec.start({ hijack: true, stdin: false });
+    const stdoutChunks: Buffer[] = [];
+    await new Promise<void>((resolve) => {
+      // Docker multiplexed stream: each frame has 8-byte header (type[1] + padding[3] + size[4])
+      // We need to demux to extract only the payload bytes
+      stream.on('data', (chunk: Buffer) => {
+        let offset = 0;
+        while (offset < chunk.length) {
+          if (offset + 8 > chunk.length) break;
+          const size = chunk.readUInt32BE(offset + 4);
+          if (offset + 8 + size > chunk.length) {
+            // Partial frame — take what's available
+            stdoutChunks.push(chunk.subarray(offset + 8));
+            break;
+          }
+          stdoutChunks.push(chunk.subarray(offset + 8, offset + 8 + size));
+          offset += 8 + size;
+        }
+      });
+      stream.on('end', resolve);
+      setTimeout(resolve, 5000);
+    });
+
+    const htpasswdLine = Buffer.concat(stdoutChunks).toString('utf-8').trim();
+
+    // Write .htpasswd file
+    const htpasswdTar = createTarBuffer('.htpasswd', htpasswdLine + '\n');
+    await container.putArchive(htpasswdTar, { path: '/var/www/html/' });
+
+    // Write marker file with scope info
+    const markerTar = createTarBuffer('.wpl-password-protect', `${protectScope}\n`);
+    await container.putArchive(markerTar, { path: '/var/www/html/' });
+
+    // Generate .htaccess rules based on scope
+    let htaccessContent = '';
+    if (protectScope === 'frontend') {
+      // Protect frontend only — exclude wp-admin and wp-login
+      htaccessContent = `# WP Launcher Password Protection
+AuthType Basic
+AuthName "Password Required"
+AuthUserFile /var/www/html/.htpasswd
+Require valid-user
+
+SetEnvIf Request_URI "^/wp-admin" noauth
+SetEnvIf Request_URI "^/wp-login" noauth
+SetEnvIf Request_URI "^/wp-json" noauth
+SetEnvIf Request_URI "^/wp-cron" noauth
+Satisfy any
+Order allow,deny
+Allow from env=noauth
+# END WP Launcher Password Protection
+`;
+    } else if (protectScope === 'admin') {
+      // Protect wp-admin only — allow frontend
+      htaccessContent = `# WP Launcher Password Protection
+SetEnvIf Request_URI "^/wp-admin" require_auth
+SetEnvIf Request_URI "^/wp-login" require_auth
+
+AuthType Basic
+AuthName "Admin Access"
+AuthUserFile /var/www/html/.htpasswd
+
+Order allow,deny
+Allow from all
+Deny from env=require_auth
+Satisfy any
+
+<If "reqenv('require_auth') == 'require_auth'">
+  Require valid-user
+</If>
+# END WP Launcher Password Protection
+`;
+    } else {
+      // Protect entire site
+      htaccessContent = `# WP Launcher Password Protection
+AuthType Basic
+AuthName "Password Required"
+AuthUserFile /var/www/html/.htpasswd
+Require valid-user
+# END WP Launcher Password Protection
+`;
+    }
+
+    const htaccessTar = createTarBuffer('.wpl-htaccess-auth', htaccessContent);
+    await container.putArchive(htaccessTar, { path: '/var/www/html/' });
+
+    // Remove old rules if present, then append new ones
+    const appendExec = await container.exec({
+      Cmd: ['bash', '-c', 'sed -i "/# WP Launcher Password Protection/,/# END WP Launcher Password Protection/d" /var/www/html/.htaccess 2>/dev/null; cat /var/www/html/.wpl-htaccess-auth >> /var/www/html/.htaccess'],
+      AttachStdout: true, AttachStderr: true,
+    });
+    const appendStream = await appendExec.start({ hijack: true, stdin: false });
+    await new Promise<void>((resolve) => { appendStream.on('end', resolve); setTimeout(resolve, 5000); });
+
+    console.log(`[provisioner] Password protection (${protectScope}) set for ${req.params.id.slice(0, 12)}`);
+    res.json({ status: 'set', scope: protectScope });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    console.error('[provisioner] site-password error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Check if password protection is active
+app.get('/containers/:id/site-password', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+
+    const container = docker.getContainer(req.params.id);
+    const exec = await container.exec({
+      Cmd: ['bash', '-c', 'cat /var/www/html/.wpl-password-protect 2>/dev/null || echo ""'],
+      AttachStdout: true, AttachStderr: true,
+    });
+    const stream = await exec.start({ hijack: true, stdin: false });
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve) => {
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      stream.on('end', resolve);
+      setTimeout(resolve, 3000);
+    });
+    const content = Buffer.concat(chunks).toString('utf-8').replace(/[\x00-\x08]/g, '').trim();
+    const isProtected = content !== '';
+    const scope = isProtected ? content : null;
+
+    res.json({ protected: isProtected, scope });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Export Site as ZIP ---
+
+app.post('/containers/:id/export-zip', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    if (!info.State.Running) {
+      res.status(400).json({ error: 'Container is not running' });
+      return;
+    }
+
+    const dbEngine = info.Config.Env?.find((e: string) => e.startsWith('DB_ENGINE='))?.split('=')[1] || 'sqlite';
+    const exportId = `export-${Date.now()}`;
+    const exportDir = path.join(SNAPSHOTS_DIR, exportId);
+    fs.mkdirSync(exportDir, { recursive: true });
+
+    // Step 1: DB dump
+    if (dbEngine === 'mysql' || dbEngine === 'mariadb') {
+      const dbHost = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_HOST='))?.split('=')[1];
+      const dbUser = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_USER='))?.split('=')[1] || 'wordpress';
+      const dbPass = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_PASSWORD='))?.split('=')[1] || '';
+      const dbName = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_NAME='))?.split('=')[1] || 'wordpress';
+
+      const dumpExec = await container.exec({
+        Cmd: ['bash', '-c', `mysqldump -h "${dbHost}" -u "${dbUser}" -p"${dbPass}" "${dbName}" > /tmp/db-export.sql 2>/dev/null`],
+        AttachStdout: true, AttachStderr: true,
+      });
+      const dumpStream = await dumpExec.start({ hijack: true, stdin: false });
+      await new Promise<void>((resolve) => { dumpStream.on('end', resolve); setTimeout(resolve, 60000); });
+    } else {
+      // SQLite: use wp db export
+      const dumpExec = await container.exec({
+        Cmd: ['bash', '-c', 'wp db export /tmp/db-export.sql --allow-root 2>/dev/null'],
+        AttachStdout: true, AttachStderr: true,
+      });
+      const dumpStream = await dumpExec.start({ hijack: true, stdin: false });
+      await new Promise<void>((resolve) => { dumpStream.on('end', resolve); setTimeout(resolve, 30000); });
+    }
+
+    // Step 2: Create tar.gz of wp-content + db dump (tar is always available, zip is not)
+    const tarExec = await container.exec({
+      Cmd: ['bash', '-c', 'cd /var/www/html && tar czf /tmp/site-export.tar.gz --exclude="wp-content/mu-plugins" wp-content/ -C /tmp db-export.sql 2>/dev/null'],
+      AttachStdout: true, AttachStderr: true,
+    });
+    const tarStream = await tarExec.start({ hijack: true, stdin: false });
+    await new Promise<void>((resolve) => { tarStream.on('end', resolve); setTimeout(resolve, 120000); });
+
+    // Step 3: Extract archive from container using getArchive (returns a tar wrapping our tar.gz)
+    const archiveStream = await container.getArchive({ path: '/tmp/site-export.tar.gz' });
+    const exportPath = path.join(exportDir, 'site-export.tar.gz');
+
+    // getArchive wraps the file in a tar stream — extract the inner file
+    const outerChunks: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      archiveStream.on('data', (chunk: Buffer) => outerChunks.push(chunk));
+      archiveStream.on('end', resolve);
+      archiveStream.on('error', reject);
+      setTimeout(resolve, 120000);
+    });
+
+    const outerTar = Buffer.concat(outerChunks);
+    // Tar header is 512 bytes; file size at bytes 124-135 (octal)
+    const sizeOctal = outerTar.subarray(124, 136).toString('ascii').trim();
+    const fileSize = parseInt(sizeOctal, 8);
+    const innerData = outerTar.subarray(512, 512 + fileSize);
+    fs.writeFileSync(exportPath, innerData);
+
+    // Cleanup inside container
+    const cleanExec = await container.exec({
+      Cmd: ['rm', '-f', '/tmp/site-export.tar.gz', '/tmp/db-export.sql'],
+      AttachStdout: true, AttachStderr: true,
+    });
+    const cleanStream = await cleanExec.start({ hijack: true, stdin: false });
+    await new Promise<void>((resolve) => { cleanStream.on('end', resolve); setTimeout(resolve, 5000); });
+
+    const stats = fs.statSync(exportPath);
+    console.log(`[provisioner] Site exported for ${req.params.id.slice(0, 12)}: ${(stats.size / 1024 / 1024).toFixed(1)}MB`);
+
+    res.json({
+      exportId,
+      path: exportPath,
+      sizeBytes: stats.size,
+      dbEngine,
+    });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    console.error('[provisioner] export-zip error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Download an exported ZIP file
+app.get('/exports/:exportId/download', (req: Request, res: Response) => {
+  const { exportId } = req.params;
+  if (!/^export-\d+$/.test(exportId)) {
+    res.status(400).json({ error: 'Invalid export ID' });
+    return;
+  }
+
+  const exportPath = path.join(SNAPSHOTS_DIR, exportId, 'site-export.tar.gz');
+  if (!fs.existsSync(exportPath)) {
+    res.status(404).json({ error: 'Export not found' });
+    return;
+  }
+
+  res.download(exportPath, 'site-export.tar.gz', (err) => {
+    if (err) {
+      console.error('[provisioner] download error:', err.message);
+    }
+    // Cleanup: delete the export after download
+    try {
+      fs.rmSync(path.join(SNAPSHOTS_DIR, exportId), { recursive: true, force: true });
+    } catch {}
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`[provisioner] Running on port ${PORT}`);
 });

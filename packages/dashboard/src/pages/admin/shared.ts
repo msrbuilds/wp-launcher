@@ -61,4 +61,7 @@ export const FEATURE_META: { key: string; label: string; description: string }[]
   { key: 'customDomains', label: 'Custom Domains', description: 'Allow users to set custom domains on their sites (agency mode only)' },
   { key: 'phpConfig', label: 'PHP Configuration', description: 'Allow users to modify PHP settings on running sites' },
   { key: 'siteExtend', label: 'Site Extend', description: 'Allow users to extend the expiration of their running sites' },
+  { key: 'sitePassword', label: 'Site Password Protection', description: 'Allow users to set a password on their demo site frontend' },
+  { key: 'exportZip', label: 'Export Site as ZIP', description: 'Allow users to download their site as a portable ZIP archive' },
+  { key: 'webhooks', label: 'Webhook Notifications', description: 'Fire HTTP webhooks on site events (created, expired, deleted)' },
 ];

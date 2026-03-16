@@ -59,6 +59,8 @@ export default function SitesListPage() {
   const canDomain = features.customDomains;
   const canPhp = features.phpConfig;
   const canExtend = features.siteExtend;
+  const canPassword = features.sitePassword;
+  const canExport = features.exportZip;
   const [sites, setSites] = useState<Site[]>([]);
   const [maxSites, setMaxSites] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -423,6 +425,91 @@ export default function SitesListPage() {
     }
   }
 
+  // Site password protection
+  const [passwordModal, setPasswordModal] = useState<string | null>(null);
+  const [passwordValue, setPasswordValue] = useState('');
+  const [passwordScope, setPasswordScope] = useState<'frontend' | 'admin' | 'all'>('frontend');
+  const [passwordLoading, setPasswordLoading] = useState<string | null>(null);
+
+  async function handleSetPassword(siteId: string) {
+    setPasswordLoading(siteId);
+    try {
+      const res = await fetch(`/api/sites/${siteId}/password`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password: passwordValue || null, scope: passwordScope }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed' }));
+        alert(err.error || 'Failed to set password');
+        return;
+      }
+      setPasswordModal(null);
+      setPasswordValue('');
+    } catch {
+      alert('Failed to set password');
+    } finally {
+      setPasswordLoading(null);
+    }
+  }
+
+  async function handleRemovePassword(siteId: string) {
+    setPasswordLoading(siteId);
+    try {
+      await fetch(`/api/sites/${siteId}/password`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password: null }),
+      });
+    } catch {}
+    setPasswordLoading(null);
+  }
+
+  // Export site as ZIP
+  const [exportLoading, setExportLoading] = useState<string | null>(null);
+
+  async function handleExportZip(siteId: string) {
+    setExportLoading(siteId);
+    try {
+      const res = await fetch(`/api/sites/${siteId}/export-zip`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to export' }));
+        alert(err.error || 'Failed to export site');
+        return;
+      }
+      const data = await res.json();
+      if (!data.downloadUrl) {
+        alert('Export failed: no download URL returned');
+        return;
+      }
+      // Download with credentials and trigger browser save
+      const dlRes = await fetch(data.downloadUrl, { credentials: 'include' });
+      if (!dlRes.ok) {
+        alert('Download failed');
+        return;
+      }
+      const blob = await dlRes.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'site-export.tar.gz';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export error:', err);
+      alert('Failed to export site');
+    } finally {
+      setExportLoading(null);
+    }
+  }
+
   // Derive unique templates and statuses for filters
   const templates = useMemo(() => [...new Set(sites.map((s) => s.productId))].sort(), [sites]);
   const statuses = useMemo(() => [...new Set(sites.map((s) => s.status))].sort(), [sites]);
@@ -670,6 +757,30 @@ export default function SitesListPage() {
                       >
                         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                         PHP
+                      </button>
+                      )}
+                      {canPassword && site.status === 'running' && (
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        onClick={() => { setPasswordModal(site.id); setPasswordValue(''); }}
+                        disabled={passwordLoading === site.id}
+                        title="Password protect frontend"
+                      >
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                        Password
+                      </button>
+                      )}
+                      {canExport && site.status === 'running' && (
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        onClick={() => handleExportZip(site.id)}
+                        disabled={exportLoading === site.id}
+                        title="Download site as ZIP"
+                      >
+                        {exportLoading === site.id ? <span className="spinner spinner-sm" /> : (
+                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                        )}
+                        Export
                       </button>
                       )}
                       {canExtend && site.status === 'running' && (
@@ -1151,6 +1262,31 @@ export default function SitesListPage() {
                 PHP Settings
               </button>
               )}
+              {canPassword && site.status === 'running' && (
+              <button
+                onClick={() => { setActionsOpen(null); setPasswordModal(site.id); setPasswordValue(''); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                Password Protection
+              </button>
+              )}
+              {canExport && site.status === 'running' && (
+              <button
+                onClick={() => { setActionsOpen(null); handleExportZip(site.id); }}
+                disabled={exportLoading === site.id}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                {exportLoading === site.id ? <span className="spinner spinner-sm" /> : (
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                )}
+                Export as ZIP
+              </button>
+              )}
               {canExtend && site.status === 'running' && (
               <>
                 <div style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Extend by</div>
@@ -1488,6 +1624,64 @@ export default function SitesListPage() {
               >
                 {templateSaving ? <><span className="spinner spinner-sm" /> Exporting...</> : 'Save Template'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Protection Modal */}
+      {passwordModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ maxWidth: 420, width: '90%' }}>
+            <h3 style={{ marginBottom: '0.75rem' }}>Password Protection</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+              Set a password to restrict access. Choose what to protect.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
+              {([
+                { value: 'frontend' as const, label: 'Frontend Only', desc: 'Visitors need password, admin stays open' },
+                { value: 'admin' as const, label: 'Admin Only', desc: 'wp-admin needs password, site stays open' },
+                { value: 'all' as const, label: 'Entire Site', desc: 'Password required everywhere' },
+              ]).map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setPasswordScope(opt.value)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem',
+                    border: passwordScope === opt.value ? '2px solid var(--orange)' : '1px solid var(--border)',
+                    borderRadius: 8, background: passwordScope === opt.value ? '#fff8f0' : '#fafafa',
+                    cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s', width: '100%',
+                  }}
+                >
+                  <div style={{
+                    width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                    border: passwordScope === opt.value ? '5px solid var(--orange)' : '2px solid var(--border)',
+                    background: '#fff',
+                  }} />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem', color: passwordScope === opt.value ? 'var(--orange)' : 'var(--prussian-blue)' }}>{opt.label}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <input
+              type="text"
+              placeholder="Enter password (min 4 chars)"
+              value={passwordValue}
+              onChange={(e) => setPasswordValue(e.target.value)}
+              style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 6, marginBottom: '1rem', fontSize: '0.9rem', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-primary btn-sm" onClick={() => handleSetPassword(passwordModal)} disabled={passwordLoading === passwordModal || passwordValue.length < 4}>
+                {passwordLoading === passwordModal ? <><span className="spinner spinner-sm" /> Setting...</> : 'Set Password'}
+              </button>
+              <button className="btn btn-danger-outline btn-sm" onClick={() => { handleRemovePassword(passwordModal); setPasswordModal(null); }}>
+                Remove
+              </button>
+              <button className="btn btn-outline btn-sm" onClick={() => setPasswordModal(null)}>Cancel</button>
             </div>
           </div>
         </div>

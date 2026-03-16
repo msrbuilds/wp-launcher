@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { getDb } from '../utils/db';
 import { removeSiteContainer, listManagedContainers } from './docker.service';
+import { fireWebhookEvent } from './webhook.service';
 
 interface ExpiredSite {
   id: string;
@@ -46,6 +47,10 @@ async function cleanupExpiredSites(): Promise<void> {
 
       db.prepare("UPDATE sites SET status = 'expired', deleted_at = datetime('now') WHERE id = ?").run(site.id);
       console.log(`[cleanup] Marked site as expired: ${site.subdomain}`);
+
+      fireWebhookEvent('site.expired', {
+        siteId: site.id, subdomain: site.subdomain,
+      }).catch(() => {});
     } catch (err) {
       console.error(`[cleanup] Failed to clean up site ${site.subdomain}:`, err);
     }

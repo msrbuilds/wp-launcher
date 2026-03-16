@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { adminAuth } from '../middleware/auth';
 import { AuthRequest } from '../middleware/userAuth';
 import { listUsers, getUsersCount, deleteUser, updateUserRole } from '../services/user.service';
+import { listWebhooks, createWebhook, deleteWebhook, toggleWebhook } from '../services/webhook.service';
 import {
   listAllSites,
   getAllSitesCount,
@@ -159,6 +160,52 @@ router.post('/users/promote', (req: AuthRequest, res: Response) => {
   } catch (err: any) {
     const status = err.statusCode || 500;
     res.status(status).json({ error: err.message });
+  }
+});
+
+// --- Webhooks ---
+
+router.get('/webhooks', (req: AuthRequest, res: Response) => {
+  try {
+    const webhooks = listWebhooks();
+    res.json({ webhooks });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/webhooks', (req: AuthRequest, res: Response) => {
+  try {
+    const { url, events, secret } = req.body;
+    if (!url || typeof url !== 'string') {
+      res.status(400).json({ error: 'URL is required' });
+      return;
+    }
+    try { new URL(url); } catch { res.status(400).json({ error: 'Invalid URL' }); return; }
+    const eventList = Array.isArray(events) ? events : ['site.created', 'site.expired', 'site.deleted'];
+    const webhook = createWebhook(url, eventList, secret);
+    res.status(201).json(webhook);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/webhooks/:id', (req: AuthRequest, res: Response) => {
+  try {
+    const { active } = req.body;
+    toggleWebhook(req.params.id, !!active);
+    res.json({ status: 'updated' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/webhooks/:id', (req: AuthRequest, res: Response) => {
+  try {
+    deleteWebhook(req.params.id);
+    res.json({ message: 'Webhook deleted' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
