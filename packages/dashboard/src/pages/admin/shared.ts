@@ -64,4 +64,6 @@ export const FEATURE_META: { key: string; label: string; description: string }[]
   { key: 'sitePassword', label: 'Site Password Protection', description: 'Allow users to set a password on their demo site frontend' },
   { key: 'exportZip', label: 'Export Site as ZIP', description: 'Allow users to download their site as a portable ZIP archive' },
   { key: 'webhooks', label: 'Webhook Notifications', description: 'Fire HTTP webhooks on site events (created, expired, deleted)' },
+  { key: 'healthMonitoring', label: 'Site Health Monitoring', description: 'Track container CPU and memory usage for running sites' },
+  { key: 'scheduledLaunch', label: 'Scheduled Site Launch', description: 'Allow users to schedule sites to be created at a future time' },
 ];

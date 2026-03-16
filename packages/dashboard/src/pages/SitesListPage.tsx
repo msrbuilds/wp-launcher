@@ -61,6 +61,7 @@ export default function SitesListPage() {
   const canExtend = features.siteExtend;
   const canPassword = features.sitePassword;
   const canExport = features.exportZip;
+  const canHealth = features.healthMonitoring;
   const [sites, setSites] = useState<Site[]>([]);
   const [maxSites, setMaxSites] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,7 +69,7 @@ export default function SitesListPage() {
   const [filterTemplate, setFilterTemplate] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [expandedSite, setExpandedSite] = useState<string | null>(null);
-  const [expandedPanel, setExpandedPanel] = useState<'php' | 'snapshots' | 'domain' | null>(null);
+  const [expandedPanel, setExpandedPanel] = useState<'php' | 'snapshots' | 'domain' | 'health' | null>(null);
   const [phpConfigs, setPhpConfigs] = useState<Record<string, PhpConfig>>({});
   const [savingPhp, setSavingPhp] = useState<string | null>(null);
   const [phpSaveMsg, setPhpSaveMsg] = useState<Record<string, string>>({});
@@ -380,8 +381,27 @@ export default function SitesListPage() {
       .catch(() => {});
   }
 
+  // Scheduled launches
+  const canSchedule = features.scheduledLaunch;
+  const [scheduledLaunches, setScheduledLaunches] = useState<any[]>([]);
+
+  function fetchScheduled() {
+    if (!canSchedule) return;
+    fetch('/api/sites/scheduled', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => { if (data.launches) setScheduledLaunches(data.launches.filter((l: any) => l.status === 'pending')); })
+      .catch(() => {});
+  }
+
+  async function handleCancelScheduled(id: string) {
+    if (!confirm('Cancel this scheduled launch?')) return;
+    await fetch(`/api/sites/scheduled/${id}`, { method: 'DELETE', credentials: 'include' });
+    fetchScheduled();
+  }
+
   useEffect(() => {
     fetchSites();
+    fetchScheduled();
     const interval = setInterval(fetchSites, 10_000);
     return () => clearInterval(interval);
   }, [isAuthenticated]);
@@ -508,6 +528,22 @@ export default function SitesListPage() {
     } finally {
       setExportLoading(null);
     }
+  }
+
+  // Site health stats
+  const [healthStats, setHealthStats] = useState<Record<string, any>>({});
+  const [healthLoading, setHealthLoading] = useState<string | null>(null);
+
+  async function fetchHealthStats(siteId: string) {
+    setHealthLoading(siteId);
+    try {
+      const res = await fetch(`/api/sites/${siteId}/stats`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setHealthStats(prev => ({ ...prev, [siteId]: data }));
+      }
+    } catch {}
+    setHealthLoading(null);
   }
 
   // Derive unique templates and statuses for filters
@@ -757,6 +793,28 @@ export default function SitesListPage() {
                       >
                         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                         PHP
+                      </button>
+                      )}
+                      {canHealth && site.status === 'running' && (
+                      <button
+                        className={`btn btn-secondary btn-xs${expandedSite === site.id && expandedPanel === 'health' ? ' btn-active' : ''}`}
+                        onClick={() => {
+                          if (expandedSite === site.id && expandedPanel === 'health') {
+                            setExpandedSite(null);
+                            setExpandedPanel(null);
+                          } else {
+                            setExpandedSite(site.id);
+                            setExpandedPanel('health');
+                            fetchHealthStats(site.id);
+                          }
+                        }}
+                        title="Resource usage"
+                        style={expandedSite === site.id && expandedPanel === 'health' ? { borderColor: '#fb8500', color: '#fb8500' } : {}}
+                      >
+                        {healthLoading === site.id ? <span className="spinner spinner-sm" /> : (
+                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+                        )}
+                        Stats
                       </button>
                       )}
                       {canPassword && site.status === 'running' && (
@@ -1069,6 +1127,69 @@ export default function SitesListPage() {
                     </td>
                   </tr>
                 )}
+                {canHealth && expandedSite === site.id && expandedPanel === 'health' && (
+                  <tr key={`${site.id}-health`}>
+                    <td colSpan={5} style={{ padding: 0, border: 'none' }}>
+                      <div style={{ padding: '1rem 1.25rem', background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>Resource Usage</span>
+                          <button className="btn btn-secondary btn-xs" onClick={() => fetchHealthStats(site.id)} disabled={healthLoading === site.id}>
+                            {healthLoading === site.id ? <span className="spinner spinner-sm" /> : 'Refresh'}
+                          </button>
+                          <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+                        </div>
+                        {healthStats[site.id] ? (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem' }}>
+                            <div style={{ background: '#1e293b', borderRadius: 8, padding: '0.75rem' }}>
+                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.3rem' }}>CPU</div>
+                              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: healthStats[site.id].cpu.percent > 80 ? '#ef4444' : '#22c55e' }}>
+                                {healthStats[site.id].cpu.percent}%
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{healthStats[site.id].cpu.cores} core(s)</div>
+                            </div>
+                            <div style={{ background: '#1e293b', borderRadius: 8, padding: '0.75rem' }}>
+                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Memory</div>
+                              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e' }}>
+                                {healthStats[site.id].memory.usedMB} MB
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                                {healthStats[site.id].memory.percent}% of {healthStats[site.id].memory.limitMB} MB
+                              </div>
+                              <div style={{ marginTop: '0.4rem', height: 4, background: '#334155', borderRadius: 2, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${Math.min(healthStats[site.id].memory.percent, 100)}%`, background: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e', borderRadius: 2 }} />
+                              </div>
+                            </div>
+                            <div style={{ background: '#1e293b', borderRadius: 8, padding: '0.75rem' }}>
+                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Network</div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>
+                                {(healthStats[site.id].network.rxBytes / 1024 / 1024).toFixed(1)} MB in
+                              </div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>
+                                {(healthStats[site.id].network.txBytes / 1024 / 1024).toFixed(1)} MB out
+                              </div>
+                            </div>
+                            <div style={{ background: '#1e293b', borderRadius: 8, padding: '0.75rem' }}>
+                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Uptime</div>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>
+                                {(() => {
+                                  const ms = Date.now() - new Date(healthStats[site.id].uptime).getTime();
+                                  const h = Math.floor(ms / 3600000);
+                                  const m = Math.floor((ms % 3600000) / 60000);
+                                  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                                })()}
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: '#64748b' }}>PID {healthStats[site.id].pid}</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8' }}>
+                            <span className="spinner spinner-sm" /> Loading stats...
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </React.Fragment>
               ))}
               {filtered.length === 0 && (
@@ -1147,6 +1268,54 @@ export default function SitesListPage() {
         <h2>My Sites ({sites.length}{maxSites ? ` / ${maxSites}` : ''})</h2>
         <p>Manage your active demo sites</p>
       </div>
+
+      {/* Scheduled Launches */}
+      {scheduledLaunches.length > 0 && (
+        <div style={{ marginBottom: '1.25rem' }}>
+          <h4 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+            Scheduled ({scheduledLaunches.length})
+          </h4>
+          <div className="sites-grid">
+            {scheduledLaunches.map((launch) => (
+              <div key={launch.id} className="card site-card" style={{ opacity: 0.7, borderStyle: 'dashed' }}>
+                <div className="site-card-header" style={{ background: '#f8fafc' }}>
+                  <div className="site-card-status">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--orange)" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                    <span style={{ color: 'var(--orange)', fontWeight: 600, fontSize: '0.8rem' }}>SCHEDULED</span>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {new Date(launch.scheduled_at).toLocaleDateString()} {new Date(launch.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div className="site-card-body">
+                  <h3 className="site-card-name" style={{ color: 'var(--text-muted)' }}>
+                    {launch.product_id}
+                  </h3>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginTop: '0.25rem' }}>
+                    Launches in {(() => {
+                      const ms = new Date(launch.scheduled_at).getTime() - Date.now();
+                      if (ms <= 0) return 'any moment now';
+                      const h = Math.floor(ms / 3600000);
+                      const m = Math.floor((ms % 3600000) / 60000);
+                      if (h > 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
+                      if (h > 0) return `${h}h ${m}m`;
+                      return `${m}m`;
+                    })()}
+                  </div>
+                </div>
+                <div className="site-card-actions" style={{ padding: '0.75rem 1rem' }}>
+                  <button
+                    className="btn btn-danger-outline btn-sm"
+                    onClick={() => handleCancelScheduled(launch.id)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="sites-grid">
         {sites.map((site) => (
@@ -1260,6 +1429,22 @@ export default function SitesListPage() {
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                 PHP Settings
+              </button>
+              )}
+              {canHealth && site.status === 'running' && (
+              <button
+                onClick={() => {
+                  setActionsOpen(null);
+                  setExpandedSite(site.id);
+                  setExpandedPanel('health');
+                  fetchHealthStats(site.id);
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+                Resource Stats
               </button>
               )}
               {canPassword && site.status === 'running' && (
@@ -1441,6 +1626,45 @@ export default function SitesListPage() {
                     {phpSaveMsg[site.id] && <span style={{ color: '#48bb78', fontSize: '0.75rem' }}>{phpSaveMsg[site.id]}</span>}
                   </div>
                 </div>
+              )}
+            </div>
+            )}
+
+            {canHealth && expandedSite === site.id && expandedPanel === 'health' && (
+            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid #2d3748', background: '#1a202c' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <strong style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>Resource Usage</strong>
+                <button className="btn btn-secondary btn-xs" onClick={() => fetchHealthStats(site.id)} disabled={healthLoading === site.id}>
+                  {healthLoading === site.id ? <span className="spinner spinner-sm" /> : 'Refresh'}
+                </button>
+                <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+              </div>
+              {healthStats[site.id] ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <div style={{ background: '#2d3748', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase' }}>CPU</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: healthStats[site.id].cpu.percent > 80 ? '#ef4444' : '#22c55e' }}>{healthStats[site.id].cpu.percent}%</div>
+                  </div>
+                  <div style={{ background: '#2d3748', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase' }}>Memory</div>
+                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e' }}>{healthStats[site.id].memory.usedMB} MB</div>
+                    <div style={{ marginTop: '0.25rem', height: 3, background: '#1e293b', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${Math.min(healthStats[site.id].memory.percent, 100)}%`, background: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e' }} />
+                    </div>
+                  </div>
+                  <div style={{ background: '#2d3748', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase' }}>Network</div>
+                    <div style={{ fontSize: '0.8rem', color: '#e2e8f0' }}>{(healthStats[site.id].network.rxBytes / 1024 / 1024).toFixed(1)} MB in / {(healthStats[site.id].network.txBytes / 1024 / 1024).toFixed(1)} MB out</div>
+                  </div>
+                  <div style={{ background: '#2d3748', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase' }}>Uptime</div>
+                    <div style={{ fontSize: '0.8rem', color: '#e2e8f0' }}>
+                      {(() => { const ms = Date.now() - new Date(healthStats[site.id].uptime).getTime(); const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return h > 0 ? `${h}h ${m}m` : `${m}m`; })()}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '0.5rem' }}><span className="spinner spinner-sm" /> Loading...</div>
               )}
             </div>
             )}

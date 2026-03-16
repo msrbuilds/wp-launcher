@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useSettings } from '../context/SettingsContext';
+import { useSettings, useFeatures } from '../context/SettingsContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import CountdownTimer from '../components/CountdownTimer';
 
@@ -52,6 +52,41 @@ export default function LaunchPage() {
   const [step, setStep] = useState<Step>(canLaunch ? 'launch' : 'email');
   const [filterCategory, setFilterCategory] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Scheduled launch
+  const features = useFeatures();
+  const canSchedule = features.scheduledLaunch && !isLocal;
+  const [scheduleModal, setScheduleModal] = useState<string | null>(null);
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [scheduling, setScheduling] = useState(false);
+  const [scheduleMsg, setScheduleMsg] = useState('');
+
+  async function handleSchedule(productId: string) {
+    if (!scheduleDate || !scheduleTime) return;
+    setScheduling(true);
+    setScheduleMsg('');
+    try {
+      const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+      const res = await fetch('/api/sites/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ productId, scheduledAt }),
+      });
+      if (res.ok) {
+        setScheduleMsg('Site scheduled successfully!');
+        setTimeout(() => { setScheduleModal(null); setScheduleMsg(''); }, 2000);
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed' }));
+        setScheduleMsg(err.error || 'Failed to schedule');
+      }
+    } catch {
+      setScheduleMsg('Failed to schedule');
+    } finally {
+      setScheduling(false);
+    }
+  }
 
   // Derive categories from products
   const categories = [...new Set(products.map(p => p.category).filter(Boolean))] as string[];
@@ -448,17 +483,29 @@ export default function LaunchPage() {
                     <p className="product-compact-desc">{product.branding.description}</p>
                   )}
                 </div>
-                <button
-                  className="btn btn-primary btn-compact-launch"
-                  onClick={() => isLocal ? navigate(`/create?template=${product.id}`) : handleLaunch(product.id)}
-                  disabled={!isLocal && launchingId !== null}
-                >
-                  {launchingId === product.id ? (
-                    <><span className="spinner" /> Launching...</>
-                  ) : (
-                    isLocal ? 'Create Site' : 'Launch Demo'
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                  <button
+                    className="btn btn-primary btn-compact-launch"
+                    onClick={() => isLocal ? navigate(`/create?template=${product.id}`) : handleLaunch(product.id)}
+                    disabled={!isLocal && launchingId !== null}
+                  >
+                    {launchingId === product.id ? (
+                      <><span className="spinner" /> Launching...</>
+                    ) : (
+                      isLocal ? 'Create Site' : 'Launch Demo'
+                    )}
+                  </button>
+                  {canSchedule && (
+                    <button
+                      className="btn btn-outline btn-sm"
+                      title="Schedule for later"
+                      onClick={() => { setScheduleModal(product.id); setScheduleDate(''); setScheduleTime(''); setScheduleMsg(''); }}
+                      style={{ padding: '0.35rem' }}
+                    >
+                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                    </button>
                   )}
-                </button>
+                </div>
               </div>
             ))
           ) : (
@@ -488,23 +535,84 @@ export default function LaunchPage() {
                   {product.branding?.description && (
                     <p className="product-card-desc">{product.branding.description}</p>
                   )}
-                  <button
-                    className="btn btn-primary"
-                    style={{ width: '100%' }}
-                    onClick={() => isLocal ? navigate(`/create?template=${product.id}`) : handleLaunch(product.id)}
-                    disabled={!isLocal && launchingId !== null}
-                  >
-                    {launchingId === product.id ? (
-                      <><span className="spinner" /> Launching...</>
-                    ) : (
-                      isLocal ? 'Create Site' : 'Launch Demo'
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      className="btn btn-primary"
+                      style={{ flex: 1 }}
+                      onClick={() => isLocal ? navigate(`/create?template=${product.id}`) : handleLaunch(product.id)}
+                      disabled={!isLocal && launchingId !== null}
+                    >
+                      {launchingId === product.id ? (
+                        <><span className="spinner" /> Launching...</>
+                      ) : (
+                        isLocal ? 'Create Site' : 'Launch Demo'
+                      )}
+                    </button>
+                    {canSchedule && (
+                      <button
+                        className="btn btn-outline"
+                        title="Schedule for later"
+                        onClick={() => { setScheduleModal(product.id); setScheduleDate(''); setScheduleTime(''); setScheduleMsg(''); }}
+                        style={{ padding: '0.5rem' }}
+                      >
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                      </button>
                     )}
-                  </button>
+                  </div>
                 </div>
               </div>
             ))
           )}
         </div>
+
+        {/* Schedule Modal */}
+        {scheduleModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div className="card" style={{ maxWidth: 400, width: '90%' }}>
+              <h3 style={{ marginBottom: '0.5rem' }}>Schedule Launch</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                Schedule <strong>{products.find(p => p.id === scheduleModal)?.name || scheduleModal}</strong> to launch automatically at a future time.
+              </p>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.25rem' }}>Date</label>
+                  <input
+                    type="date"
+                    value={scheduleDate}
+                    onChange={(e) => setScheduleDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    max={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                    style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 6, fontSize: '0.85rem', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.25rem' }}>Time</label>
+                  <input
+                    type="time"
+                    value={scheduleTime}
+                    onChange={(e) => setScheduleTime(e.target.value)}
+                    style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 6, fontSize: '0.85rem', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => handleSchedule(scheduleModal)}
+                  disabled={scheduling || !scheduleDate || !scheduleTime}
+                >
+                  {scheduling ? <><span className="spinner spinner-sm" /> Scheduling...</> : 'Schedule Launch'}
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={() => setScheduleModal(null)}>Cancel</button>
+                {scheduleMsg && (
+                  <span style={{ fontSize: '0.85rem', color: scheduleMsg.startsWith('Failed') || scheduleMsg.startsWith('Scheduled time') ? '#ef4444' : '#22c55e' }}>
+                    {scheduleMsg}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

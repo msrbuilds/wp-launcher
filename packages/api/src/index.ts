@@ -15,6 +15,7 @@ import analyticsRouter from './routes/analytics';
 import bulkRouter from './routes/bulk';
 import templatesRouter from './routes/templates';
 import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cleanup.service';
+import { startScheduleProcessor } from './services/schedule.service';
 import { closeDb, getDb } from './utils/db';
 import { AppError } from './utils/errors';
 import { Request, Response, NextFunction } from 'express';
@@ -363,7 +364,7 @@ if (config.isLocalMode) {
       res.status(400).json({ error: 'features object is required' });
       return;
     }
-    const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks'];
+    const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks', 'healthMonitoring', 'scheduledLaunch'];
     const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
     for (const [name, enabled] of Object.entries(features)) {
       if (allowed.includes(name)) {
@@ -513,6 +514,9 @@ const server = app.listen(config.port, () => {
 
 // Start cleanup scheduler
 startCleanupScheduler();
+
+// Start scheduled launch processor
+startScheduleProcessor();
 
 // Run orphan cleanup every 5 minutes
 setInterval(() => {

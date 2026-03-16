@@ -10,6 +10,8 @@ export interface FeatureFlags {
   sitePassword: boolean;
   exportZip: boolean;
   webhooks: boolean;
+  healthMonitoring: boolean;
+  scheduledLaunch: boolean;
 }
 
 export interface Branding {
@@ -48,6 +50,8 @@ const DEFAULT_FEATURES: FeatureFlags = {
   sitePassword: false,
   exportZip: false,
   webhooks: false,
+  healthMonitoring: false,
+  scheduledLaunch: false,
 };
 
 const DEFAULT_BRANDING: Branding = {

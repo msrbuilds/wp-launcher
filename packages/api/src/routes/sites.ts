@@ -2,11 +2,12 @@ import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, getSiteLogsByUser, MAX_SITES_PER_USER } from '../services/site.service';
-import { getPhpConfig, updatePhpConfig, updateAutoLoginToken, setSitePassword, getSitePasswordStatus, exportSiteZip, getExportDownloadUrl } from '../services/docker.service';
+import { getPhpConfig, updatePhpConfig, updateAutoLoginToken, setSitePassword, getSitePasswordStatus, exportSiteZip, getExportDownloadUrl, getContainerStats } from '../services/docker.service';
 import { takeSnapshot, listSnapshots, restoreSnapshotToSite, deleteSnapshot, cloneSite } from '../services/snapshot.service';
 import { exportSiteAsTemplate } from '../services/template-export.service';
 import { setCustomDomain, getCustomDomain, removeCustomDomain, getDnsInstructions } from '../services/domain.service';
 import { conditionalAuth, conditionalOptionalAuth, AuthRequest } from '../middleware/userAuth';
+import { scheduleNewLaunch, listScheduledLaunches, cancelScheduledLaunch } from '../services/schedule.service';
 import { config } from '../config';
 import { asyncHandler } from '../utils/asyncHandler';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors';
@@ -121,6 +122,29 @@ router.get('/', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Respon
     res.json(mapped);
   }
 });
+
+// --- Scheduled Site Launch (must be before /:id to avoid route conflict) ---
+
+router.post('/schedule', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!isFeatureEnabled('scheduledLaunch')) throw new ForbiddenError('Scheduled launches are disabled');
+  const { productId, scheduledAt, config } = req.body;
+  if (!productId) throw new ValidationError('productId is required');
+  if (!scheduledAt) throw new ValidationError('scheduledAt is required');
+  const launch = scheduleNewLaunch(productId, scheduledAt, req.userId, req.userEmail, config);
+  res.status(201).json(launch);
+}));
+
+router.get('/scheduled', siteReadLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!isFeatureEnabled('scheduledLaunch')) throw new ForbiddenError('Scheduled launches are disabled');
+  const launches = listScheduledLaunches(req.userId);
+  res.json({ launches });
+}));
+
+router.delete('/scheduled/:id', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!isFeatureEnabled('scheduledLaunch')) throw new ForbiddenError('Scheduled launches are disabled');
+  cancelScheduledLaunch(req.params.id, req.userId);
+  res.json({ message: 'Scheduled launch cancelled' });
+}));
 
 // Get a specific site (requires auth, users can only view their own)
 router.get('/:id', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Response) => {
@@ -328,6 +352,18 @@ router.post('/:id/export-template', siteWriteLimiter, conditionalAuth, asyncHand
   }
   const config = await exportSiteAsTemplate(req.params.id, templateId, templateName || templateId, req.userId);
   res.status(201).json(config);
+}));
+
+// --- Site Health Monitoring ---
+
+router.get('/:id/stats', siteReadLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!isFeatureEnabled('healthMonitoring')) throw new ForbiddenError('Health monitoring is disabled');
+  const site = getSite(req.params.id);
+  if (!site) throw new NotFoundError('Site not found');
+  if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only view your own sites');
+  if (!site.container_id || site.status !== 'running') throw new ValidationError('Site is not running');
+  const stats = await getContainerStats(site.container_id);
+  res.json(stats);
 }));
 
 // --- Site Password Protection ---

@@ -438,6 +438,68 @@ app.get('/containers/:id/status', async (req: Request, res: Response) => {
   }
 });
 
+// Container resource stats (CPU, memory)
+app.get('/containers/:id/stats', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    if (!info.State.Running) {
+      res.status(400).json({ error: 'Container is not running' });
+      return;
+    }
+
+    // Get one-shot stats (stream: false)
+    const stats = await container.stats({ stream: false }) as any;
+
+    // Calculate CPU percentage
+    const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - (stats.precpu_stats?.cpu_usage?.total_usage || 0);
+    const systemDelta = stats.cpu_stats.system_cpu_usage - (stats.precpu_stats?.system_cpu_usage || 0);
+    const numCpus = stats.cpu_stats.online_cpus || stats.cpu_stats.cpu_usage?.percpu_usage?.length || 1;
+    const cpuPercent = systemDelta > 0 ? (cpuDelta / systemDelta) * numCpus * 100 : 0;
+
+    // Memory
+    const memUsage = stats.memory_stats?.usage || 0;
+    const memLimit = stats.memory_stats?.limit || 0;
+    const memCache = stats.memory_stats?.stats?.cache || 0;
+    const memActual = memUsage - memCache;
+    const memPercent = memLimit > 0 ? (memActual / memLimit) * 100 : 0;
+
+    // Network I/O
+    let netRx = 0, netTx = 0;
+    if (stats.networks) {
+      for (const iface of Object.values(stats.networks) as any[]) {
+        netRx += iface.rx_bytes || 0;
+        netTx += iface.tx_bytes || 0;
+      }
+    }
+
+    res.json({
+      cpu: { percent: Math.round(cpuPercent * 100) / 100, cores: numCpus },
+      memory: {
+        used: memActual,
+        limit: memLimit,
+        percent: Math.round(memPercent * 100) / 100,
+        usedMB: Math.round(memActual / 1024 / 1024),
+        limitMB: Math.round(memLimit / 1024 / 1024),
+      },
+      network: { rxBytes: netRx, txBytes: netTx },
+      uptime: info.State.StartedAt,
+      pid: info.State.Pid,
+    });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    console.error('[provisioner] stats error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Live-update PHP configuration on a running container (no rebuild needed)
 app.patch('/containers/:id/php-config', async (req: Request, res: Response) => {
   try {

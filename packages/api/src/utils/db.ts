@@ -104,6 +104,22 @@ function initSchema(db: Database.Database): void {
       user_id TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS scheduled_launches (
+      id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL,
+      user_id TEXT,
+      user_email TEXT,
+      scheduled_at TEXT NOT NULL,
+      config TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'pending',
+      site_id TEXT,
+      error TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_scheduled_status ON scheduled_launches(status);
+    CREATE INDEX IF NOT EXISTS idx_scheduled_at ON scheduled_launches(scheduled_at);
+
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -130,6 +146,8 @@ function initSchema(db: Database.Database): void {
     'feature.sitePassword': 'false',
     'feature.exportZip': 'false',
     'feature.webhooks': 'false',
+    'feature.healthMonitoring': 'false',
+    'feature.scheduledLaunch': 'false',
     'branding.siteTitle': 'WP Launcher',
     'branding.logoUrl': '',
     'branding.cardLayout': '',

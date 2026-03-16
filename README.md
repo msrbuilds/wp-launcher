@@ -1,6 +1,6 @@
 # WP Launcher
 
-[![Version](https://img.shields.io/badge/version-1.3.0-blue)](https://github.com/msrbuilds/wp-launcher/releases)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue)](https://github.com/msrbuilds/wp-launcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
@@ -49,6 +49,8 @@ User clicks "Launch Demo"
 - **Site password protection** — Optional basic auth on frontend only, admin only, or entire site for private previews
 - **Export site as ZIP** — Download wp-content + DB dump as tar.gz to migrate demo customizations
 - **Webhook notifications** — HMAC-SHA256 signed HTTP POST on site.created/expired/deleted with admin UI for management
+- **Site Health Monitoring** — Real-time container CPU, memory, network stats with color-coded dashboard
+- **Scheduled Site Launch** — Schedule sites to launch automatically at a future time (up to 7 days)
 - **Modern dashboard** — React SPA with real-time provisioning progress
 
 ## Architecture

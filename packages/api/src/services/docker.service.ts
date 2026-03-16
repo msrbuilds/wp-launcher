@@ -148,6 +148,13 @@ export async function exportAssets(containerId: string, plugins: string[], theme
   return await res.json() as { exported: { type: string; slug: string; path: string }[] };
 }
 
+// Container Stats (Health Monitoring)
+
+export async function getContainerStats(containerId: string): Promise<any> {
+  const res = await provisionerFetch(`/containers/${containerId}/stats`);
+  return await res.json();
+}
+
 // Site Password Protection
 
 export async function setSitePassword(containerId: string, password: string | null, scope?: string): Promise<void> {
