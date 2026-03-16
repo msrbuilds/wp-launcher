@@ -1,38 +1,120 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+
+export interface FeatureFlags {
+  cloning: boolean;
+  snapshots: boolean;
+  templates: boolean;
+  customDomains: boolean;
+  phpConfig: boolean;
+}
+
+export interface Branding {
+  siteTitle: string;
+  logoUrl: string;
+  cardLayout: 'full' | 'compact';
+}
+
+export interface ColorPalette {
+  primaryDark: string;
+  accent: string;
+  grey: string;
+  textMuted: string;
+  textLight: string;
+  border: string;
+  bgSurface: string;
+}
+
+const DEFAULT_COLORS: ColorPalette = {
+  primaryDark: '#14213d',
+  accent: '#fb8500',
+  grey: '#e5e5e5',
+  textMuted: '#6b7280',
+  textLight: '#9ca3af',
+  border: '#e5e5e5',
+  bgSurface: '#f5f5f5',
+};
+
+const DEFAULT_FEATURES: FeatureFlags = {
+  cloning: true,
+  snapshots: true,
+  templates: true,
+  customDomains: true,
+  phpConfig: true,
+};
+
+const DEFAULT_BRANDING: Branding = {
+  siteTitle: 'WP Launcher',
+  logoUrl: '',
+  cardLayout: 'full',
+};
 
 interface Settings {
   appMode: 'local' | 'agency';
   cardLayout: 'full' | 'compact';
   baseDomain: string;
+  features: FeatureFlags;
+  branding: Branding;
+  colors: ColorPalette;
+  version: string;
   loading: boolean;
   error: string;
+  refresh: () => void;
 }
 
 const SettingsContext = createContext<Settings>({
   appMode: 'agency',
   cardLayout: 'full',
   baseDomain: 'localhost',
+  features: DEFAULT_FEATURES,
+  branding: DEFAULT_BRANDING,
+  colors: DEFAULT_COLORS,
+  version: '',
   loading: true,
   error: '',
+  refresh: () => {},
 });
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<Settings>({
+  const [settings, setSettings] = useState<Omit<Settings, 'refresh'>>({
     appMode: 'agency',
     cardLayout: 'full',
     baseDomain: 'localhost',
+    features: DEFAULT_FEATURES,
+    branding: DEFAULT_BRANDING,
+    colors: DEFAULT_COLORS,
+    version: '',
     loading: true,
     error: '',
   });
 
-  useEffect(() => {
-    fetch('/api/settings')
-      .then((res) => res.json())
-      .then((data) => {
+  const fetchSettings = useCallback(() => {
+    Promise.all([
+      fetch('/api/settings', { credentials: 'include' }).then((r) => r.json()),
+      fetch('/api/version', { credentials: 'include' }).then((r) => r.json()).catch(() => ({ version: '' })),
+    ])
+      .then(([data, versionData]) => {
+        const branding = {
+          ...DEFAULT_BRANDING,
+          ...(data.branding || {}),
+        };
+        const colors = { ...DEFAULT_COLORS, ...(data.colors || {}) };
+        // Apply color palette as CSS custom properties
+        const root = document.documentElement;
+        root.style.setProperty('--prussian-blue', colors.primaryDark);
+        root.style.setProperty('--orange', colors.accent);
+        root.style.setProperty('--grey', colors.grey);
+        root.style.setProperty('--text-muted', colors.textMuted);
+        root.style.setProperty('--text-light', colors.textLight);
+        root.style.setProperty('--border', colors.border);
+        root.style.setProperty('--bg-surface', colors.bgSurface);
         setSettings({
           appMode: data.appMode || 'agency',
-          cardLayout: data.cardLayout || 'full',
+          cardLayout: branding.cardLayout || data.cardLayout || 'full',
           baseDomain: data.baseDomain || 'localhost',
+          features: { ...DEFAULT_FEATURES, ...(data.features || {}) },
+          branding,
+          colors,
+          version: versionData.version || '',
           loading: false,
           error: '',
         });
@@ -42,8 +124,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
   return (
-    <SettingsContext.Provider value={settings}>
+    <SettingsContext.Provider value={{ ...settings, refresh: fetchSettings }}>
       {children}
     </SettingsContext.Provider>
   );
@@ -55,4 +141,12 @@ export function useSettings() {
 
 export function useIsLocalMode() {
   return useContext(SettingsContext).appMode === 'local';
+}
+
+export function useFeatures(): FeatureFlags {
+  return useContext(SettingsContext).features;
+}
+
+export function useBranding(): Branding {
+  return useContext(SettingsContext).branding;
 }

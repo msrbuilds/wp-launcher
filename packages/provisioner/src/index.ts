@@ -1,6 +1,9 @@
 import express, { Request, Response, NextFunction } from 'express';
 import Docker from 'dockerode';
+import crypto from 'crypto';
 import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 const app = express();
 app.use(express.json());
@@ -65,6 +68,41 @@ function validateImage(img: string): boolean {
 
 function validateContainerId(id: string): boolean {
   return typeof id === 'string' && CONTAINER_ID_RE.test(id);
+}
+
+// Create a minimal tar archive buffer containing a single file (for putArchive)
+function createTarBuffer(filename: string, content: string): Buffer {
+  const data = Buffer.from(content, 'utf-8');
+  const nameBytes = Buffer.from(filename, 'utf-8');
+
+  // TAR header is 512 bytes
+  const header = Buffer.alloc(512, 0);
+  nameBytes.copy(header, 0, 0, Math.min(nameBytes.length, 100));
+
+  // File mode: 0644
+  Buffer.from('0000644\0', 'ascii').copy(header, 100);
+  // Owner/group ID: 0
+  Buffer.from('0000000\0', 'ascii').copy(header, 108);
+  Buffer.from('0000000\0', 'ascii').copy(header, 116);
+  // File size in octal
+  Buffer.from(data.length.toString(8).padStart(11, '0') + '\0', 'ascii').copy(header, 124);
+  // Modification time
+  Buffer.from(Math.floor(Date.now() / 1000).toString(8).padStart(11, '0') + '\0', 'ascii').copy(header, 136);
+  // Type flag: '0' = regular file
+  header[156] = 0x30;
+  // Checksum placeholder (spaces)
+  Buffer.from('        ', 'ascii').copy(header, 148);
+
+  // Calculate checksum
+  let checksum = 0;
+  for (let i = 0; i < 512; i++) checksum += header[i];
+  Buffer.from(checksum.toString(8).padStart(6, '0') + '\0 ', 'ascii').copy(header, 148);
+
+  // Pad data to 512-byte boundary
+  const padding = 512 - (data.length % 512 || 512);
+  const endBlock = Buffer.alloc(1024, 0); // Two zero blocks = end of archive
+
+  return Buffer.concat([header, data, Buffer.alloc(padding === 512 ? 0 : padding, 0), endBlock]);
 }
 
 // --- Container lifecycle ---
@@ -210,8 +248,19 @@ app.post('/containers', async (req: Request, res: Response) => {
     if (opts.installThemes) env.push(`WP_INSTALL_THEMES=${opts.installThemes}`);
     if (opts.activeTheme) env.push(`WP_ACTIVE_THEME=${opts.activeTheme}`);
     if (opts.landingPage) env.push(`WP_DEMO_LANDING_PAGE=${opts.landingPage}`);
-    if (opts.autoLoginToken) env.push(`WP_AUTO_LOGIN_TOKEN=${opts.autoLoginToken}`);
+    // autoLoginToken is no longer injected as env var — tokens are written on-demand via putArchive
     if (opts.localMode) env.push('WP_LOCAL_MODE=true');
+
+    // Generate unique WordPress salts per container
+    const wpSaltKeys = [
+      'WORDPRESS_AUTH_KEY', 'WORDPRESS_SECURE_AUTH_KEY',
+      'WORDPRESS_LOGGED_IN_KEY', 'WORDPRESS_NONCE_KEY',
+      'WORDPRESS_AUTH_SALT', 'WORDPRESS_SECURE_AUTH_SALT',
+      'WORDPRESS_LOGGED_IN_SALT', 'WORDPRESS_NONCE_SALT',
+    ];
+    for (const key of wpSaltKeys) {
+      env.push(`${key}=${crypto.randomBytes(32).toString('base64url')}`);
+    }
 
     // PHP configuration overrides
     if (opts.phpConfig) {
@@ -399,6 +448,25 @@ app.patch('/containers/:id/php-config', async (req: Request, res: Response) => {
 
     const { memoryLimit, uploadMaxFilesize, postMaxSize, maxExecutionTime, maxInputVars, displayErrors, extensions } = req.body;
 
+    // Defense-in-depth: validate all PHP config values with strict allowlists
+    const MEMORY_RE = /^\d+[MmGgKk]$/;
+    const NUMERIC_RE = /^\d+$/;
+    const DISPLAY_ERRORS_RE = /^(On|Off|0|1)$/i;
+    const ALLOWED_EXTS = new Set(['redis', 'xdebug', 'sockets', 'calendar', 'pcntl', 'ldap', 'gettext']);
+
+    if (memoryLimit && !MEMORY_RE.test(memoryLimit)) { res.status(400).json({ error: 'Invalid memoryLimit' }); return; }
+    if (uploadMaxFilesize && !MEMORY_RE.test(uploadMaxFilesize)) { res.status(400).json({ error: 'Invalid uploadMaxFilesize' }); return; }
+    if (postMaxSize && !MEMORY_RE.test(postMaxSize)) { res.status(400).json({ error: 'Invalid postMaxSize' }); return; }
+    if (maxExecutionTime && !NUMERIC_RE.test(maxExecutionTime)) { res.status(400).json({ error: 'Invalid maxExecutionTime' }); return; }
+    if (maxInputVars && !NUMERIC_RE.test(maxInputVars)) { res.status(400).json({ error: 'Invalid maxInputVars' }); return; }
+    if (displayErrors && !DISPLAY_ERRORS_RE.test(displayErrors)) { res.status(400).json({ error: 'Invalid displayErrors' }); return; }
+    if (extensions) {
+      const extList = extensions.split(',').map((e: string) => e.trim()).filter(Boolean);
+      for (const ext of extList) {
+        if (!ALLOWED_EXTS.has(ext.toLowerCase())) { res.status(400).json({ error: `Invalid extension: ${ext}` }); return; }
+      }
+    }
+
     const container = docker.getContainer(req.params.id);
     const info = await container.inspect();
     if (!info.State.Running) {
@@ -432,14 +500,17 @@ app.patch('/containers/:id/php-config', async (req: Request, res: Response) => {
       }
     }
 
-    const iniContent = iniLines.join('\n');
-    const iniPath = '/usr/local/etc/php/conf.d/99-wp-launcher.ini';
+    const iniContent = iniLines.join('\n') + '\n';
+    const iniPath = '/usr/local/etc/php/conf.d/';
+    const iniFilename = '99-wp-launcher.ini';
 
-    // Write ini file and gracefully reload Apache
-    // Use heredoc via bash -c to avoid quoting issues
-    const script = `cat > ${iniPath} << 'PHPINI'\n${iniContent}\nPHPINI\napachectl graceful`;
+    // Write ini file safely using putArchive (no shell interpolation)
+    const tarHeader = createTarBuffer(iniFilename, iniContent);
+    await container.putArchive(tarHeader, { path: iniPath });
+
+    // Gracefully reload Apache in a separate exec with no user input
     const exec = await container.exec({
-      Cmd: ['bash', '-c', script],
+      Cmd: ['apachectl', 'graceful'],
       AttachStdout: true,
       AttachStderr: true,
     });
@@ -448,7 +519,6 @@ app.patch('/containers/:id/php-config', async (req: Request, res: Response) => {
     await new Promise<void>((resolve) => {
       stream.on('end', resolve);
       stream.on('error', resolve);
-      // Timeout after 10s
       setTimeout(resolve, 10000);
     });
 
@@ -541,6 +611,43 @@ app.get('/containers/:id/php-config', async (req: Request, res: Response) => {
   }
 });
 
+// Write a new autologin token to a running container (for single-use token rotation)
+app.patch('/containers/:id/autologin-token', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+
+    const { token } = req.body;
+    if (!token || typeof token !== 'string' || token.length < 16) {
+      res.status(400).json({ error: 'Invalid token' });
+      return;
+    }
+
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    if (!info.State.Running) {
+      res.status(400).json({ error: 'Container is not running' });
+      return;
+    }
+
+    // Write token to file inside container using putArchive (no shell interpolation)
+    const tarBuffer = createTarBuffer('wp-autologin-token', token);
+    await container.putArchive(tarBuffer, { path: '/tmp/' });
+
+    console.log(`[provisioner] Autologin token updated for container ${req.params.id.slice(0, 12)}`);
+    res.json({ status: 'updated' });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    console.error('[provisioner] autologin-token error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/containers', async (_req: Request, res: Response) => {
   try {
     const containers = await docker.listContainers({
@@ -580,6 +687,457 @@ app.post('/images/build', async (req: Request, res: Response) => {
     res.json({ status: 'built', tag });
   } catch (err: any) {
     console.error('[provisioner] build error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Snapshot & Restore ---
+
+const SNAPSHOTS_DIR = process.env.SNAPSHOTS_DIR || '/app/data/snapshots';
+
+// Create a snapshot of a running container's wp-content
+app.post('/containers/:id/snapshot', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+
+    const { snapshotId } = req.body;
+    if (!snapshotId) {
+      res.status(400).json({ error: 'snapshotId is required' });
+      return;
+    }
+
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    if (!info.State.Running) {
+      res.status(400).json({ error: 'Container is not running' });
+      return;
+    }
+
+    const snapshotDir = path.join(SNAPSHOTS_DIR, snapshotId);
+    fs.mkdirSync(snapshotDir, { recursive: true });
+
+    const dbEngine = info.Config.Env?.find((e: string) => e.startsWith('DB_ENGINE='))?.split('=')[1] || 'sqlite';
+
+    // For MySQL/MariaDB: dump DB first into the container, then archive everything
+    if (dbEngine === 'mysql' || dbEngine === 'mariadb') {
+      const dbHost = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_HOST='))?.split('=')[1];
+      const dbUser = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_USER='))?.split('=')[1] || 'wordpress';
+      const dbPass = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_PASSWORD='))?.split('=')[1] || '';
+      const dbName = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_NAME='))?.split('=')[1] || 'wordpress';
+
+      // Run mysqldump inside the container
+      const dumpExec = await container.exec({
+        Cmd: ['bash', '-c', `mysqldump -h "${dbHost}" -u "${dbUser}" -p"${dbPass}" "${dbName}" > /var/www/html/wp-content/db-snapshot.sql 2>/dev/null`],
+        AttachStdout: true,
+        AttachStderr: true,
+      });
+      const dumpStream = await dumpExec.start({ hijack: true, stdin: false });
+      await new Promise<void>((resolve) => {
+        dumpStream.on('end', resolve);
+        dumpStream.on('error', resolve);
+        setTimeout(resolve, 30000);
+      });
+    }
+
+    // Get wp-content as tar archive
+    const archiveStream = await container.getArchive({ path: '/var/www/html/wp-content' });
+    const tarPath = path.join(snapshotDir, 'wp-content.tar');
+    const writeStream = fs.createWriteStream(tarPath);
+
+    await new Promise<void>((resolve, reject) => {
+      archiveStream.pipe(writeStream);
+      writeStream.on('finish', resolve);
+      writeStream.on('error', reject);
+    });
+
+    // Clean up the dump file from container (MySQL/MariaDB)
+    if (dbEngine === 'mysql' || dbEngine === 'mariadb') {
+      try {
+        const cleanExec = await container.exec({
+          Cmd: ['rm', '-f', '/var/www/html/wp-content/db-snapshot.sql'],
+          AttachStdout: true,
+          AttachStderr: true,
+        });
+        const cleanStream = await cleanExec.start({ hijack: true, stdin: false });
+        await new Promise<void>((resolve) => {
+          cleanStream.on('end', resolve);
+          setTimeout(resolve, 5000);
+        });
+      } catch { /* ignore cleanup errors */ }
+    }
+
+    const stats = fs.statSync(tarPath);
+    console.log(`[provisioner] Snapshot ${snapshotId} created (${(stats.size / 1024 / 1024).toFixed(1)}MB)`);
+    res.json({ snapshotId, sizeBytes: stats.size, dbEngine });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    console.error('[provisioner] snapshot error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Restore a snapshot into a running container
+app.post('/containers/:id/restore', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+
+    const { snapshotId } = req.body;
+    if (!snapshotId) {
+      res.status(400).json({ error: 'snapshotId is required' });
+      return;
+    }
+
+    const tarPath = path.join(SNAPSHOTS_DIR, snapshotId, 'wp-content.tar');
+    if (!fs.existsSync(tarPath)) {
+      res.status(404).json({ error: 'Snapshot archive not found' });
+      return;
+    }
+
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    if (!info.State.Running) {
+      res.status(400).json({ error: 'Container is not running' });
+      return;
+    }
+
+    // Stop Apache gracefully before restore
+    try {
+      const stopExec = await container.exec({
+        Cmd: ['bash', '-c', 'apachectl graceful-stop || true'],
+        AttachStdout: true,
+        AttachStderr: true,
+      });
+      const stopStream = await stopExec.start({ hijack: true, stdin: false });
+      await new Promise<void>((resolve) => {
+        stopStream.on('end', resolve);
+        setTimeout(resolve, 5000);
+      });
+    } catch { /* continue even if graceful stop fails */ }
+
+    // Clear existing wp-content and restore from snapshot
+    const clearExec = await container.exec({
+      Cmd: ['bash', '-c', 'rm -rf /var/www/html/wp-content/*'],
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+    const clearStream = await clearExec.start({ hijack: true, stdin: false });
+    await new Promise<void>((resolve) => {
+      clearStream.on('end', resolve);
+      setTimeout(resolve, 10000);
+    });
+
+    // Put the snapshot archive back
+    const tarBuffer = fs.readFileSync(tarPath);
+    await container.putArchive(tarBuffer, { path: '/var/www/html' });
+
+    // For MySQL/MariaDB: restore the DB dump
+    const dbEngine = info.Config.Env?.find((e: string) => e.startsWith('DB_ENGINE='))?.split('=')[1] || 'sqlite';
+    if (dbEngine === 'mysql' || dbEngine === 'mariadb') {
+      const dbHost = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_HOST='))?.split('=')[1];
+      const dbUser = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_USER='))?.split('=')[1] || 'wordpress';
+      const dbPass = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_PASSWORD='))?.split('=')[1] || '';
+      const dbName = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_NAME='))?.split('=')[1] || 'wordpress';
+
+      const importExec = await container.exec({
+        Cmd: ['bash', '-c', `mysql -h "${dbHost}" -u "${dbUser}" -p"${dbPass}" "${dbName}" < /var/www/html/wp-content/db-snapshot.sql 2>/dev/null && rm -f /var/www/html/wp-content/db-snapshot.sql`],
+        AttachStdout: true,
+        AttachStderr: true,
+      });
+      const importStream = await importExec.start({ hijack: true, stdin: false });
+      await new Promise<void>((resolve) => {
+        importStream.on('end', resolve);
+        setTimeout(resolve, 30000);
+      });
+    }
+
+    // Restart Apache
+    const restartExec = await container.exec({
+      Cmd: ['bash', '-c', 'apachectl graceful || apache2ctl graceful || true'],
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+    const restartStream = await restartExec.start({ hijack: true, stdin: false });
+    await new Promise<void>((resolve) => {
+      restartStream.on('end', resolve);
+      setTimeout(resolve, 5000);
+    });
+
+    console.log(`[provisioner] Restored snapshot ${snapshotId} into container ${req.params.id.slice(0, 12)}`);
+    res.json({ status: 'restored' });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    console.error('[provisioner] restore error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Execute WP-CLI commands in a container (for template export)
+app.post('/containers/:id/exec-wp', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+
+    const { commands } = req.body as { commands: string[] };
+    if (!Array.isArray(commands) || commands.length === 0) {
+      res.status(400).json({ error: 'commands array is required' });
+      return;
+    }
+
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    if (!info.State.Running) {
+      res.status(400).json({ error: 'Container is not running' });
+      return;
+    }
+
+    const results: { command: string; output: string; exitCode: number }[] = [];
+
+    for (const cmd of commands) {
+      // Whitelist: only allow wp-cli commands
+      if (!cmd.startsWith('wp ')) {
+        results.push({ command: cmd, output: 'Only wp-cli commands are allowed', exitCode: 1 });
+        continue;
+      }
+
+      const exec = await container.exec({
+        Cmd: ['bash', '-c', `${cmd} --allow-root 2>&1`],
+        AttachStdout: true,
+        AttachStderr: true,
+      });
+
+      const stream = await exec.start({ hijack: true, stdin: false });
+      const chunks: Buffer[] = [];
+      await new Promise<void>((resolve) => {
+        stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+        stream.on('end', resolve);
+        stream.on('error', resolve);
+        setTimeout(resolve, 15000);
+      });
+
+      const execInfo = await exec.inspect();
+      results.push({
+        command: cmd,
+        output: Buffer.concat(chunks).toString('utf-8').replace(/[\x00-\x08]/g, ''),
+        exitCode: execInfo.ExitCode ?? 1,
+      });
+    }
+
+    res.json({ results });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    console.error('[provisioner] exec-wp error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Export plugin/theme assets from a container
+app.post('/containers/:id/export-assets', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+
+    const { plugins, themes, targetDir } = req.body as { plugins?: string[]; themes?: string[]; targetDir: string };
+    if (!targetDir) {
+      res.status(400).json({ error: 'targetDir is required' });
+      return;
+    }
+
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    if (!info.State.Running) {
+      res.status(400).json({ error: 'Container is not running' });
+      return;
+    }
+
+    const exported: { type: string; slug: string; path: string }[] = [];
+    const assetsBase = `/product-assets`;
+    const destBase = path.join(assetsBase, targetDir);
+
+    // Zip and copy plugins
+    if (plugins && plugins.length > 0) {
+      const pluginsDir = path.join(destBase, 'plugins');
+      fs.mkdirSync(pluginsDir, { recursive: true });
+
+      for (const slug of plugins) {
+        try {
+          // Zip the plugin inside the container
+          const zipExec = await container.exec({
+            Cmd: ['bash', '-c', `cd /var/www/html/wp-content/plugins && zip -r /tmp/${slug}.zip ${slug}/ 2>/dev/null`],
+            AttachStdout: true,
+            AttachStderr: true,
+          });
+          const zipStream = await zipExec.start({ hijack: true, stdin: false });
+          await new Promise<void>((resolve) => {
+            zipStream.on('end', resolve);
+            setTimeout(resolve, 30000);
+          });
+
+          // Extract the zip from container
+          const archiveStream = await container.getArchive({ path: `/tmp/${slug}.zip` });
+          const zipPath = path.join(pluginsDir, `${slug}.zip`);
+
+          // getArchive returns a tar stream, need to extract the zip from it
+          const tarChunks: Buffer[] = [];
+          await new Promise<void>((resolve, reject) => {
+            archiveStream.on('data', (chunk: Buffer) => tarChunks.push(chunk));
+            archiveStream.on('end', resolve);
+            archiveStream.on('error', reject);
+          });
+
+          // The tar contains a single file; extract it (skip 512-byte header)
+          const tarBuffer = Buffer.concat(tarChunks);
+          // Find the actual file data after the tar header
+          const headerEnd = 512;
+          // Read file size from header bytes 124-135 (octal)
+          const sizeStr = tarBuffer.slice(124, 135).toString().trim();
+          const fileSize = parseInt(sizeStr, 8) || 0;
+          if (fileSize > 0) {
+            const fileData = tarBuffer.slice(headerEnd, headerEnd + fileSize);
+            fs.writeFileSync(zipPath, fileData);
+            exported.push({ type: 'plugin', slug, path: `${targetDir}/plugins/${slug}.zip` });
+          }
+        } catch (plugErr: any) {
+          console.error(`[provisioner] Failed to export plugin ${slug}:`, plugErr.message);
+        }
+      }
+    }
+
+    // Zip and copy themes
+    if (themes && themes.length > 0) {
+      const themesDir = path.join(destBase, 'themes');
+      fs.mkdirSync(themesDir, { recursive: true });
+
+      for (const slug of themes) {
+        try {
+          const zipExec = await container.exec({
+            Cmd: ['bash', '-c', `cd /var/www/html/wp-content/themes && zip -r /tmp/${slug}.zip ${slug}/ 2>/dev/null`],
+            AttachStdout: true,
+            AttachStderr: true,
+          });
+          const zipStream = await zipExec.start({ hijack: true, stdin: false });
+          await new Promise<void>((resolve) => {
+            zipStream.on('end', resolve);
+            setTimeout(resolve, 30000);
+          });
+
+          const archiveStream = await container.getArchive({ path: `/tmp/${slug}.zip` });
+          const zipPath = path.join(themesDir, `${slug}.zip`);
+
+          const tarChunks: Buffer[] = [];
+          await new Promise<void>((resolve, reject) => {
+            archiveStream.on('data', (chunk: Buffer) => tarChunks.push(chunk));
+            archiveStream.on('end', resolve);
+            archiveStream.on('error', reject);
+          });
+
+          const tarBuffer = Buffer.concat(tarChunks);
+          const headerEnd = 512;
+          const sizeStr = tarBuffer.slice(124, 135).toString().trim();
+          const fileSize = parseInt(sizeStr, 8) || 0;
+          if (fileSize > 0) {
+            const fileData = tarBuffer.slice(headerEnd, headerEnd + fileSize);
+            fs.writeFileSync(zipPath, fileData);
+            exported.push({ type: 'theme', slug, path: `${targetDir}/themes/${slug}.zip` });
+          }
+        } catch (themeErr: any) {
+          console.error(`[provisioner] Failed to export theme ${slug}:`, themeErr.message);
+        }
+      }
+    }
+
+    res.json({ exported });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    console.error('[provisioner] export-assets error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Custom Domain (Traefik dynamic config) ---
+
+const CUSTOM_DOMAINS_DIR = process.env.CUSTOM_DOMAINS_DIR || '/etc/traefik/dynamic/custom-domains';
+
+// Write Traefik dynamic config for a custom domain
+app.put('/custom-domains/:subdomain', (req: Request, res: Response) => {
+  try {
+    const { subdomain } = req.params;
+    const { domain } = req.body;
+
+    if (!subdomain || !domain) {
+      res.status(400).json({ error: 'subdomain and domain are required' });
+      return;
+    }
+
+    fs.mkdirSync(CUSTOM_DOMAINS_DIR, { recursive: true });
+
+    const yamlContent = `http:
+  routers:
+    custom-${subdomain}:
+      rule: "Host(\`${domain}\`)"
+      service: "${subdomain}"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: httpchallenge
+    custom-${subdomain}-http:
+      rule: "Host(\`${domain}\`)"
+      service: "${subdomain}"
+      entryPoints:
+        - web
+  services:
+    ${subdomain}:
+      loadBalancer:
+        servers:
+          - url: "http://wp-demo-${subdomain}:80"
+`;
+
+    const filePath = path.join(CUSTOM_DOMAINS_DIR, `${subdomain}.yml`);
+    fs.writeFileSync(filePath, yamlContent);
+
+    console.log(`[provisioner] Custom domain config written: ${domain} -> ${subdomain}`);
+    res.json({ status: 'configured', domain, subdomain });
+  } catch (err: any) {
+    console.error('[provisioner] custom-domain write error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Remove Traefik dynamic config for a custom domain
+app.delete('/custom-domains/:subdomain', (req: Request, res: Response) => {
+  try {
+    const { subdomain } = req.params;
+    const filePath = path.join(CUSTOM_DOMAINS_DIR, `${subdomain}.yml`);
+
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log(`[provisioner] Custom domain config removed for ${subdomain}`);
+    }
+
+    res.json({ status: 'removed', subdomain });
+  } catch (err: any) {
+    console.error('[provisioner] custom-domain delete error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

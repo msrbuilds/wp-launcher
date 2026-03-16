@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 
 interface Template {
@@ -38,7 +37,6 @@ const PHP_OPTIONS = [
 ];
 
 export default function LocalLaunchPage() {
-  const { token } = useAuth();
   const { loading: settingsLoading } = useSettings();
   const [searchParams] = useSearchParams();
 
@@ -80,7 +78,7 @@ export default function LocalLaunchPage() {
 
   useEffect(() => {
     if (settingsLoading) return;
-    fetch('/api/templates')
+    fetch('/api/templates', { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -108,10 +106,8 @@ export default function LocalLaunchPage() {
     try {
       const res = await fetch('/api/sites', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: selectedTemplate,
           expiresIn: 'never',
@@ -160,7 +156,7 @@ export default function LocalLaunchPage() {
       setProvisionProgress(Math.round(pct));
       try {
         const res = await fetch(`/api/sites/${siteId}/ready`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
         });
         const data = await res.json();
         if (data.ready) {
@@ -256,14 +252,27 @@ export default function LocalLaunchPage() {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginTop: '1.25rem' }}>
-          <a
-            href={result.autoLoginUrl || result.adminUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
             className="btn btn-primary btn-lg"
+            onClick={async () => {
+              try {
+                const res = await fetch(`/api/sites/${result.id}/autologin`, {
+                  method: 'POST',
+                  credentials: 'include',
+                });
+                if (res.ok) {
+                  const data = await res.json();
+                  window.open(data.autoLoginUrl, '_blank');
+                } else {
+                  window.open(result.adminUrl, '_blank');
+                }
+              } catch {
+                window.open(result.adminUrl, '_blank');
+              }
+            }}
           >
             One Click Login
-          </a>
+          </button>
           <button className="btn btn-secondary btn-lg" onClick={() => { setResult(null); setStep('configure'); }}>
             Create Another
           </button>

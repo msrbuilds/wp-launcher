@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import type { PluginEntry, ThemeEntry } from '../types/product';
 import PluginRepeater from '../components/PluginRepeater';
 import ThemeRepeater from '../components/ThemeRepeater';
@@ -12,7 +11,7 @@ const DB_OPTIONS = [
 ];
 
 export default function CreateTemplatePage() {
-  const { token } = useAuth();
+
 
   // Basic info
   const [id, setId] = useState('');
@@ -119,9 +118,7 @@ export default function CreateTemplatePage() {
 
       const res = await fetch('/api/templates', {
         method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        credentials: 'include',
         body: formData,
       });
 

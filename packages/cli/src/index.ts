@@ -2,6 +2,7 @@
 
 import { execSync, spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import {
   getProjectDir,
   ensureDocker,
@@ -150,6 +151,48 @@ async function main() {
         else execSync(`xdg-open ${url}`, { stdio: 'ignore' });
       } catch {
         console.log(`  ${url}`);
+      }
+      break;
+    }
+
+    case 'admin:promote':
+    case 'admin:demote': {
+      const email = args[0];
+      if (!email) {
+        printError(`Usage: wpl ${cmd} <email>`);
+        process.exit(1);
+      }
+      const role = cmd === 'admin:promote' ? 'admin' : 'user';
+
+      // Read API key from .env
+      const envPath = path.join(PROJECT_DIR, '.env');
+      let apiKey = '';
+      try {
+        const envContent = fs.readFileSync(envPath, 'utf8');
+        const match = envContent.match(/^API_KEY=(.+)$/m);
+        if (match) apiKey = match[1].replace(/["']/g, '').trim();
+      } catch { /* ignore */ }
+
+      if (!apiKey) {
+        printError('Could not read API_KEY from .env');
+        process.exit(1);
+      }
+
+      try {
+        const res = await fetch('http://localhost:3000/api/admin/users/promote', {
+          method: 'POST',
+          headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, role }),
+        });
+        const data = await res.json() as { message?: string; error?: string };
+        if (res.ok) {
+          printSuccess(data.message || `${email} is now ${role}`);
+        } else {
+          printError(data.error || 'Failed to update role');
+        }
+      } catch {
+        printError('Could not reach API. Is WP Launcher running?');
+        process.exit(1);
       }
       break;
     }

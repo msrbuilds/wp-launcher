@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
-import { apiKeyAuth } from '../middleware/auth';
+import { adminAuth } from '../middleware/auth';
 import { AuthRequest } from '../middleware/userAuth';
-import { listUsers, getUsersCount, deleteUser } from '../services/user.service';
+import { listUsers, getUsersCount, deleteUser, updateUserRole } from '../services/user.service';
 import {
   listAllSites,
   getAllSitesCount,
@@ -14,8 +14,8 @@ import {
 
 const router = Router();
 
-// All admin routes require API key
-router.use(apiKeyAuth);
+// All admin routes require admin role (JWT with role=admin) or API key (M2M)
+router.use(adminAuth);
 
 // Dashboard stats
 router.get('/stats', (_req: AuthRequest, res: Response) => {
@@ -39,6 +39,7 @@ router.get('/users', (req: AuthRequest, res: Response) => {
         id: u.id,
         email: u.email,
         verified: !!u.verified,
+        role: u.role || 'user',
         createdAt: u.created_at,
         updatedAt: u.updated_at,
       })),
@@ -119,6 +120,45 @@ router.get('/logs/user/:userId', (req: AuthRequest, res: Response) => {
     res.json(logs);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Update user role (promote/demote)
+router.patch('/users/:id/role', (req: AuthRequest, res: Response) => {
+  try {
+    const { role } = req.body;
+    if (role !== 'admin' && role !== 'user') {
+      res.status(400).json({ error: 'Role must be "admin" or "user"' });
+      return;
+    }
+    updateUserRole(req.params.id, role);
+    res.json({ message: `User role updated to ${role}` });
+  } catch (err: any) {
+    const status = err.statusCode || 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// Promote user by email (used by CLI)
+router.post('/users/promote', (req: AuthRequest, res: Response) => {
+  try {
+    const { email, role } = req.body;
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+    const targetRole = role === 'user' ? 'user' : 'admin';
+    const db = require('../utils/db').getDb();
+    const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    updateUserRole(user.id, targetRole);
+    res.json({ message: `${email} is now ${targetRole}` });
+  } catch (err: any) {
+    const status = err.statusCode || 500;
+    res.status(status).json({ error: err.message });
   }
 });
 

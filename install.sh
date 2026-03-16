@@ -275,11 +275,35 @@ else
   MAX_TOTAL_SITES="${MAX_TOTAL_SITES:-50}"
 fi
 
+# --- Admin Account ---
+ADMIN_ACCOUNT_EMAIL=""
+ADMIN_ACCOUNT_PASSWORD=""
+if [ "$APP_MODE" = "agency" ]; then
+  echo ""
+  echo -e "${BOLD}Admin Account${NC}"
+  echo "  Create the first admin account for the dashboard."
+  echo "  This user will have full admin access (manage sites, users, products)."
+  echo ""
+  prompt -rp "$(echo -e "${CYAN}Admin email${NC}: ")" ADMIN_ACCOUNT_EMAIL
+  while [ -z "$ADMIN_ACCOUNT_EMAIL" ]; do
+    err "Admin email is required."
+    prompt -rp "$(echo -e "${CYAN}Admin email${NC}: ")" ADMIN_ACCOUNT_EMAIL
+  done
+  prompt -rsp "$(echo -e "${CYAN}Admin password${NC} (min 8 chars): ")" ADMIN_ACCOUNT_PASSWORD
+  echo ""
+  while [ ${#ADMIN_ACCOUNT_PASSWORD} -lt 8 ]; do
+    err "Password must be at least 8 characters."
+    prompt -rsp "$(echo -e "${CYAN}Admin password${NC} (min 8 chars): ")" ADMIN_ACCOUNT_PASSWORD
+    echo ""
+  done
+  ok "Admin account will be created on first start"
+fi
+
 # --- Admin API Key ---
 echo ""
-echo -e "${BOLD}Admin Panel Access${NC}"
-echo "  The admin API key is used to access the admin dashboard panel."
-echo "  You can set your own or leave blank to auto-generate one."
+echo -e "${BOLD}Admin API Key (for scripts & automation)${NC}"
+echo "  Used for machine-to-machine access (CLI, CI/CD, external scripts)."
+echo "  Leave blank to auto-generate."
 echo ""
 prompt -rp "$(echo -e "${CYAN}Admin API key${NC} (blank = auto-generate): ")" CUSTOM_API_KEY
 
@@ -375,6 +399,10 @@ ACME_EMAIL=${ACME_EMAIL}
 # Cloudflare (for DNS challenge / wildcard certs)
 CF_API_EMAIL=${CF_API_EMAIL}
 CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+
+# Admin bootstrap (used on first start, then removed)
+ADMIN_EMAIL=${ADMIN_ACCOUNT_EMAIL}
+ADMIN_PASSWORD=${ADMIN_ACCOUNT_PASSWORD}
 ENVFILE
 
 chmod 600 "$PROJECT_DIR/.env"
@@ -636,7 +664,57 @@ docker compose up -d --build
 
 ok "All services started!"
 
-# ─── 12. Summary ─────────────────────────────────────────────────────────────
+# ─── 12. Create admin account ─────────────────────────────────────────────────
+if [ -n "$ADMIN_ACCOUNT_EMAIL" ] && [ -n "$ADMIN_ACCOUNT_PASSWORD" ]; then
+  banner "Creating Admin Account"
+
+  # Wait for API to be ready
+  info "Waiting for API..."
+  for i in $(seq 1 30); do
+    if curl -sf http://localhost:3000/health &>/dev/null; then
+      break
+    fi
+    sleep 2
+  done
+
+  # Register the user (skip email verification)
+  REGISTER_RESULT=$(curl -sf -X POST http://localhost:3000/api/auth/register \
+    -H "Content-Type: application/json" \
+    -d "{\"email\": \"${ADMIN_ACCOUNT_EMAIL}\"}" 2>/dev/null || echo "")
+
+  # Force-verify and set password via direct DB manipulation through the API
+  # Use the API key to create the account properly
+  docker compose exec -T api node -e "
+    const Database = require('better-sqlite3');
+    const bcrypt = require('bcryptjs');
+    const { v4: uuidv4 } = require('uuid');
+    const db = new Database('/app/data/wp-launcher.db');
+
+    const email = '${ADMIN_ACCOUNT_EMAIL}';
+    const password = '${ADMIN_ACCOUNT_PASSWORD}';
+
+    let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    if (!user) {
+      const id = uuidv4();
+      const hash = bcrypt.hashSync(password, 10);
+      db.prepare('INSERT INTO users (id, email, password_hash, verified, role) VALUES (?, ?, ?, 1, ?)')
+        .run(id, email, hash, 'admin');
+      console.log('Admin account created: ' + email);
+    } else {
+      const hash = bcrypt.hashSync(password, 10);
+      db.prepare('UPDATE users SET password_hash = ?, verified = 1, role = ? WHERE email = ?')
+        .run(hash, 'admin', email);
+      console.log('Admin account updated: ' + email);
+    }
+    db.close();
+  " 2>/dev/null && ok "Admin account created: ${ADMIN_ACCOUNT_EMAIL}" || warn "Could not create admin account automatically"
+
+  # Remove credentials from .env
+  sed -i '/^ADMIN_PASSWORD=/d' "$PROJECT_DIR/.env"
+  ok "Admin password removed from .env"
+fi
+
+# ─── 13. Summary ─────────────────────────────────────────────────────────────
 banner "Installation Complete!"
 
 echo -e "${GREEN}${BOLD}"
@@ -645,7 +723,13 @@ echo ""
 echo "  Dashboard:  https://${DOMAIN}"
 echo "  API:        https://api.${DOMAIN}"
 echo ""
-echo "  Admin API key: ${API_KEY}"
+if [ -n "$ADMIN_ACCOUNT_EMAIL" ]; then
+echo "  Admin login:"
+echo "    Email:    ${ADMIN_ACCOUNT_EMAIL}"
+echo "    Password: (the one you entered during setup)"
+echo ""
+fi
+echo "  API key (for scripts/automation): ${API_KEY}"
 echo -e "${NC}"
 echo ""
 SERVER_IP="$(curl -s --max-time 5 ifconfig.me 2>/dev/null || echo '<YOUR_SERVER_IP>')"
@@ -667,6 +751,8 @@ echo "    wpl stop                     # Stop all services"
 echo "    wpl start                    # Start all services"
 echo "    wpl rebuild                  # Rebuild and restart"
 echo "    wpl sites                    # List active demo sites"
+echo "    wpl admin:promote <email>    # Promote user to admin"
+echo "    wpl admin:demote <email>     # Demote admin to user"
 echo ""
 echo "  Config files:"
 echo "    .env                          # Environment configuration"

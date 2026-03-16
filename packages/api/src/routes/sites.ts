@@ -2,11 +2,15 @@ import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, MAX_SITES_PER_USER } from '../services/site.service';
-import { getPhpConfig, updatePhpConfig } from '../services/docker.service';
+import { getPhpConfig, updatePhpConfig, updateAutoLoginToken } from '../services/docker.service';
+import { takeSnapshot, listSnapshots, restoreSnapshotToSite, deleteSnapshot, cloneSite } from '../services/snapshot.service';
+import { exportSiteAsTemplate } from '../services/template-export.service';
+import { setCustomDomain, getCustomDomain, removeCustomDomain, getDnsInstructions } from '../services/domain.service';
 import { conditionalAuth, conditionalOptionalAuth, AuthRequest } from '../middleware/userAuth';
 import { config } from '../config';
 import { asyncHandler } from '../utils/asyncHandler';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors';
+import { validatePhpConfig } from '../utils/phpConfigValidation';
 
 const router = Router();
 
@@ -69,7 +73,6 @@ router.post('/', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: Aut
     id: site.id,
     url: site.site_url,
     adminUrl: site.admin_url,
-    autoLoginUrl: `${site.site_url}/wp-login.php?autologin=${site.autoLoginToken}`,
     credentials: {
       username: site.admin_user,
       password: site.oneTimePassword,
@@ -79,8 +82,8 @@ router.post('/', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: Aut
   });
 }));
 
-// List sites - if authenticated, show user's sites; otherwise show all active
-router.get('/', siteReadLimiter, conditionalOptionalAuth, (req: AuthRequest, res: Response) => {
+// List sites - requires auth, shows user's own sites (admin sees all)
+router.get('/', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Response) => {
   const productId = req.query.productId as string | undefined;
   let sites;
 
@@ -98,9 +101,6 @@ router.get('/', siteReadLimiter, conditionalOptionalAuth, (req: AuthRequest, res
     productId: s.product_id,
     url: s.site_url,
     adminUrl: s.admin_url,
-    autoLoginUrl: req.userId && s.auto_login_token
-      ? `${s.site_url}/wp-login.php?autologin=${s.auto_login_token}`
-      : undefined,
     credentials: req.userId ? {
       username: s.admin_user,
     } : undefined,
@@ -142,6 +142,31 @@ router.get('/:id', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Res
   });
 });
 
+// Generate a short-lived, single-use autologin URL
+router.post('/:id/autologin', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const site = getSite(req.params.id);
+  if (!site) throw new NotFoundError('Site not found');
+  if (req.userId !== 'admin' && site.user_id !== req.userId) {
+    throw new ForbiddenError('You can only access your own sites');
+  }
+  if (!site.container_id || site.status !== 'running') {
+    throw new ValidationError('Site is not running');
+  }
+
+  // Generate a fresh token and update both DB and container
+  const token = crypto.randomBytes(32).toString('base64url');
+  const { getDb } = await import('../utils/db.js');
+  getDb().prepare('UPDATE sites SET auto_login_token = ? WHERE id = ?').run(token, site.id);
+
+  // Write the token to the container's filesystem
+  await updateAutoLoginToken(site.container_id, token);
+
+  res.json({
+    autoLoginUrl: `${site.site_url}/wp-login.php?autologin=${token}`,
+    expiresIn: 60,
+  });
+}));
+
 // Get site status
 router.get('/:id/status', siteReadLimiter, asyncHandler(async (req: AuthRequest, res: Response) => {
   const status = await getSiteStatus(req.params.id);
@@ -177,11 +202,14 @@ router.get('/:id/ready', siteReadLimiter, asyncHandler(async (req: AuthRequest, 
   }
 }));
 
-// Get current PHP config from a running site
-router.get('/:id/php-config', conditionalOptionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+// Get current PHP config from a running site (requires auth + ownership)
+router.get('/:id/php-config', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
   const site = getSite(req.params.id);
   if (!site) {
     throw new NotFoundError('Site not found');
+  }
+  if (req.userId !== 'admin' && site.user_id !== req.userId) {
+    throw new ForbiddenError('You can only view your own sites');
   }
   if (!site.container_id || site.status !== 'running') {
     throw new ValidationError('Site is not running');
@@ -206,8 +234,78 @@ router.patch('/:id/php-config', siteWriteLimiter, conditionalAuth, asyncHandler(
     throw new ValidationError('Site is not running');
   }
 
+  validatePhpConfig(req.body);
   await updatePhpConfig(site.container_id, req.body);
   res.json({ status: 'updated' });
+}));
+
+// --- Snapshots & Cloning ---
+
+// Clone a site
+router.post('/:id/clone', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await cloneSite(req.params.id, req.userId, {
+    subdomain: req.body.subdomain,
+    expiresIn: req.body.expiresIn,
+  });
+  res.status(201).json(result);
+}));
+
+// Take a snapshot
+router.post('/:id/snapshots', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const snapshot = await takeSnapshot(req.params.id, req.body.name, req.userId);
+  res.status(201).json(snapshot);
+}));
+
+// List snapshots (requires auth)
+router.get('/:id/snapshots', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const snapshots = listSnapshots(req.params.id, req.userId);
+  res.json(snapshots);
+}));
+
+// Restore a snapshot
+router.post('/:id/snapshots/:snapshotId/restore', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  await restoreSnapshotToSite(req.params.id, req.params.snapshotId, req.userId);
+  res.json({ status: 'restored' });
+}));
+
+// Delete a snapshot
+router.delete('/:id/snapshots/:snapshotId', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  await deleteSnapshot(req.params.id, req.params.snapshotId, req.userId);
+  res.json({ message: 'Snapshot deleted' });
+}));
+
+// --- Custom Domain ---
+
+// Set custom domain
+router.put('/:id/domain', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { domain } = req.body;
+  if (!domain) {
+    throw new ValidationError('domain is required');
+  }
+  const result = await setCustomDomain(req.params.id, domain, req.userId);
+  res.json({ ...result, dns: await getDnsInstructions() });
+}));
+
+// Get custom domain status (requires auth)
+router.get('/:id/domain', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await getCustomDomain(req.params.id, req.userId);
+  res.json({ ...result, dns: await getDnsInstructions() });
+}));
+
+// Remove custom domain
+router.delete('/:id/domain', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  await removeCustomDomain(req.params.id, req.userId);
+  res.json({ message: 'Custom domain removed' });
+}));
+
+// Export site as template
+router.post('/:id/export-template', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { templateId, templateName } = req.body;
+  if (!templateId) {
+    throw new ValidationError('templateId is required');
+  }
+  const config = await exportSiteAsTemplate(req.params.id, templateId, templateName || templateId, req.userId);
+  res.status(201).json(config);
 }));
 
 // Delete a site (requires auth - users can only delete their own)

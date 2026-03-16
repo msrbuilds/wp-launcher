@@ -9,6 +9,7 @@ export interface UserRecord {
   email: string;
   password_hash: string;
   verified: number;
+  role: 'user' | 'admin';
   verification_token: string | null;
   verification_expires_at: string | null;
   created_at: string;
@@ -193,6 +194,22 @@ export function listUsers(limit = 100, offset = 0): UserRecord[] {
 export function getUsersCount(): number {
   const db = getDb();
   return (db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
+}
+
+export function updateUserRole(id: string, role: 'user' | 'admin'): void {
+  const db = getDb();
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord | undefined;
+  if (!user) throw new NotFoundError('User not found');
+
+  if (role === 'user' && user.role === 'admin') {
+    // Prevent demoting the last admin
+    const adminCount = (db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND id NOT IN ('admin', 'local-user')").get() as { count: number }).count;
+    if (adminCount <= 1) {
+      throw new ValidationError('Cannot demote the last admin. Promote another user first.');
+    }
+  }
+
+  db.prepare("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(role, id);
 }
 
 export function deleteUser(id: string): void {

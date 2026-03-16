@@ -67,6 +67,10 @@ export const config = {
   // Cleanup interval in milliseconds
   cleanupInterval: 60_000, // 1 minute
 
+  // Admin bootstrap (used on first start, then removed from .env)
+  adminEmail: process.env.ADMIN_EMAIL || '',
+  adminPassword: process.env.ADMIN_PASSWORD || '',
+
   // Dashboard UI settings
   ui: {
     cardLayout: (process.env.CARD_LAYOUT || 'full') as 'full' | 'compact',

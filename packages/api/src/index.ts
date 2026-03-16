@@ -1,17 +1,21 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { config } from './config';
-import { apiKeyAuth } from './middleware/auth';
+import { adminAuth } from './middleware/auth';
 import sitesRouter from './routes/sites';
 import productsRouter from './routes/products';
 import authRouter from './routes/auth';
 import adminRouter from './routes/admin';
+import analyticsRouter from './routes/analytics';
+import bulkRouter from './routes/bulk';
 import templatesRouter from './routes/templates';
 import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cleanup.service';
-import { closeDb } from './utils/db';
+import { closeDb, getDb } from './utils/db';
 import { AppError } from './utils/errors';
 import { Request, Response, NextFunction } from 'express';
 
@@ -27,12 +31,22 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json({ limit: '1mb' }));
+app.use(cookieParser());
 
 // Rate limiting for auth endpoints
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+// Strict limiter for auth write ops (login, register, verify, set-password)
+const authWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
   max: 20,
   message: { error: 'Too many requests. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Relaxed limiter for auth read ops (/me, logout)
+const authReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -40,7 +54,7 @@ const authLimiter = rateLimit({
 // Stricter rate limiting for admin endpoints (brute-force protection)
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50,
+  max: 200,
   message: { error: 'Too many requests. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -51,12 +65,58 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Public UI settings
+// System version info
+const versionFilePath = path.resolve(__dirname, '..', 'version.json');
+function readVersionInfo() {
+  try {
+    return JSON.parse(fs.readFileSync(versionFilePath, 'utf-8'));
+  } catch {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf-8'));
+      return { version: pkg.version || '0.0.0', commit: 'unknown', branch: 'unknown', buildDate: null, commitDate: null, commitMessage: '' };
+    } catch {
+      return { version: '0.0.0', commit: 'unknown', branch: 'unknown', buildDate: null, commitDate: null, commitMessage: '' };
+    }
+  }
+}
+
+// Public: version number only
+app.get('/api/version', (_req, res) => {
+  const info = readVersionInfo();
+  res.json({ version: info.version });
+});
+
+// Serve uploaded branding assets (logos, etc.)
+const uploadsDir = path.resolve(config.dataDir, 'uploads');
+app.use('/api/uploads', express.static(uploadsDir, { maxAge: '1h', fallthrough: true }));
+
+// Public UI settings (includes feature flags + branding)
 app.get('/api/settings', (_req, res) => {
+  const db = getDb();
+  const rows = db.prepare("SELECT key, value FROM settings").all() as { key: string; value: string }[];
+  const features: Record<string, boolean> = {};
+  const branding: Record<string, string> = {};
+  const colors: Record<string, string> = {};
+  for (const row of rows) {
+    if (row.key.startsWith('feature.')) {
+      features[row.key.replace('feature.', '')] = row.value === 'true';
+    } else if (row.key.startsWith('branding.')) {
+      branding[row.key.replace('branding.', '')] = row.value;
+    } else if (row.key.startsWith('color.')) {
+      colors[row.key.replace('color.', '')] = row.value;
+    }
+  }
   res.json({
-    cardLayout: config.ui.cardLayout,
+    cardLayout: branding.cardLayout || config.ui.cardLayout,
     appMode: config.appMode,
     baseDomain: config.baseDomain,
+    features,
+    branding: {
+      siteTitle: branding.siteTitle || 'WP Launcher',
+      logoUrl: branding.logoUrl || '',
+      cardLayout: branding.cardLayout || config.ui.cardLayout,
+    },
+    colors,
   });
 });
 
@@ -64,16 +124,202 @@ if (config.isLocalMode) {
   // Local mode: minimal auth — just issue a token for the local user
   const { generateToken } = require('./middleware/userAuth');
   app.post('/api/auth/local-token', (_req: any, res: any) => {
-    const token = generateToken('local-user', 'local@localhost');
-    res.json({ token, user: { id: 'local-user', email: 'local@localhost' } });
+    const token = generateToken('local-user', 'local@localhost', 'admin');
+    res.cookie('wpl_token', token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'strict',
+      path: '/api',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+    res.json({ token, user: { id: 'local-user', email: 'local@localhost', role: 'admin' } });
   });
 } else {
-  // Agency mode: full auth routes with rate limiting
-  app.use('/api/auth', authLimiter, authRouter);
+  // Agency mode: auth routes with split rate limiting
+  // Write ops (login, register, verify, set-password) get strict limits
+  app.post('/api/auth/register', authWriteLimiter);
+  app.post('/api/auth/verify', authWriteLimiter);
+  app.post('/api/auth/set-password', authWriteLimiter);
+  app.post('/api/auth/login', authWriteLimiter);
+  // Read ops (/me, logout, update-password) get relaxed limits
+  app.get('/api/auth/me', authReadLimiter);
+  app.post('/api/auth/logout', authReadLimiter);
+  app.post('/api/auth/update-password', authReadLimiter);
+  app.use('/api/auth', authRouter);
+
+  // Admin login — validates API key and sets httpOnly cookie
+  app.post('/api/admin/login', adminLimiter, (req, res) => {
+    const { apiKey: key } = req.body;
+    if (!key || !config.apiKey) {
+      res.status(401).json({ error: 'Invalid API key' });
+      return;
+    }
+    const crypto = require('crypto');
+    const a = Buffer.from(key);
+    const b = Buffer.from(config.apiKey);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      res.status(401).json({ error: 'Invalid API key' });
+      return;
+    }
+    const isProduction = config.nodeEnv === 'production';
+    res.cookie('wpl_admin', config.apiKey, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/api',
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    });
+    res.json({ authenticated: true });
+  });
 
   // Admin routes (API key protected + rate limited)
   app.use('/api/admin', adminLimiter, adminRouter);
+
+  // Analytics routes (under admin, API key protected)
+  // Note: adminLimiter already applied via /api/admin prefix on line above
+  app.use('/api/admin/analytics', analyticsRouter);
+
+  // Bulk provisioning routes (under admin, API key protected)
+  app.use('/api/admin/bulk', bulkRouter);
+
+  // System info (admin only — full version + git details)
+  app.get('/api/admin/system/info', adminAuth, (_req, res) => {
+    const info = readVersionInfo();
+    const uptime = process.uptime();
+    res.json({
+      ...info,
+      nodeVersion: process.version,
+      platform: process.platform,
+      uptime: Math.floor(uptime),
+      uptimeFormatted: `${Math.floor(uptime / 86400)}d ${Math.floor((uptime % 86400) / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
+      memoryUsage: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      env: config.nodeEnv,
+      appMode: config.appMode,
+    });
+  });
+
+  // Feature flags management (admin only)
+  app.get('/api/admin/features', adminAuth, (_req, res) => {
+    const db = getDb();
+    const rows = db.prepare("SELECT key, value FROM settings WHERE key LIKE 'feature.%'").all() as { key: string; value: string }[];
+    const features: Record<string, boolean> = {};
+    for (const row of rows) {
+      const name = row.key.replace('feature.', '');
+      features[name] = row.value === 'true';
+    }
+    res.json({ features });
+  });
+
+  app.put('/api/admin/features', adminAuth, (req, res) => {
+    const db = getDb();
+    const { features } = req.body as { features: Record<string, boolean> };
+    if (!features || typeof features !== 'object') {
+      res.status(400).json({ error: 'features object is required' });
+      return;
+    }
+    const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig'];
+    const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+    for (const [name, enabled] of Object.entries(features)) {
+      if (allowed.includes(name)) {
+        update.run(`feature.${name}`, String(enabled));
+      }
+    }
+    res.json({ status: 'updated' });
+  });
+
 }
+
+// Branding settings (available in both modes — no auth needed in local mode)
+// In agency mode, adminLimiter already applied via /api/admin prefix mount
+const brandingAuth = config.isLocalMode ? [] : [adminAuth];
+
+app.get('/api/admin/branding', ...brandingAuth, (_req: any, res: any) => {
+  const db = getDb();
+  const rows = db.prepare("SELECT key, value FROM settings WHERE key LIKE 'branding.%' OR key LIKE 'color.%'").all() as { key: string; value: string }[];
+  const branding: Record<string, string> = {};
+  const colors: Record<string, string> = {};
+  for (const row of rows) {
+    if (row.key.startsWith('branding.')) {
+      branding[row.key.replace('branding.', '')] = row.value;
+    } else if (row.key.startsWith('color.')) {
+      colors[row.key.replace('color.', '')] = row.value;
+    }
+  }
+  res.json({
+    siteTitle: branding.siteTitle || 'WP Launcher',
+    logoUrl: branding.logoUrl || '',
+    cardLayout: branding.cardLayout || config.ui.cardLayout,
+    colors,
+  });
+});
+
+app.put('/api/admin/branding', ...brandingAuth, (req: any, res: any) => {
+  const db = getDb();
+  const { siteTitle, cardLayout, colors } = req.body as { siteTitle?: string; cardLayout?: string; colors?: Record<string, string> };
+  const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+  if (siteTitle !== undefined) {
+    update.run('branding.siteTitle', siteTitle.trim().slice(0, 100));
+  }
+  if (cardLayout !== undefined && ['full', 'compact'].includes(cardLayout)) {
+    update.run('branding.cardLayout', cardLayout);
+  }
+  if (colors && typeof colors === 'object') {
+    const allowedColors = ['primaryDark', 'accent', 'grey', 'textMuted', 'textLight', 'border', 'bgSurface'];
+    const hexRegex = /^#[0-9a-fA-F]{6}$/;
+    for (const [name, value] of Object.entries(colors)) {
+      if (allowedColors.includes(name) && hexRegex.test(value)) {
+        update.run(`color.${name}`, value);
+      }
+    }
+  }
+  res.json({ status: 'updated' });
+});
+
+app.post('/api/admin/branding/logo', ...brandingAuth, (req: any, res: any) => {
+  const chunks: Buffer[] = [];
+  req.on('data', (chunk: Buffer) => chunks.push(chunk));
+  req.on('end', () => {
+    const contentType = req.headers['content-type'] || '';
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp', 'image/gif'];
+    if (!allowedTypes.some((t: string) => contentType.startsWith(t))) {
+      res.status(400).json({ error: 'Invalid file type. Allowed: PNG, JPEG, SVG, WebP, GIF' });
+      return;
+    }
+    const body = Buffer.concat(chunks);
+    if (body.length > 2 * 1024 * 1024) {
+      res.status(400).json({ error: 'File too large (max 2MB)' });
+      return;
+    }
+    const ext = contentType.includes('png') ? '.png'
+      : contentType.includes('jpeg') ? '.jpg'
+      : contentType.includes('svg') ? '.svg'
+      : contentType.includes('webp') ? '.webp'
+      : '.gif';
+    const filename = `logo${ext}`;
+    const uploadDir = path.resolve(config.dataDir, 'uploads');
+    fs.mkdirSync(uploadDir, { recursive: true });
+    for (const f of fs.readdirSync(uploadDir)) {
+      if (f.startsWith('logo.')) fs.unlinkSync(path.join(uploadDir, f));
+    }
+    fs.writeFileSync(path.join(uploadDir, filename), body);
+    const logoUrl = `/api/uploads/${filename}`;
+    const db = getDb();
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('branding.logoUrl', logoUrl);
+    res.json({ logoUrl });
+  });
+});
+
+app.delete('/api/admin/branding/logo', ...brandingAuth, (_req: any, res: any) => {
+  const uploadDir = path.resolve(config.dataDir, 'uploads');
+  if (fs.existsSync(uploadDir)) {
+    for (const f of fs.readdirSync(uploadDir)) {
+      if (f.startsWith('logo.')) fs.unlinkSync(path.join(uploadDir, f));
+    }
+  }
+  const db = getDb();
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('branding.logoUrl', '');
+  res.json({ status: 'removed' });
+});
 
 // Sites routes (rate limiting handled per-route inside the router)
 app.use('/api/sites', sitesRouter);
@@ -83,7 +329,7 @@ app.use('/api/templates', (req, res, next) => {
   if (req.method === 'GET' || config.isLocalMode) {
     return next();
   }
-  return apiKeyAuth(req, res, next);
+  return adminAuth(req as any, res, next);
 }, templatesRouter);
 
 // Serve product-assets images (card images, icons, etc.)
@@ -98,7 +344,7 @@ app.use('/api/products', (req, res, next) => {
   if (req.method === 'GET') {
     return next();
   }
-  return apiKeyAuth(req, res, next);
+  return adminAuth(req as any, res, next);
 }, productsRouter);
 
 // Global error handler

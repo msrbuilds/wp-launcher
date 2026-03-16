@@ -4,8 +4,20 @@ import { sendVerificationEmail, sendWelcomeEmail } from '../services/email.servi
 import { userAuth, generateToken, AuthRequest } from '../middleware/userAuth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ValidationError } from '../utils/errors';
+import { config } from '../config';
 
 const router = Router();
+
+function setAuthCookie(res: Response, token: string): void {
+  const isProduction = config.nodeEnv === 'production';
+  res.cookie('wpl_token', token, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    path: '/api',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+}
 
 // Step 1: User enters email → sends verification email
 router.post('/register', asyncHandler(async (req: Request, res: Response) => {
@@ -47,13 +59,15 @@ router.post('/verify', asyncHandler(async (req: Request, res: Response) => {
     });
   } else {
     // Returning user (magic-link login) — issue JWT directly
-    const jwtToken = generateToken(user.id, user.email);
+    const jwtToken = generateToken(user.id, user.email, user.role);
+    setAuthCookie(res, jwtToken);
     res.json({
       needsPassword: false,
       token: jwtToken,
       user: {
         id: user.id,
         email: user.email,
+        role: user.role || 'user',
       },
     });
   }
@@ -72,13 +86,15 @@ router.post('/set-password', asyncHandler(async (req: Request, res: Response) =>
   }
 
   const user = await setInitialPassword(passwordSetToken, password);
-  const jwtToken = generateToken(user.id, user.email);
+  const jwtToken = generateToken(user.id, user.email, user.role);
+  setAuthCookie(res, jwtToken);
 
   res.json({
     token: jwtToken,
     user: {
       id: user.id,
       email: user.email,
+      role: user.role || 'user',
     },
   });
 }));
@@ -92,13 +108,15 @@ router.post('/login', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const user = await loginUser(email.toLowerCase().trim(), password);
-  const token = generateToken(user.id, user.email);
+  const token = generateToken(user.id, user.email, user.role);
+  setAuthCookie(res, token);
 
   res.json({
     token,
     user: {
       id: user.id,
       email: user.email,
+      role: user.role || 'user',
     },
   });
 }));
@@ -108,6 +126,7 @@ router.get('/me', userAuth, (req: AuthRequest, res: Response) => {
   res.json({
     id: req.userId,
     email: req.userEmail,
+    role: req.userRole || 'user',
   });
 });
 
@@ -126,5 +145,12 @@ router.post('/update-password', userAuth, asyncHandler(async (req: AuthRequest, 
   await updatePassword(req.userId!, currentPassword, newPassword);
   res.json({ message: 'Password updated successfully' });
 }));
+
+// Logout — clear auth cookie
+router.post('/logout', (_req: Request, res: Response) => {
+  res.clearCookie('wpl_token', { path: '/api' });
+  res.clearCookie('wpl_admin', { path: '/api' });
+  res.json({ message: 'Logged out' });
+});
 
 export default router;

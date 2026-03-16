@@ -1,6 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
+# ── Security: reject default credentials in agency mode ───────────────────
+if [ "${WP_LOCAL_MODE:-}" != "true" ] && [ "${WP_ADMIN_PASSWORD:-}" = "demo123" ]; then
+    echo "[wp-launcher] FATAL: Default admin password 'demo123' is not allowed in agency mode."
+    echo "[wp-launcher] Set WP_ADMIN_PASSWORD to a unique value for each site."
+    exit 1
+fi
+
 # ── PHP Configuration ──────────────────────────────────────────────────────
 # Apply php.ini overrides from PHP_* env vars before Apache starts
 PHP_INI_CUSTOM="/usr/local/etc/php/conf.d/99-wp-launcher.ini"

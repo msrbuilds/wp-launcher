@@ -70,7 +70,7 @@ function logSiteAction(siteRecord: SiteRecord, action: string, userEmail?: strin
   );
 }
 
-export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & { oneTimePassword: string; autoLoginToken: string }> {
+export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & { oneTimePassword: string }> {
   const db = getDb();
   const productConfig = getProductConfig(req.productId);
 
@@ -98,7 +98,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
   const adminUser = req.adminUser || productConfig?.demo?.admin_user || 'demo';
   const adminPassword = req.adminPassword || crypto.randomBytes(16).toString('base64url');
-  const autoLoginToken = crypto.randomBytes(32).toString('base64url'); // for one-click login
+  const autoLoginToken = ''; // generated on-demand via POST /api/sites/:id/autologin
   const adminEmail = req.adminEmail || productConfig?.demo?.admin_email || 'demo@example.com';
   const siteTitle = req.siteTitle || productConfig?.name || 'Demo Site';
 
@@ -238,7 +238,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
   logSiteAction(site, 'created', req.userEmail);
 
-  return { ...site, oneTimePassword: adminPassword, autoLoginToken };
+  return { ...site, oneTimePassword: adminPassword };
 }
 
 export function listSites(productId?: string): SiteRecord[] {

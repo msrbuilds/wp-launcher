@@ -132,6 +132,8 @@ export function renderHelp(): void {
     ['shell <sub>', 'Bash into a site container'],
     ['wp <sub> ...', 'Run WP-CLI in a site container'],
     ['build:wp', 'Rebuild WordPress images (all PHP versions)'],
+    ['admin:promote', 'Promote a user to admin'],
+    ['admin:demote', 'Demote an admin to user'],
     ['dir', 'Print project directory path'],
     ['help', 'Show this help'],
   ];

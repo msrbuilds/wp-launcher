@@ -68,6 +68,8 @@ function initSchema(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_site_logs_user_id ON site_logs(user_id);
     CREATE INDEX IF NOT EXISTS idx_site_logs_product_id ON site_logs(product_id);
+    CREATE INDEX IF NOT EXISTS idx_site_logs_created_at ON site_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
 
     CREATE TABLE IF NOT EXISTS products (
       id TEXT PRIMARY KEY,
@@ -76,7 +78,60 @@ function initSchema(db: Database.Database): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS snapshots (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      db_engine TEXT NOT NULL DEFAULT 'sqlite',
+      storage_path TEXT NOT NULL,
+      size_bytes INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (site_id) REFERENCES sites(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS bulk_jobs (
+      id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL,
+      total INTEGER NOT NULL,
+      completed INTEGER NOT NULL DEFAULT 0,
+      failed INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending',
+      config TEXT NOT NULL,
+      results TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT,
+      user_id TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
+
+  // Seed default feature flags and branding
+  const defaultSettings: Record<string, string> = {
+    'feature.cloning': 'true',
+    'feature.snapshots': 'true',
+    'feature.templates': 'true',
+    'feature.customDomains': 'true',
+    'feature.phpConfig': 'true',
+    'branding.siteTitle': 'WP Launcher',
+    'branding.logoUrl': '',
+    'branding.cardLayout': '',
+    'color.primaryDark': '#14213d',
+    'color.accent': '#fb8500',
+    'color.grey': '#e5e5e5',
+    'color.textMuted': '#6b7280',
+    'color.textLight': '#9ca3af',
+    'color.border': '#e5e5e5',
+    'color.bgSurface': '#f5f5f5',
+  };
+  const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
+  for (const [key, value] of Object.entries(defaultSettings)) {
+    insertSetting.run(key, value);
+  }
 
   // Migrations for existing databases
   try {
@@ -84,20 +139,53 @@ function initSchema(db: Database.Database): void {
   } catch {
     // Column already exists
   }
+  try {
+    db.exec(`ALTER TABLE sites ADD COLUMN cloned_from TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE sites ADD COLUMN custom_domain TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_sites_custom_domain ON sites(custom_domain)`);
+  } catch {
+    // Index already exists
+  }
+
+  // Migration: add role column to users
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`);
+  } catch {
+    // Column already exists
+  }
 
   // Auto-create local user in local mode
   if (config.isLocalMode) {
     db.prepare(`
-      INSERT OR IGNORE INTO users (id, email, password_hash, verified)
-      VALUES ('local-user', 'local@localhost', '', 1)
+      INSERT OR IGNORE INTO users (id, email, password_hash, verified, role)
+      VALUES ('local-user', 'local@localhost', '', 1, 'admin')
     `).run();
+    // Ensure existing local-user is admin
+    db.prepare(`UPDATE users SET role = 'admin' WHERE id = 'local-user'`).run();
   }
 
   // Auto-create admin user for API key auth (needed for FK constraint on sites)
   db.prepare(`
-    INSERT OR IGNORE INTO users (id, email, password_hash, verified)
-    VALUES ('admin', 'admin@localhost', '', 1)
+    INSERT OR IGNORE INTO users (id, email, password_hash, verified, role)
+    VALUES ('admin', 'admin@localhost', '', 1, 'admin')
   `).run();
+  db.prepare(`UPDATE users SET role = 'admin' WHERE id = 'admin'`).run();
+
+  // Bootstrap: promote ADMIN_EMAIL user to admin if set and no admin users exist yet
+  if (config.adminEmail) {
+    const adminCount = (db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND id NOT IN ('admin', 'local-user')").get() as { count: number }).count;
+    if (adminCount === 0) {
+      db.prepare("UPDATE users SET role = 'admin' WHERE email = ? AND verified = 1").run(config.adminEmail);
+    }
+  }
 }
 
 export function closeDb(): void {

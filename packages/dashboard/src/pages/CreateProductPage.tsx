@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import type { PluginEntry, ThemeEntry } from '../types/product';
 import PluginRepeater from '../components/PluginRepeater';
 import ThemeRepeater from '../components/ThemeRepeater';
@@ -41,8 +40,6 @@ const HIDDEN_MENU_ITEMS = [
 ];
 
 export default function CreateProductPage() {
-  const { token } = useAuth();
-
   // Basic info
   const [id, setId] = useState('');
   const [name, setName] = useState('');
@@ -190,13 +187,9 @@ export default function CreateProductPage() {
       if (cardImageFile) formData.append('card_image', cardImageFile);
       if (cardIconFile) formData.append('card_icon', cardIconFile);
 
-      const apiKey = sessionStorage.getItem('adminApiKey') || '';
       const res = await fetch('/api/products', {
         method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(apiKey ? { 'X-API-Key': apiKey } : {}),
-        },
+        credentials: 'include',
         body: formData,
       });
 

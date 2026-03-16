@@ -28,24 +28,17 @@ interface SiteResult {
 type Step = 'email' | 'check-email' | 'launch' | 'provisioning' | 'result';
 
 export default function LaunchPage() {
-  const { isAuthenticated, token, login } = useAuth();
-  const { appMode, loading: settingsLoading } = useSettings();
+  const { isAuthenticated, login } = useAuth();
+  const { appMode, cardLayout, loading: settingsLoading } = useSettings();
   const isLocal = appMode === 'local';
-  const adminApiKey = sessionStorage.getItem('adminApiKey');
-  const isAdmin = !!adminApiKey;
-  const canLaunch = isAuthenticated || isLocal || isAdmin;
+  const canLaunch = isAuthenticated || isLocal;
   const [siteReady, setSiteReady] = useState(true);
 
-  function authHeaders(): Record<string, string> {
-    if (token) return { Authorization: `Bearer ${token}` };
-    if (adminApiKey) return { 'X-API-Key': adminApiKey };
-    return {};
-  }
+  // Auth is handled via httpOnly cookies sent with credentials: 'include'
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [cardLayout, setCardLayout] = useState<'full' | 'compact'>('full');
   const [loading, setLoading] = useState(false);
   const [launchingId, setLaunchingId] = useState<string | null>(null);
   const [result, setResult] = useState<SiteResult | null>(null);
@@ -86,7 +79,7 @@ export default function LaunchPage() {
   useEffect(() => {
     if (settingsLoading) return;
     setFetchError('');
-    fetch(isLocal ? '/api/templates' : '/api/products')
+    fetch(isLocal ? '/api/templates' : '/api/products', { credentials: 'include' })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setProducts(data);
@@ -95,12 +88,6 @@ export default function LaunchPage() {
         setProducts([]);
         setFetchError('Failed to load products. Please refresh the page.');
       });
-    fetch('/api/settings')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.cardLayout) setCardLayout(data.cardLayout);
-      })
-      .catch(() => {});
   }, [settingsLoading, isLocal]);
 
   async function handleEmailSubmit() {
@@ -110,6 +97,7 @@ export default function LaunchPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email }),
       });
       const data = await res.json();
@@ -129,11 +117,12 @@ export default function LaunchPage() {
       const res = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ token: verifyToken }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      login(data.token, data.user);
+      login(data.user);
       setStep('launch');
     } catch (err: any) {
       setError(err.message);
@@ -151,10 +140,8 @@ export default function LaunchPage() {
     try {
       const res = await fetch('/api/sites', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders(),
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ productId, ...(expiresIn ? { expiresIn } : {}) }),
       });
       if (!res.ok) {
@@ -185,7 +172,7 @@ export default function LaunchPage() {
       setProvisionProgress(Math.round(pct));
       try {
         const res = await fetch(`/api/sites/${siteId}/ready`, {
-          headers: authHeaders(),
+          credentials: 'include',
         });
         const data = await res.json();
         if (data.ready) {
@@ -303,14 +290,24 @@ export default function LaunchPage() {
         </p>
 
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-          <a
-            href={result.autoLoginUrl || result.adminUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
             className="btn btn-primary btn-lg"
+            onClick={async () => {
+              try {
+                const res = await fetch(`/api/sites/${result.id}/autologin`, { method: 'POST', credentials: 'include' });
+                if (res.ok) {
+                  const data = await res.json();
+                  window.open(data.autoLoginUrl, '_blank');
+                } else {
+                  window.open(result.adminUrl, '_blank');
+                }
+              } catch {
+                window.open(result.adminUrl, '_blank');
+              }
+            }}
           >
             One Click Login
-          </a>
+          </button>
           <button className="btn btn-secondary btn-lg" onClick={() => { setResult(null); setStep('launch'); }}>
             Back to Products
           </button>

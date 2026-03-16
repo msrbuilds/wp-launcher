@@ -77,6 +77,13 @@ export async function updatePhpConfig(containerId: string, phpConfig: Record<str
   });
 }
 
+export async function updateAutoLoginToken(containerId: string, token: string): Promise<void> {
+  await provisionerFetch(`/containers/${containerId}/autologin-token`, {
+    method: 'PATCH',
+    body: JSON.stringify({ token }),
+  });
+}
+
 export async function removeSiteContainer(containerId: string): Promise<void> {
   await provisionerFetch(`/containers/${containerId}`, {
     method: 'DELETE',
@@ -104,4 +111,39 @@ export async function buildImage(contextPath: string, tag: string): Promise<void
     method: 'POST',
     body: JSON.stringify({ contextPath, tag }),
   });
+}
+
+// Snapshot & Restore
+
+export async function createSnapshot(containerId: string, snapshotId: string): Promise<{ snapshotId: string; sizeBytes: number; dbEngine: string }> {
+  const res = await provisionerFetch(`/containers/${containerId}/snapshot`, {
+    method: 'POST',
+    body: JSON.stringify({ snapshotId }),
+  });
+  return await res.json() as { snapshotId: string; sizeBytes: number; dbEngine: string };
+}
+
+export async function restoreSnapshot(containerId: string, snapshotId: string): Promise<void> {
+  await provisionerFetch(`/containers/${containerId}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({ snapshotId }),
+  });
+}
+
+// WP-CLI execution (for template export)
+
+export async function execWpCommands(containerId: string, commands: string[]): Promise<{ results: { command: string; output: string; exitCode: number }[] }> {
+  const res = await provisionerFetch(`/containers/${containerId}/exec-wp`, {
+    method: 'POST',
+    body: JSON.stringify({ commands }),
+  });
+  return await res.json() as { results: { command: string; output: string; exitCode: number }[] };
+}
+
+export async function exportAssets(containerId: string, plugins: string[], themes: string[], targetDir: string): Promise<{ exported: { type: string; slug: string; path: string }[] }> {
+  const res = await provisionerFetch(`/containers/${containerId}/export-assets`, {
+    method: 'POST',
+    body: JSON.stringify({ plugins, themes, targetDir }),
+  });
+  return await res.json() as { exported: { type: string; slug: string; path: string }[] };
 }

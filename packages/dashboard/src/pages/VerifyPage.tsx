@@ -23,6 +23,7 @@ export default function VerifyPage() {
 
     fetch('/api/auth/verify', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token }),
     })
@@ -36,7 +37,7 @@ export default function VerifyPage() {
           setStatus('set-password');
         } else {
           // Returning user — logged in via magic link
-          login(data.token, data.user);
+          login(data.user);
           setStatus('success');
         }
       })
@@ -63,13 +64,14 @@ export default function VerifyPage() {
     try {
       const res = await fetch('/api/auth/set-password', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ passwordSetToken, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      login(data.token, data.user);
+      login(data.user);
       setStatus('success');
     } catch (err: any) {
       setError(err.message);

@@ -1,23 +1,40 @@
-import { Outlet, NavLink, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Outlet, NavLink, Link, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-import { useAdminAuth } from './pages/AdminPage';
-import { useIsLocalMode } from './context/SettingsContext';
+import { useIsLocalMode, useBranding, useSettings } from './context/SettingsContext';
 
 export default function App() {
-  const { isAuthenticated, logout } = useAuth();
-  const { isAdmin } = useAdminAuth();
+  const { isAuthenticated, isAdmin, logout } = useAuth();
   const isLocal = useIsLocalMode();
+  const branding = useBranding();
+  const { version } = useSettings();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
+
+  // Close menu on route change
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
 
   return (
     <>
       <header className="header">
         <div className="container">
           <NavLink to="/" className="header-brand">
-            <img src="/logo-square.png" alt="WP Launcher" style={{ width: 28, height: 28 }} />
-            WP Launcher
+            <img src={branding.logoUrl || '/logo-square.png'} alt={branding.siteTitle} style={{ width: 28, height: 28, objectFit: 'contain' }} />
+            {branding.siteTitle}
             {isLocal && <span className="mode-badge">Local</span>}
+            {isAdmin && version && <span className="version-badge">v{version}</span>}
           </NavLink>
-          <nav>
+          <button className="header-hamburger" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">
+            <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              {menuOpen
+                ? <path d="M6 18L18 6M6 6l12 12" />
+                : <path d="M4 6h16M4 12h16M4 18h16" />
+              }
+            </svg>
+          </button>
+          <nav className={menuOpen ? 'open' : ''}>
             <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''}>
               {isLocal ? 'Dashboard' : 'Products'}
             </NavLink>
@@ -34,16 +51,16 @@ export default function App() {
                 <a href="http://localhost:8025" target="_blank" rel="noopener noreferrer">
                   Mail
                 </a>
-                <NavLink to="/create-template" className="btn btn-sm" style={{ marginLeft: '0.75rem', background: 'transparent', border: '1.5px solid #fb8500', color: '#fb8500' }}>
+                <NavLink to="/create-template" className="btn btn-sm header-btn-outline">
                   + New Template
                 </NavLink>
-                <Link to="/create" className="btn btn-primary btn-sm" style={{ marginLeft: '0.75rem', color: '#fff' }}>
+                <Link to="/create" className="btn btn-primary btn-sm header-btn-primary">
                   + Create Site
                 </Link>
               </>
             )}
             {!isLocal && isAdmin && (
-              <NavLink to="/create-product" className="btn btn-sm" style={{ marginLeft: '0.75rem', background: 'transparent', border: '1.5px solid #fb8500', color: '#fb8500' }}>
+              <NavLink to="/create-product" className="btn btn-sm header-btn-outline">
                 + New Product
               </NavLink>
             )}

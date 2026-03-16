@@ -9,7 +9,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic
+      - custom-domains:/etc/traefik/dynamic/custom-domains
       - traefik-certs:/acme
     networks:
       - wp-launcher-network
@@ -50,7 +51,9 @@ services:
       - CERT_RESOLVER=${CERT_RESOLVER:-letsencrypt}
       - PRODUCT_ASSETS_PATH=${PRODUCT_ASSETS_PATH:-}
     volumes:
-      - ${PRODUCT_ASSETS_PATH:-./product-assets}:/product-assets:ro
+      - ${PRODUCT_ASSETS_PATH:-./product-assets}:/product-assets
+      - ./data/snapshots:/app/data/snapshots
+      - custom-domains:/etc/traefik/dynamic/custom-domains
     networks:
       - provisioner-internal
       - wp-launcher-network
@@ -76,6 +79,7 @@ services:
       - ./templates:/app/templates
       - ./product-assets:/app/product-assets
       - ./wordpress:/app/wordpress:ro
+      - ./version.json:/app/version.json:ro
     environment:
       - APP_MODE=${APP_MODE:-agency}
       - NODE_ENV=${NODE_ENV:-development}
@@ -142,3 +146,4 @@ networks:
 
 volumes:
   traefik-certs:
+  custom-domains:

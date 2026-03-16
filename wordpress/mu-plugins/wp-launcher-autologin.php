@@ -2,7 +2,9 @@
 /**
  * WP Launcher - Auto Login
  *
- * Handles one-click login via a per-site token passed as an environment variable.
+ * Handles one-click login via a per-site token.
+ * Token is read from a file (rotated by the API) with fallback to env var.
+ * After successful login, the token file is deleted to make it single-use.
  * Usage: /wp-login.php?autologin=TOKEN
  */
 
@@ -13,9 +15,20 @@ add_action( 'login_init', function () {
         return;
     }
 
-    $token = getenv( 'WP_AUTO_LOGIN_TOKEN' );
+    // Read token from file (written on-demand by POST /api/sites/:id/autologin)
+    $token_file = '/tmp/wp-autologin-token';
+    $token      = false;
+    if ( file_exists( $token_file ) ) {
+        $token = trim( @file_get_contents( $token_file ) );
+    }
+
     if ( ! $token || ! hash_equals( $token, $_GET['autologin'] ) ) {
         wp_die( 'Invalid or expired auto-login token.', 'Login Failed', array( 'response' => 403 ) );
+    }
+
+    // Delete the token file to make it single-use
+    if ( file_exists( $token_file ) ) {
+        @unlink( $token_file );
     }
 
     // Find the admin user

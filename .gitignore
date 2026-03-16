@@ -44,8 +44,12 @@ desktop.ini
 *.log
 npm-debug.log*
 
-# Plans
+# Plans & reports
 plans/
+reports/
 
 # Docker
 docker-compose.override.yml
+
+# Generated
+version.json

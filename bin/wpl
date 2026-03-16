@@ -131,6 +131,22 @@ case "$CMD" in
     compose up -d --build "$@"
     ;;
 
+  update|upgrade)
+    echo "Updating WP Launcher..."
+    bash "$PROJECT_DIR/scripts/update.sh"
+    ;;
+
+  version|--version|-v)
+    if [ -f "$PROJECT_DIR/version.json" ]; then
+      VER=$(node -p "require('$PROJECT_DIR/version.json').version" 2>/dev/null || echo "unknown")
+      COMMIT=$(node -p "require('$PROJECT_DIR/version.json').commit" 2>/dev/null || echo "unknown")
+      echo "WP Launcher v${VER} (${COMMIT})"
+    else
+      VER=$(node -p "require('$PROJECT_DIR/package.json').version" 2>/dev/null || echo "unknown")
+      echo "WP Launcher v${VER}"
+    fi
+    ;;
+
   status|ps)
     ensure_docker
     compose ps "$@"
@@ -205,6 +221,52 @@ case "$CMD" in
     else echo "  $URL"; fi
     ;;
 
+  admin:promote)
+    EMAIL="${1:-}"
+    if [ -z "$EMAIL" ]; then
+      echo "Usage: wpl admin:promote <email>"
+      exit 1
+    fi
+    API_KEY=$(grep -E '^API_KEY=' "$PROJECT_DIR/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'")
+    if [ -z "$API_KEY" ]; then
+      echo "Error: Could not read API_KEY from .env"
+      exit 1
+    fi
+    RESULT=$(curl -sf -X POST "http://localhost:3000/api/admin/users/promote" \
+      -H "X-API-Key: $API_KEY" \
+      -H "Content-Type: application/json" \
+      -d "{\"email\": \"$EMAIL\", \"role\": \"admin\"}" 2>/dev/null)
+    if [ $? -eq 0 ]; then
+      echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('message','Done'))" 2>/dev/null || echo "$RESULT"
+    else
+      echo "Error: Could not reach API. Is WP Launcher running?"
+      exit 1
+    fi
+    ;;
+
+  admin:demote)
+    EMAIL="${1:-}"
+    if [ -z "$EMAIL" ]; then
+      echo "Usage: wpl admin:demote <email>"
+      exit 1
+    fi
+    API_KEY=$(grep -E '^API_KEY=' "$PROJECT_DIR/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'")
+    if [ -z "$API_KEY" ]; then
+      echo "Error: Could not read API_KEY from .env"
+      exit 1
+    fi
+    RESULT=$(curl -sf -X POST "http://localhost:3000/api/admin/users/promote" \
+      -H "X-API-Key: $API_KEY" \
+      -H "Content-Type: application/json" \
+      -d "{\"email\": \"$EMAIL\", \"role\": \"user\"}" 2>/dev/null)
+    if [ $? -eq 0 ]; then
+      echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('message','Done'))" 2>/dev/null || echo "$RESULT"
+    else
+      echo "Error: Could not reach API. Is WP Launcher running?"
+      exit 1
+    fi
+    ;;
+
   dir)
     echo "$PROJECT_DIR"
     ;;
@@ -219,6 +281,8 @@ case "$CMD" in
     echo "  stop               Stop all services"
     echo "  restart            Restart all services"
     echo "  rebuild            Rebuild and restart (after code changes)"
+    echo "  update             Pull latest code, rebuild, and restart"
+    echo "  version            Show current version"
     echo "  status             Show running containers"
     echo "  logs [service]     Tail logs (optionally for a specific service)"
     echo "  sites              List active WordPress sites"
@@ -226,6 +290,8 @@ case "$CMD" in
     echo "  shell <subdomain>  Open bash shell in a site container"
     echo "  wp <subdomain> ... Run WP-CLI command in a site container"
     echo "  build:wp           Rebuild WordPress images (all PHP versions)"
+    echo "  admin:promote <email>  Promote a user to admin"
+    echo "  admin:demote <email>   Demote an admin to user"
     echo "  dir                Print WP Launcher project directory"
     echo "  help               Show this help"
     echo ""
