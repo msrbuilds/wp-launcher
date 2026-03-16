@@ -67,6 +67,16 @@ app.get('/health', (_req, res) => {
 
 // System version info
 const versionFilePath = path.resolve(__dirname, '..', 'version.json');
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
 function readVersionInfo() {
   try {
     return JSON.parse(fs.readFileSync(versionFilePath, 'utf-8'));
@@ -198,6 +208,136 @@ if (config.isLocalMode) {
     });
   });
 
+  // Check for updates (admin only) — compares local version with latest GitHub release
+  app.get('/api/admin/system/update-check', adminAuth, async (_req, res) => {
+    try {
+      const info = readVersionInfo();
+      const currentVersion = info.version || '0.0.0';
+
+      // Fetch latest release from GitHub API
+      const response = await fetch('https://api.github.com/repos/msrbuilds/wp-launcher/releases/latest', {
+        headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'WP-Launcher' },
+      });
+
+      if (!response.ok) {
+        // Fallback: check latest tag
+        const tagResponse = await fetch('https://api.github.com/repos/msrbuilds/wp-launcher/tags?per_page=1', {
+          headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'WP-Launcher' },
+        });
+        if (tagResponse.ok) {
+          const tags = await tagResponse.json() as any[];
+          if (tags.length > 0) {
+            const latestTag = (tags[0].name as string).replace(/^v/, '');
+            const updateAvailable = compareVersions(latestTag, currentVersion) > 0;
+            res.json({ currentVersion, latestVersion: latestTag, updateAvailable, source: 'tag' });
+            return;
+          }
+        }
+        // Fallback: compare commits
+        const commitResponse = await fetch('https://api.github.com/repos/msrbuilds/wp-launcher/commits/main', {
+          headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'WP-Launcher' },
+        });
+        if (commitResponse.ok) {
+          const commit = await commitResponse.json() as any;
+          const latestCommit = commit.sha?.substring(0, 7) || 'unknown';
+          const updateAvailable = info.commit !== latestCommit && info.commitFull !== commit.sha;
+          res.json({
+            currentVersion,
+            latestVersion: currentVersion,
+            latestCommit,
+            currentCommit: info.commit,
+            updateAvailable,
+            source: 'commit',
+            message: commit.commit?.message?.split('\n')[0] || '',
+          });
+          return;
+        }
+        res.json({ currentVersion, latestVersion: currentVersion, updateAvailable: false, error: 'Could not reach GitHub' });
+        return;
+      }
+
+      const release = await response.json() as any;
+      const latestVersion = (release.tag_name || '').replace(/^v/, '');
+      const updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
+
+      res.json({
+        currentVersion,
+        latestVersion,
+        updateAvailable,
+        releaseUrl: release.html_url || '',
+        releaseNotes: release.body || '',
+        publishedAt: release.published_at || '',
+        source: 'release',
+      });
+    } catch (error) {
+      res.json({ currentVersion: readVersionInfo().version || '0.0.0', latestVersion: 'unknown', updateAvailable: false, error: 'Failed to check for updates' });
+    }
+  });
+
+  // Trigger self-update from dashboard (admin only)
+  app.post('/api/admin/system/update', adminAuth, (req: any, res) => {
+    const dataDir = path.resolve(__dirname, '..', 'data');
+    const triggerFile = path.join(dataDir, 'update-trigger');
+    const lockFile = path.join(dataDir, 'update.lock');
+
+    // Check if update already in progress
+    if (fs.existsSync(lockFile)) {
+      res.status(409).json({ error: 'An update is already in progress' });
+      return;
+    }
+    if (fs.existsSync(triggerFile)) {
+      res.status(409).json({ error: 'An update is already queued' });
+      return;
+    }
+
+    const triggerId = String(Date.now());
+    const trigger = {
+      triggerId,
+      timestamp: new Date().toISOString(),
+      initiatedBy: req.userEmail || 'admin',
+    };
+
+    try {
+      fs.writeFileSync(triggerFile, JSON.stringify(trigger, null, 2));
+      res.json({ status: 'pending', triggerId, message: 'Update triggered. The watcher service will execute it shortly.' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to write update trigger' });
+    }
+  });
+
+  // Poll update status (admin only)
+  app.get('/api/admin/system/update-status', adminAuth, (_req, res) => {
+    const statusFile = path.resolve(__dirname, '..', 'data', 'update-status.json');
+    try {
+      if (fs.existsSync(statusFile)) {
+        const status = JSON.parse(fs.readFileSync(statusFile, 'utf-8'));
+        res.json(status);
+      } else {
+        res.json({ status: 'idle' });
+      }
+    } catch {
+      res.json({ status: 'idle' });
+    }
+  });
+
+  // Read update log (admin only)
+  app.get('/api/admin/system/update-log', adminAuth, (_req, res) => {
+    const logFile = path.resolve(__dirname, '..', 'data', 'update.log');
+    try {
+      if (fs.existsSync(logFile)) {
+        const content = fs.readFileSync(logFile, 'utf-8');
+        // Return last 500 lines
+        const lines = content.split('\n');
+        const tail = lines.slice(-500).join('\n');
+        res.type('text/plain').send(tail);
+      } else {
+        res.type('text/plain').send('No update log available.');
+      }
+    } catch {
+      res.type('text/plain').send('Failed to read update log.');
+    }
+  });
+
   // Feature flags management (admin only)
   app.get('/api/admin/features', adminAuth, (_req, res) => {
     const db = getDb();
@@ -217,7 +357,7 @@ if (config.isLocalMode) {
       res.status(400).json({ error: 'features object is required' });
       return;
     }
-    const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig'];
+    const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend'];
     const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
     for (const [name, enabled] of Object.entries(features)) {
       if (allowed.includes(name)) {

@@ -655,6 +655,16 @@ if command -v node &>/dev/null && command -v npm &>/dev/null; then
   fi
 fi
 
+# ─── 10b. Install update watcher service (agency mode only) ───────────────────
+if [ "$APP_MODE" = "agency" ]; then
+  if [ -f "$PROJECT_DIR/scripts/install-update-watcher.sh" ]; then
+    banner "Installing Update Watcher"
+    chmod +x "$PROJECT_DIR/scripts/update-watcher.sh"
+    chmod +x "$PROJECT_DIR/scripts/install-update-watcher.sh"
+    bash "$PROJECT_DIR/scripts/install-update-watcher.sh" || warn "Update watcher installation failed — manual updates via SSH still work"
+  fi
+fi
+
 # ─── 11. Start services ────────────────────────────────────────────────────
 # Note: docker compose creates the network automatically with correct labels.
 # Do NOT create it manually — that causes label mismatches.

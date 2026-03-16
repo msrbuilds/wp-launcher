@@ -112,7 +112,9 @@ code {
 }
 
 .version-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
   font-size: 0.55rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -123,6 +125,18 @@ code {
   margin-left: 0.35rem;
   vertical-align: middle;
   line-height: 1.2;
+}
+
+.version-badge-update {
+  background: var(--orange);
+  color: #fff;
+  cursor: pointer;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 133, 0, 0.4); }
+  50% { box-shadow: 0 0 6px 2px rgba(251, 133, 0, 0.3); }
 }
 
 .header nav {

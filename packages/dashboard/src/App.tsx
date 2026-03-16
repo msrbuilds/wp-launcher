@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, NavLink, Link, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useIsLocalMode, useBranding, useSettings } from './context/SettingsContext';
 
@@ -9,12 +9,27 @@ export default function App() {
   const branding = useBranding();
   const { version } = useSettings();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Close menu on route change
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
+
+  // Check for updates (admins only, agency mode)
+  useEffect(() => {
+    if (!isAdmin || isLocal) return;
+    fetch('/api/admin/system/update-check', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.updateAvailable) {
+          setUpdateAvailable(data.latestVersion || data.latestCommit || 'new');
+        }
+      })
+      .catch(() => {});
+  }, [isAdmin, isLocal]);
 
   return (
     <>
@@ -24,7 +39,17 @@ export default function App() {
             <img src={branding.logoUrl || '/logo-square.png'} alt={branding.siteTitle} style={{ width: 28, height: 28, objectFit: 'contain' }} />
             {branding.siteTitle}
             {isLocal && <span className="mode-badge">Local</span>}
-            {isAdmin && version && <span className="version-badge">v{version}</span>}
+            {isAdmin && version && !updateAvailable && <span className="version-badge">v{version}</span>}
+            {isAdmin && updateAvailable && (
+              <span
+                className="version-badge version-badge-update"
+                onClick={(e) => { e.preventDefault(); navigate('/admin/system'); }}
+                title={`Update available: v${updateAvailable}`}
+              >
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19.5v-15m0 0l-6.75 6.75M12 4.5l6.75 6.75" /></svg>
+                v{updateAvailable}
+              </span>
+            )}
           </NavLink>
           <button className="header-hamburger" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle menu">
             <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
