@@ -23,9 +23,10 @@ err()   { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Read version without requiring node
 read_version() {
-  node -p "require('./package.json').version" 2>/dev/null \
-    || grep -m1 '"version"' package.json | sed 's/.*"version".*"\([^"]*\)".*/\1/' 2>/dev/null \
-    || echo "unknown"
+  local ver=""
+  ver=$(node -p "require('./package.json').version" 2>/dev/null) && [ -n "$ver" ] && echo "$ver" && return
+  ver=$(grep -m1 '"version"' package.json 2>/dev/null | sed 's/.*"version" *: *"\([^"]*\)".*/\1/') && [ -n "$ver" ] && echo "$ver" && return
+  echo "unknown"
 }
 
 echo ""
