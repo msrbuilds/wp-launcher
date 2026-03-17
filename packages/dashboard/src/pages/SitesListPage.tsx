@@ -1734,6 +1734,7 @@ export default function SitesListPage() {
                     <span style={{ color: domainStatus[site.id].status === 'verified' ? '#48bb78' : '#ecc94b', fontSize: '0.75rem', fontWeight: 600 }}>
                       {domainStatus[site.id].status === 'verified' ? 'Verified' : 'Pending DNS'}
                     </span>
+                    <button className="btn btn-secondary btn-xs" onClick={() => fetchDomainStatus(site.id)} disabled={domainSaving === site.id}>Recheck</button>
                     <button className="btn btn-danger-outline btn-xs" onClick={() => handleRemoveDomain(site.id)} disabled={domainSaving === site.id}>Remove</button>
                   </div>
                   {domainStatus[site.id].status !== 'verified' && (

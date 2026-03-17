@@ -442,6 +442,13 @@ certificatesResolvers:
           - "1.1.1.1:53"
           - "8.8.8.8:53"
 
+  httpchallenge:
+    acme:
+      email: "${ACME_EMAIL}"
+      storage: /acme/acme-http.json
+      httpChallenge:
+        entryPoint: web
+
 providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
@@ -486,6 +493,13 @@ certificatesResolvers:
     acme:
       email: "${ACME_EMAIL}"
       storage: /acme/acme.json
+      httpChallenge:
+        entryPoint: web
+
+  httpchallenge:
+    acme:
+      email: "${ACME_EMAIL}"
+      storage: /acme/acme-http.json
       httpChallenge:
         entryPoint: web
 
