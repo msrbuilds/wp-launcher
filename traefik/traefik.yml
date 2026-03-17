@@ -20,6 +20,13 @@ providers:
     watch: true
 
 certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "${ACME_EMAIL:-admin@localhost}"
+      storage: /acme/acme.json
+      httpChallenge:
+        entryPoint: web
+
   httpchallenge:
     acme:
       email: "${ACME_EMAIL:-admin@localhost}"
