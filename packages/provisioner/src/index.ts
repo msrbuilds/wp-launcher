@@ -1140,6 +1140,9 @@ app.post('/containers/:id/export-assets', async (req: Request, res: Response) =>
 // --- Custom Domain (Traefik dynamic config) ---
 
 const CUSTOM_DOMAINS_DIR = process.env.CUSTOM_DOMAINS_DIR || '/etc/traefik/dynamic/custom-domains';
+// When empty, Traefik serves TLS without requesting a cert (works with Cloudflare proxy + SSL mode "Full")
+// Set to "httpchallenge" or "letsencrypt" only if the custom domain bypasses Cloudflare proxy
+const CUSTOM_DOMAIN_CERT_RESOLVER = process.env.CUSTOM_DOMAIN_CERT_RESOLVER || '';
 
 // Write Traefik dynamic config for a custom domain
 app.put('/custom-domains/:subdomain', (req: Request, res: Response) => {
@@ -1154,6 +1157,10 @@ app.put('/custom-domains/:subdomain', (req: Request, res: Response) => {
 
     fs.mkdirSync(CUSTOM_DOMAINS_DIR, { recursive: true });
 
+    const tlsConfig = CUSTOM_DOMAIN_CERT_RESOLVER
+      ? `      tls:\n        certResolver: ${CUSTOM_DOMAIN_CERT_RESOLVER}`
+      : `      tls: {}`;
+
     const yamlContent = `http:
   routers:
     custom-${subdomain}:
@@ -1161,8 +1168,7 @@ app.put('/custom-domains/:subdomain', (req: Request, res: Response) => {
       service: "${subdomain}"
       entryPoints:
         - websecure
-      tls:
-        certResolver: httpchallenge
+${tlsConfig}
     custom-${subdomain}-http:
       rule: "Host(\`${domain}\`)"
       service: "${subdomain}"

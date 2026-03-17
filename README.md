@@ -241,6 +241,7 @@ Visit **http://localhost** — the dashboard is ready.
 | `JWT_EXPIRES_IN` | JWT token expiry duration | `7d` |
 | `CARD_LAYOUT` | Dashboard card layout: `full` or `compact` | `full` |
 | `API_PORT` | Host port the API is exposed on (internal container port is always `3737`) | `3737` |
+| `CUSTOM_DOMAIN_CERT_RESOLVER` | Cert resolver for custom domains. Leave empty when using Cloudflare proxy (Cloudflare handles SSL). Set to `httpchallenge` for direct DNS (no proxy) to get real Let's Encrypt certs | `` (empty) |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated allowed CORS origins | — |
 | `SMTP_SECURE` | Use TLS for SMTP (`true` / `false`) | `false` |
 | `ACME_EMAIL` | Email for Let's Encrypt certificate notifications | — |
