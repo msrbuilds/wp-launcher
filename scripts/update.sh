@@ -9,6 +9,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$ROOT_DIR"
 
+# Load .env if it exists
+[ -f .env ] && export $(grep -v '^#' .env | xargs 2>/dev/null) || true
+API_PORT="${API_PORT:-3737}"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -118,7 +122,7 @@ fi
 info "Waiting for API to start..."
 HEALTHY=false
 for i in $(seq 1 30); do
-  if curl -sf http://localhost:3000/health > /dev/null 2>&1; then
+  if curl -sf http://localhost:${API_PORT}/health > /dev/null 2>&1; then
     HEALTHY=true
     ok "API is healthy"
     break

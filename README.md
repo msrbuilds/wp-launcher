@@ -240,6 +240,7 @@ Visit **http://localhost** — the dashboard is ready.
 | `PROVISIONER_INTERNAL_KEY` | Shared secret for API ↔ provisioner communication | (required) |
 | `JWT_EXPIRES_IN` | JWT token expiry duration | `7d` |
 | `CARD_LAYOUT` | Dashboard card layout: `full` or `compact` | `full` |
+| `API_PORT` | Host port the API is exposed on (internal container port is always `3737`) | `3737` |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated allowed CORS origins | — |
 | `SMTP_SECURE` | Use TLS for SMTP (`true` / `false`) | `false` |
 | `ACME_EMAIL` | Email for Let's Encrypt certificate notifications | — |
@@ -346,6 +347,12 @@ cd packages/dashboard && npm run dev
 ```
 
 Dashboard available at **http://localhost:4000** with instant hot reload.
+
+> **Note:** The Vite dev proxy reads `API_PORT` from the shell environment. If you changed `API_PORT` in `.env`, export it before starting the dev server:
+> ```bash
+> export API_PORT=3800
+> npm run dev
+> ```
 
 ### API changes
 

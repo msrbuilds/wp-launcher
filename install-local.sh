@@ -260,8 +260,8 @@ sleep 3
 # Quick health check
 if curl -sf http://localhost/api/settings > /dev/null 2>&1; then
   ok "API is responding"
-elif curl -sf http://localhost:3000/api/settings > /dev/null 2>&1; then
-  ok "API is responding (port 3000)"
+elif curl -sf http://localhost:${API_PORT:-3737}/api/settings > /dev/null 2>&1; then
+  ok "API is responding (port ${API_PORT:-3737})"
 else
   warn "API may still be starting up — give it a few more seconds"
 fi

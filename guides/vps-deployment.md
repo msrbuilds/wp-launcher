@@ -118,6 +118,11 @@ NODE_ENV=production
 BASE_DOMAIN=demos.yourdomain.com
 PUBLIC_URL=https://demos.yourdomain.com
 
+# Optional: change the host port the API is exposed on (default: 3737)
+# Only needed if port 3737 conflicts with another service on this server.
+# Internal Docker networking always uses port 3737 regardless of this setting.
+# API_PORT=3737
+
 # Security — generate with: openssl rand -hex 32
 API_KEY=your-random-key-here
 JWT_SECRET=your-random-secret-here
@@ -202,7 +207,7 @@ services:
       - "traefik.http.routers.api.tls=true"
       - "traefik.http.routers.api.tls.certresolver=letsencrypt"
       - "traefik.http.routers.api.middlewares=security-headers@file,rate-limit@file"
-      - "traefik.http.services.api.loadbalancer.server.port=3000"
+      - "traefik.http.services.api.loadbalancer.server.port=3737"
 
   dashboard:
     labels:

@@ -16,7 +16,7 @@ function requireSecret(envVar: string, fallback: string): string {
 export const config = {
   appMode,
   isLocalMode,
-  port: parseInt(process.env.PORT || '3000', 10),
+  port: parseInt(process.env.PORT || '3737', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   apiKey: requireSecret('API_KEY', 'dev-api-key'),
   baseDomain: process.env.BASE_DOMAIN || 'localhost',

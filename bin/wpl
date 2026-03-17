@@ -28,6 +28,10 @@ if [ ! -f "$PROJECT_DIR/docker-compose.yml" ]; then
   exit 1
 fi
 
+# Load .env for API_PORT
+[ -f "$PROJECT_DIR/.env" ] && export $(grep -v '^#' "$PROJECT_DIR/.env" | xargs 2>/dev/null) || true
+API_PORT="${API_PORT:-3737}"
+
 # Delegate to Node.js CLI if built (supports dashboard TUI)
 NODE_CLI="$PROJECT_DIR/packages/cli/dist/index.js"
 if [ -f "$NODE_CLI" ] && command -v node &>/dev/null; then
@@ -159,7 +163,7 @@ case "$CMD" in
 
   sites)
     # List active sites from the API
-    SITES=$(curl -sf http://localhost:3000/api/sites 2>/dev/null || curl -sf http://localhost/api/sites 2>/dev/null || echo "")
+    SITES=$(curl -sf http://localhost:${API_PORT}/api/sites 2>/dev/null || curl -sf http://localhost/api/sites 2>/dev/null || echo "")
     if [ -z "$SITES" ]; then
       echo "Could not reach API. Is WP Launcher running? (wpl start)"
       exit 1
@@ -232,7 +236,7 @@ case "$CMD" in
       echo "Error: Could not read API_KEY from .env"
       exit 1
     fi
-    RESULT=$(curl -sf -X POST "http://localhost:3000/api/admin/users/promote" \
+    RESULT=$(curl -sf -X POST "http://localhost:${API_PORT}/api/admin/users/promote" \
       -H "X-API-Key: $API_KEY" \
       -H "Content-Type: application/json" \
       -d "{\"email\": \"$EMAIL\", \"role\": \"admin\"}" 2>/dev/null)
@@ -255,7 +259,7 @@ case "$CMD" in
       echo "Error: Could not read API_KEY from .env"
       exit 1
     fi
-    RESULT=$(curl -sf -X POST "http://localhost:3000/api/admin/users/promote" \
+    RESULT=$(curl -sf -X POST "http://localhost:${API_PORT}/api/admin/users/promote" \
       -H "X-API-Key: $API_KEY" \
       -H "Content-Type: application/json" \
       -d "{\"email\": \"$EMAIL\", \"role\": \"user\"}" 2>/dev/null)

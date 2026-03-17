@@ -553,7 +553,7 @@ services:
       - "traefik.http.routers.api.tls.domains[0].main=${BASE_DOMAIN}"
       - "traefik.http.routers.api.tls.domains[0].sans=*.${BASE_DOMAIN}"
       - "traefik.http.routers.api.middlewares=security-headers@file,rate-limit@file"
-      - "traefik.http.services.api.loadbalancer.server.port=3000"
+      - "traefik.http.services.api.loadbalancer.server.port=3737"
 
   dashboard:
     labels:
@@ -579,7 +579,7 @@ services:
       - "traefik.http.routers.api.tls=true"
       - "traefik.http.routers.api.tls.certresolver=letsencrypt"
       - "traefik.http.routers.api.middlewares=security-headers@file,rate-limit@file"
-      - "traefik.http.services.api.loadbalancer.server.port=3000"
+      - "traefik.http.services.api.loadbalancer.server.port=3737"
 
   dashboard:
     labels:
@@ -681,14 +681,14 @@ if [ -n "$ADMIN_ACCOUNT_EMAIL" ] && [ -n "$ADMIN_ACCOUNT_PASSWORD" ]; then
   # Wait for API to be ready
   info "Waiting for API..."
   for i in $(seq 1 30); do
-    if curl -sf http://localhost:3000/health &>/dev/null; then
+    if curl -sf http://localhost:${API_PORT:-3737}/health &>/dev/null; then
       break
     fi
     sleep 2
   done
 
   # Register the user (skip email verification)
-  REGISTER_RESULT=$(curl -sf -X POST http://localhost:3000/api/auth/register \
+  REGISTER_RESULT=$(curl -sf -X POST http://localhost:${API_PORT:-3737}/api/auth/register \
     -H "Content-Type: application/json" \
     -d "{\"email\": \"${ADMIN_ACCOUNT_EMAIL}\"}" 2>/dev/null || echo "")
 

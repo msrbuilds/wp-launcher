@@ -40,7 +40,7 @@ docker compose up --build
 
 This starts three services:
 - **Traefik** (reverse proxy) on port 80
-- **API** (site management) on port 3000
+- **API** (site management) on port 3737 (configurable via `API_PORT` in `.env`)
 - **Dashboard** (web UI) on port 80 via Traefik
 
 Open `http://localhost` to see the dashboard.

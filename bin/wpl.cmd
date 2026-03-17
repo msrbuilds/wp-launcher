@@ -15,6 +15,14 @@ if not exist "%PROJECT_DIR%\docker-compose.yml" (
     exit /b 1
 )
 
+:: Load API_PORT from .env
+set "API_PORT=3737"
+if exist "%PROJECT_DIR%\.env" (
+    for /f "usebackq tokens=1,* delims==" %%A in ("%PROJECT_DIR%\.env") do (
+        if "%%A"=="API_PORT" set "API_PORT=%%B"
+    )
+)
+
 :: Delegate to Node.js CLI if built (supports interactive dashboard)
 set "NODE_CLI=%PROJECT_DIR%\packages\cli\dist\index.js"
 where node >nul 2>&1
@@ -132,7 +140,7 @@ goto :eof
 goto :eof
 
 :cmd_sites
-curl -sf http://localhost:3000/api/sites 2>nul
+curl -sf http://localhost:%API_PORT%/api/sites 2>nul
 if errorlevel 1 (
     curl -sf http://localhost/api/sites 2>nul
     if errorlevel 1 (
