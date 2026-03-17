@@ -110,3 +110,33 @@ export async function sendWelcomeEmail(
   await sendEmail(email, 'Welcome to WP Launcher - Your account is ready', html);
   console.log(`[email] Welcome email sent to ${email} via ${config.emailProvider}`);
 }
+
+export async function sendShareNotificationEmail(
+  recipientEmail: string,
+  ownerEmail: string,
+  subdomain: string,
+  siteUrl: string,
+  role: 'viewer' | 'admin',
+): Promise<void> {
+  const dashboardUrl = config.publicUrl;
+  const roleLabel = role === 'admin' ? 'Admin access (can manage the site)' : 'Viewer access (can visit the site)';
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 2rem;">
+      <h2 style="color: #1a1a2e;">A site has been shared with you</h2>
+      <p><strong>${ownerEmail}</strong> shared a WordPress demo site with you:</p>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin: 1rem 0;">
+        <p style="margin: 0 0 0.5rem; font-weight: 600; color: #1a1a2e;">${subdomain}</p>
+        <p style="margin: 0 0 0.5rem; font-size: 0.85rem; color: #64748b;">${roleLabel}</p>
+        <a href="${siteUrl}" style="color: #2563eb; font-size: 0.85rem;">${siteUrl}</a>
+      </div>
+      <a href="${dashboardUrl}/sites" style="display: inline-block; background: #2563eb; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500; margin: 1rem 0;">
+        View in Dashboard
+      </a>
+      <p style="color: #94a3b8; font-size: 0.8rem;">If you don't have an account yet, sign up with this email address to access the shared site.</p>
+    </div>
+  `;
+
+  await sendEmail(recipientEmail, `${ownerEmail} shared a site with you - WP Launcher`, html);
+  console.log(`[email] Share notification sent to ${recipientEmail} via ${config.emailProvider}`);
+}

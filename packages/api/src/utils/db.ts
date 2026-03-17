@@ -120,6 +120,23 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_scheduled_status ON scheduled_launches(status);
     CREATE INDEX IF NOT EXISTS idx_scheduled_at ON scheduled_launches(scheduled_at);
 
+    CREATE TABLE IF NOT EXISTS site_shares (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      shared_with_email TEXT NOT NULL,
+      shared_with_id TEXT,
+      role TEXT NOT NULL DEFAULT 'viewer',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (site_id) REFERENCES sites(id),
+      FOREIGN KEY (owner_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_site_shares_site ON site_shares(site_id);
+    CREATE INDEX IF NOT EXISTS idx_site_shares_email ON site_shares(shared_with_email);
+    CREATE INDEX IF NOT EXISTS idx_site_shares_user ON site_shares(shared_with_id);
+
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -148,6 +165,7 @@ function initSchema(db: Database.Database): void {
     'feature.webhooks': 'false',
     'feature.healthMonitoring': 'false',
     'feature.scheduledLaunch': 'false',
+    'feature.collaborativeSites': 'false',
     'branding.siteTitle': 'WP Launcher',
     'branding.logoUrl': '',
     'branding.cardLayout': '',

@@ -62,6 +62,7 @@ export default function SitesListPage() {
   const canPassword = features.sitePassword;
   const canExport = features.exportZip;
   const canHealth = features.healthMonitoring;
+  const canShare = features.collaborativeSites;
   const [sites, setSites] = useState<Site[]>([]);
   const [maxSites, setMaxSites] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,7 +70,7 @@ export default function SitesListPage() {
   const [filterTemplate, setFilterTemplate] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [expandedSite, setExpandedSite] = useState<string | null>(null);
-  const [expandedPanel, setExpandedPanel] = useState<'php' | 'snapshots' | 'domain' | 'health' | null>(null);
+  const [expandedPanel, setExpandedPanel] = useState<'php' | 'snapshots' | 'domain' | 'health' | 'share' | null>(null);
   const [phpConfigs, setPhpConfigs] = useState<Record<string, PhpConfig>>({});
   const [savingPhp, setSavingPhp] = useState<string | null>(null);
   const [phpSaveMsg, setPhpSaveMsg] = useState<Record<string, string>>({});
@@ -546,6 +547,66 @@ export default function SitesListPage() {
     setHealthLoading(null);
   }
 
+  // Collaborative sites — sharing
+  const [shareEmail, setShareEmail] = useState('');
+  const [shareRole, setShareRole] = useState<'viewer' | 'admin'>('viewer');
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareMsg, setShareMsg] = useState('');
+  const [siteShares, setSiteShares] = useState<Record<string, any[]>>({});
+  const [sharedWithMe, setSharedWithMe] = useState<any[]>([]);
+
+  async function fetchShares(siteId: string) {
+    try {
+      const res = await fetch(`/api/sites/${siteId}/shares`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setSiteShares(prev => ({ ...prev, [siteId]: data.shares || [] }));
+      }
+    } catch {}
+  }
+
+  function fetchSharedWithMe() {
+    if (!canShare) return;
+    fetch('/api/sites/shared-with-me', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => { if (data.sites) setSharedWithMe(data.sites); })
+      .catch(() => {});
+  }
+
+  async function handleShare(siteId: string) {
+    if (!shareEmail) return;
+    setShareLoading(true);
+    setShareMsg('');
+    try {
+      const res = await fetch(`/api/sites/${siteId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: shareEmail, role: shareRole }),
+      });
+      if (res.ok) {
+        setShareEmail('');
+        setShareMsg('Shared successfully!');
+        fetchShares(siteId);
+        setTimeout(() => setShareMsg(''), 3000);
+      } else {
+        const err = await res.json().catch(() => ({ error: 'Failed' }));
+        setShareMsg(err.error || 'Failed to share');
+      }
+    } catch {
+      setShareMsg('Failed to share');
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  async function handleRevokeShare(siteId: string, shareId: string) {
+    await fetch(`/api/sites/${siteId}/shares/${shareId}`, { method: 'DELETE', credentials: 'include' });
+    fetchShares(siteId);
+  }
+
+  useEffect(() => { fetchSharedWithMe(); }, [canShare]);
+
   // Derive unique templates and statuses for filters
   const templates = useMemo(() => [...new Set(sites.map((s) => s.productId))].sort(), [sites]);
   const statuses = useMemo(() => [...new Set(sites.map((s) => s.status))].sort(), [sites]);
@@ -815,6 +876,24 @@ export default function SitesListPage() {
                           <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
                         )}
                         Stats
+                      </button>
+                      )}
+                      {canShare && site.status === 'running' && (
+                      <button
+                        className={`btn btn-secondary btn-xs${expandedSite === site.id && expandedPanel === 'share' ? ' btn-active' : ''}`}
+                        onClick={() => {
+                          if (expandedSite === site.id && expandedPanel === 'share') {
+                            setExpandedSite(null); setExpandedPanel(null);
+                          } else {
+                            setExpandedSite(site.id); setExpandedPanel('share' as any);
+                            fetchShares(site.id);
+                          }
+                        }}
+                        title="Share site"
+                        style={expandedSite === site.id && expandedPanel === 'share' ? { borderColor: '#fb8500', color: '#fb8500' } : {}}
+                      >
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
+                        Share
                       </button>
                       )}
                       {canPassword && site.status === 'running' && (
@@ -1190,6 +1269,56 @@ export default function SitesListPage() {
                     </td>
                   </tr>
                 )}
+                {canShare && expandedSite === site.id && expandedPanel === 'share' && (
+                  <tr key={`${site.id}-share`}>
+                    <td colSpan={5} style={{ padding: 0, border: 'none' }}>
+                      <div style={{ padding: '1rem 1.25rem', background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>Share Site</span>
+                          <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                          <input
+                            type="email"
+                            placeholder="user@example.com"
+                            value={shareEmail}
+                            onChange={e => setShareEmail(e.target.value)}
+                            style={{ flex: 1, minWidth: 180, padding: '0.35rem 0.5rem', borderRadius: 4, border: '1px solid #4a5568', background: '#2d3748', color: '#e2e8f0', fontSize: '0.85rem' }}
+                          />
+                          <select
+                            value={shareRole}
+                            onChange={e => setShareRole(e.target.value as 'viewer' | 'admin')}
+                            style={{ padding: '0.35rem 0.5rem', borderRadius: 4, border: '1px solid #4a5568', background: '#2d3748', color: '#e2e8f0', fontSize: '0.85rem' }}
+                          >
+                            <option value="viewer">Viewer</option>
+                            <option value="admin">Admin</option>
+                          </select>
+                          <button className="btn btn-primary btn-xs" onClick={() => handleShare(site.id)} disabled={shareLoading || !shareEmail}>
+                            {shareLoading ? <span className="spinner spinner-sm" /> : 'Share'}
+                          </button>
+                        </div>
+                        {shareMsg && <div style={{ fontSize: '0.8rem', color: shareMsg.includes('success') ? '#22c55e' : '#ef4444', marginBottom: '0.5rem' }}>{shareMsg}</div>}
+                        {(siteShares[site.id] || []).length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            {(siteShares[site.id] || []).map((s: any) => (
+                              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.3rem 0.5rem', background: '#1e293b', borderRadius: 4, fontSize: '0.8rem' }}>
+                                <span style={{ color: '#e2e8f0' }}>
+                                  {s.shared_with_email}
+                                  <span style={{ color: '#94a3b8', marginLeft: '0.5rem', fontSize: '0.7rem', textTransform: 'uppercase' }}>{s.role}</span>
+                                  <span style={{ color: s.status === 'accepted' ? '#22c55e' : '#ecc94b', marginLeft: '0.5rem', fontSize: '0.7rem' }}>{s.status}</span>
+                                </span>
+                                <button className="btn btn-danger-outline btn-xs" onClick={() => handleRevokeShare(site.id, s.id)} style={{ fontSize: '0.7rem' }}>Revoke</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(siteShares[site.id] || []).length === 0 && (
+                          <p style={{ color: '#64748b', fontSize: '0.8rem', margin: 0 }}>No shares yet. Enter an email above to share this site.</p>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </React.Fragment>
               ))}
               {filtered.length === 0 && (
@@ -1268,6 +1397,48 @@ export default function SitesListPage() {
         <h2>My Sites ({sites.length}{maxSites ? ` / ${maxSites}` : ''})</h2>
         <p>Manage your active demo sites</p>
       </div>
+
+      {/* Shared with me */}
+      {sharedWithMe.length > 0 && (
+        <div style={{ marginBottom: '1.25rem' }}>
+          <h4 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+            Shared with me ({sharedWithMe.length})
+          </h4>
+          <div className="sites-grid">
+            {sharedWithMe.map((share: any) => (
+              <div key={share.id} className="card site-card" style={{ borderLeft: '3px solid #8b5cf6' }}>
+                <div className="site-card-header">
+                  <div className="site-card-status">
+                    <span className={`status-dot status-${share.site_status}`} />
+                    <span className="status-text">{share.site_status}</span>
+                  </div>
+                  <span style={{
+                    padding: '0.15rem 0.5rem', borderRadius: 12, fontSize: '0.7rem', fontWeight: 600,
+                    background: share.role === 'admin' ? '#fef3c7' : '#ede9fe',
+                    color: share.role === 'admin' ? '#92400e' : '#6d28d9',
+                  }}>
+                    {share.role.toUpperCase()}
+                  </span>
+                </div>
+                <div className="site-card-body">
+                  <h3 className="site-card-name">
+                    <a href={share.site_url} target="_blank" rel="noopener noreferrer">{share.subdomain}</a>
+                  </h3>
+                  <div className="site-card-meta">
+                    <span className="site-card-product">{share.product_id}</span>
+                  </div>
+                </div>
+                <div className="site-card-actions" style={{ padding: '0.75rem 1rem' }}>
+                  <a href={share.site_url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">Visit</a>
+                  {share.role === 'admin' && share.admin_url && (
+                    <a href={share.admin_url} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm">Admin</a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Scheduled Launches */}
       {scheduledLaunches.length > 0 && (
@@ -1429,6 +1600,26 @@ export default function SitesListPage() {
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                 PHP Settings
+              </button>
+              )}
+              {canShare && site.status === 'running' && (
+              <button
+                onClick={() => {
+                  setActionsOpen(null);
+                  // Toggle: if already open, close
+                  if (expandedSite === site.id && expandedPanel === 'share') {
+                    setExpandedSite(null); setExpandedPanel(null);
+                  } else {
+                    setExpandedSite(site.id); setExpandedPanel('share' as any);
+                    fetchShares(site.id);
+                  }
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
+                Share Site
               </button>
               )}
               {canHealth && site.status === 'running' && (
@@ -1754,6 +1945,53 @@ export default function SitesListPage() {
                 </svg>
               </button>
             </div>
+
+            {/* Share panel for mobile/card view */}
+            {canShare && expandedSite === site.id && expandedPanel === 'share' && (
+            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <strong style={{ fontSize: '0.85rem' }}>Share Site</strong>
+                <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                <input
+                  type="email"
+                  placeholder="user@example.com"
+                  value={shareEmail}
+                  onChange={e => setShareEmail(e.target.value)}
+                  style={{ flex: 1, minWidth: 150, padding: '0.35rem 0.5rem', borderRadius: 4, border: '1px solid var(--border)', fontSize: '0.85rem' }}
+                />
+                <select
+                  value={shareRole}
+                  onChange={e => setShareRole(e.target.value as 'viewer' | 'admin')}
+                  style={{ padding: '0.35rem 0.5rem', borderRadius: 4, border: '1px solid var(--border)', fontSize: '0.85rem' }}
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <button className="btn btn-primary btn-xs" onClick={() => handleShare(site.id)} disabled={shareLoading || !shareEmail}>
+                  {shareLoading ? <span className="spinner spinner-sm" /> : 'Share'}
+                </button>
+              </div>
+              {shareMsg && <div style={{ fontSize: '0.8rem', color: shareMsg.includes('success') ? '#22c55e' : '#ef4444', marginBottom: '0.5rem' }}>{shareMsg}</div>}
+              {(siteShares[site.id] || []).length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  {(siteShares[site.id] || []).map((s: any) => (
+                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.3rem 0.5rem', background: 'var(--white)', borderRadius: 4, border: '1px solid var(--border)', fontSize: '0.8rem' }}>
+                      <span>
+                        {s.shared_with_email}
+                        <span style={{ color: 'var(--text-muted)', marginLeft: '0.5rem', fontSize: '0.7rem', textTransform: 'uppercase' }}>{s.role}</span>
+                        <span style={{ color: s.status === 'accepted' ? '#22c55e' : '#ecc94b', marginLeft: '0.5rem', fontSize: '0.7rem' }}>{s.status}</span>
+                      </span>
+                      <button className="btn btn-danger-outline btn-xs" onClick={() => handleRevokeShare(site.id, s.id)} style={{ fontSize: '0.7rem' }}>Revoke</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--text-light)', fontSize: '0.8rem', margin: 0 }}>No shares yet. Enter an email above to share.</p>
+              )}
+            </div>
+            )}
           </div>
         ))}
       </div>

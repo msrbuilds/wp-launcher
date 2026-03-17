@@ -364,7 +364,7 @@ if (config.isLocalMode) {
       res.status(400).json({ error: 'features object is required' });
       return;
     }
-    const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks', 'healthMonitoring', 'scheduledLaunch'];
+    const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks', 'healthMonitoring', 'scheduledLaunch', 'collaborativeSites'];
     const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
     for (const [name, enabled] of Object.entries(features)) {
       if (allowed.includes(name)) {

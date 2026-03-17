@@ -8,6 +8,7 @@ import { exportSiteAsTemplate } from '../services/template-export.service';
 import { setCustomDomain, getCustomDomain, removeCustomDomain, getDnsInstructions } from '../services/domain.service';
 import { conditionalAuth, conditionalOptionalAuth, AuthRequest } from '../middleware/userAuth';
 import { scheduleNewLaunch, listScheduledLaunches, cancelScheduledLaunch } from '../services/schedule.service';
+import { shareSite, listSiteShares, listSharedWithMe, revokeShare, updateShareRole } from '../services/share.service';
 import { config } from '../config';
 import { asyncHandler } from '../utils/asyncHandler';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors';
@@ -144,6 +145,15 @@ router.delete('/scheduled/:id', siteWriteLimiter, conditionalAuth, asyncHandler(
   if (!isFeatureEnabled('scheduledLaunch')) throw new ForbiddenError('Scheduled launches are disabled');
   cancelScheduledLaunch(req.params.id, req.userId);
   res.json({ message: 'Scheduled launch cancelled' });
+}));
+
+// --- Collaborative Sites ---
+
+// List sites shared with me (must be before /:id)
+router.get('/shared-with-me', siteReadLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.userId || !req.userEmail) throw new ForbiddenError('Authentication required');
+  const shared = listSharedWithMe(req.userId, req.userEmail);
+  res.json({ sites: shared });
 }));
 
 // Get a specific site (requires auth, users can only view their own)
@@ -437,6 +447,34 @@ router.get('/:id/export-zip/:exportId/download', conditionalAuth, asyncHandler(a
   } else {
     res.end();
   }
+}));
+
+// --- Site Sharing ---
+
+router.get('/:id/shares', siteReadLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const shares = listSiteShares(req.params.id, req.userId!);
+  res.json({ shares });
+}));
+
+router.post('/:id/share', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { email, role } = req.body;
+  if (!email) throw new ValidationError('Email is required');
+  const validRoles = ['viewer', 'admin'];
+  const shareRole = validRoles.includes(role) ? role : 'viewer';
+  const share = shareSite(req.params.id, req.userId!, email, shareRole);
+  res.status(201).json(share);
+}));
+
+router.patch('/:id/shares/:shareId', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { role } = req.body;
+  if (!role || !['viewer', 'admin'].includes(role)) throw new ValidationError('Role must be viewer or admin');
+  updateShareRole(req.params.shareId, req.userId!, role);
+  res.json({ message: 'Role updated' });
+}));
+
+router.delete('/:id/shares/:shareId', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  revokeShare(req.params.shareId, req.userId!);
+  res.json({ message: 'Share revoked' });
 }));
 
 // Delete a site (requires auth - users can only delete their own)
