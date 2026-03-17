@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FEATURE_META } from './shared';
 import { useAdminHeaders } from './AdminLayout';
+import { useIsLocalMode } from '../../context/SettingsContext';
 
 interface Webhook {
   id: string;
@@ -15,6 +16,7 @@ const ALL_EVENTS = ['site.created', 'site.expired', 'site.deleted'];
 
 export default function FeaturesTab() {
   const headers = useAdminHeaders();
+  const isLocal = useIsLocalMode();
   const [features, setFeatures] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -133,44 +135,52 @@ export default function FeaturesTab() {
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          {FEATURE_META.map((f) => (
-            <div
-              key={f.key}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0.75rem 1rem',
-                border: '1px solid #e2e8f0',
-                borderRadius: '8px',
-                background: features[f.key] ? '#f0fdf4' : '#fafafa',
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{f.label}</div>
-                <div style={{ color: '#64748b', fontSize: '0.8rem' }}>{f.description}</div>
-              </div>
-              <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', flexShrink: 0, marginLeft: '1rem' }}>
-                <input
-                  type="checkbox"
-                  checked={!!features[f.key]}
-                  onChange={(e) => setFeatures((prev) => ({ ...prev, [f.key]: e.target.checked }))}
-                  style={{ opacity: 0, width: 0, height: 0 }}
-                />
-                <span style={{
-                  position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
-                  background: features[f.key] ? '#22c55e' : '#cbd5e1',
-                  borderRadius: '24px', transition: 'background 0.2s',
-                }}>
+          {FEATURE_META.map((f) => {
+            const disabled = isLocal && f.agencyOnly;
+            return (
+              <div
+                key={f.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.75rem 1rem',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  background: disabled ? '#f1f5f9' : features[f.key] ? '#f0fdf4' : '#fafafa',
+                  opacity: disabled ? 0.55 : 1,
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                    {f.label}
+                    {disabled && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 500, color: '#94a3b8', background: '#e2e8f0', padding: '0.15rem 0.4rem', borderRadius: 4 }}>Agency only</span>}
+                  </div>
+                  <div style={{ color: '#64748b', fontSize: '0.8rem' }}>{f.description}</div>
+                </div>
+                <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', flexShrink: 0, marginLeft: '1rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={!!features[f.key]}
+                    disabled={disabled}
+                    onChange={(e) => setFeatures((prev) => ({ ...prev, [f.key]: e.target.checked }))}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
                   <span style={{
-                    position: 'absolute', height: '18px', width: '18px',
-                    left: features[f.key] ? '23px' : '3px', bottom: '3px',
-                    background: 'white', borderRadius: '50%', transition: 'left 0.2s',
-                  }} />
-                </span>
-              </label>
-            </div>
-          ))}
+                    position: 'absolute', cursor: disabled ? 'not-allowed' : 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                    background: disabled ? '#e2e8f0' : features[f.key] ? '#22c55e' : '#cbd5e1',
+                    borderRadius: '24px', transition: 'background 0.2s',
+                  }}>
+                    <span style={{
+                      position: 'absolute', height: '18px', width: '18px',
+                      left: features[f.key] ? '23px' : '3px', bottom: '3px',
+                      background: 'white', borderRadius: '50%', transition: 'left 0.2s',
+                    }} />
+                  </span>
+                </label>
+              </div>
+            );
+          })}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

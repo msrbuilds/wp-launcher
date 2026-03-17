@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
+import { useIsLocalMode } from '../../context/SettingsContext';
 
 interface BulkJob {
   id: string;
@@ -16,6 +17,7 @@ interface BulkJob {
 
 export default function BulkTab() {
   const headers = useAdminHeaders();
+  const isLocal = useIsLocalMode();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [productId, setProductId] = useState('');
   const [count, setCount] = useState(5);
@@ -26,7 +28,7 @@ export default function BulkTab() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    fetch('/api/products', { credentials: 'include' }).then((r) => r.json()).then((data) => {
+    fetch(isLocal ? '/api/templates' : '/api/products', { credentials: 'include' }).then((r) => r.json()).then((data) => {
       if (Array.isArray(data)) {
         setProducts(data);
         if (data.length > 0 && !productId) setProductId(data[0].id);
@@ -87,7 +89,7 @@ export default function BulkTab() {
         <form onSubmit={handleStart}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
             <div className="form-group" style={{ margin: 0 }}>
-              <label>Product</label>
+              <label>{isLocal ? 'Template' : 'Product'}</label>
               <select value={productId} onChange={(e) => setProductId(e.target.value)} style={{ width: '100%', padding: '0.625rem 1rem', border: '1px solid var(--border)', fontSize: '0.95rem', background: 'var(--white)', color: 'var(--prussian-blue)' }}>
                 {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
@@ -96,15 +98,17 @@ export default function BulkTab() {
               <label>Count (1-50)</label>
               <input type="number" min={1} max={50} value={count} onChange={(e) => setCount(parseInt(e.target.value) || 1)} />
             </div>
-            <div className="form-group" style={{ margin: 0 }}>
-              <label>Expires In</label>
-              <select value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)} style={{ width: '100%', padding: '0.625rem 1rem', border: '1px solid var(--border)', fontSize: '0.95rem', background: 'var(--white)', color: 'var(--prussian-blue)' }}>
-                <option value="1h">1 hour</option>
-                <option value="24h">24 hours</option>
-                <option value="7d">7 days</option>
-                <option value="30d">30 days</option>
-              </select>
-            </div>
+            {!isLocal && (
+              <div className="form-group" style={{ margin: 0 }}>
+                <label>Expires In</label>
+                <select value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)} style={{ width: '100%', padding: '0.625rem 1rem', border: '1px solid var(--border)', fontSize: '0.95rem', background: 'var(--white)', color: 'var(--prussian-blue)' }}>
+                  <option value="1h">1 hour</option>
+                  <option value="24h">24 hours</option>
+                  <option value="7d">7 days</option>
+                  <option value="30d">30 days</option>
+                </select>
+              </div>
+            )}
             <div className="form-group" style={{ margin: 0 }}>
               <label>Prefix (optional)</label>
               <input type="text" value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="e.g. workshop" />

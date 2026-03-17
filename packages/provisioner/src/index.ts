@@ -792,7 +792,7 @@ app.post('/containers/:id/snapshot', async (req: Request, res: Response) => {
 
       // Run mysqldump inside the container
       const dumpExec = await container.exec({
-        Cmd: ['bash', '-c', `mysqldump -h "${dbHost}" -u "${dbUser}" -p"${dbPass}" "${dbName}" > /var/www/html/wp-content/db-snapshot.sql 2>/dev/null`],
+        Cmd: ['bash', '-c', `mysqldump --skip-ssl --no-tablespaces -h "${dbHost}" -u "${dbUser}" -p"${dbPass}" "${dbName}" > /var/www/html/wp-content/db-snapshot.sql 2>/dev/null`],
         AttachStdout: true,
         AttachStderr: true,
       });
@@ -852,7 +852,7 @@ app.post('/containers/:id/restore', async (req: Request, res: Response) => {
       return;
     }
 
-    const { snapshotId } = req.body;
+    const { snapshotId, newSiteUrl } = req.body;
     if (!snapshotId) {
       res.status(400).json({ error: 'snapshotId is required' });
       return;
@@ -910,7 +910,7 @@ app.post('/containers/:id/restore', async (req: Request, res: Response) => {
       const dbName = info.Config.Env?.find((e: string) => e.startsWith('WORDPRESS_DB_NAME='))?.split('=')[1] || 'wordpress';
 
       const importExec = await container.exec({
-        Cmd: ['bash', '-c', `mysql -h "${dbHost}" -u "${dbUser}" -p"${dbPass}" "${dbName}" < /var/www/html/wp-content/db-snapshot.sql 2>/dev/null && rm -f /var/www/html/wp-content/db-snapshot.sql`],
+        Cmd: ['bash', '-c', `mysql --skip-ssl -h "${dbHost}" -u "${dbUser}" -p"${dbPass}" "${dbName}" < /var/www/html/wp-content/db-snapshot.sql 2>/dev/null && rm -f /var/www/html/wp-content/db-snapshot.sql`],
         AttachStdout: true,
         AttachStderr: true,
       });
@@ -919,6 +919,36 @@ app.post('/containers/:id/restore', async (req: Request, res: Response) => {
         importStream.on('end', resolve);
         setTimeout(resolve, 30000);
       });
+
+      // Update siteurl/home if restoring into a different site (clone)
+      if (newSiteUrl) {
+        const replaceExec = await container.exec({
+          Cmd: ['bash', '-c', `wp search-replace --all-tables --allow-root --path=/var/www/html $(wp option get siteurl --allow-root --path=/var/www/html 2>/dev/null) "${newSiteUrl}" 2>/dev/null || true`],
+          AttachStdout: true,
+          AttachStderr: true,
+        });
+        const replaceStream = await replaceExec.start({ hijack: true, stdin: false });
+        await new Promise<void>((resolve) => {
+          replaceStream.on('end', resolve);
+          setTimeout(resolve, 15000);
+        });
+        console.log(`[provisioner] URL replaced to ${newSiteUrl}`);
+      }
+    }
+
+    // For SQLite: also update URLs if restoring into a different site (clone)
+    if (newSiteUrl && dbEngine !== 'mysql' && dbEngine !== 'mariadb') {
+      const replaceExec = await container.exec({
+        Cmd: ['bash', '-c', `wp search-replace --all-tables --allow-root --path=/var/www/html $(wp option get siteurl --allow-root --path=/var/www/html 2>/dev/null) "${newSiteUrl}" 2>/dev/null || true`],
+        AttachStdout: true,
+        AttachStderr: true,
+      });
+      const replaceStream = await replaceExec.start({ hijack: true, stdin: false });
+      await new Promise<void>((resolve) => {
+        replaceStream.on('end', resolve);
+        setTimeout(resolve, 15000);
+      });
+      console.log(`[provisioner] URL replaced to ${newSiteUrl} (SQLite)`);
     }
 
     // Restart Apache

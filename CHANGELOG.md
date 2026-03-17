@@ -2,6 +2,28 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [1.6.1] - 2026-03-18
+
+### Added
+- **Local mode admin panel** — Full admin panel (Overview, Sites, Logs, Templates, Features, Branding, System) accessible in local mode with automatic admin auth
+- **Tools dropdown** — Site action buttons (Clone, Template, Snapshots, PHP, Stats, Password, Export) consolidated into a dropdown menu in local mode table view
+- **Site readiness indicator** — New sites show "Setting up..." spinner until WordPress is fully initialized, preventing premature access errors
+- **Clone URL rewriting** — Cloned sites automatically get `wp search-replace` to update URLs from source to clone domain (supports both MySQL and SQLite)
+
+### Fixed
+- **Version display showing stale version** — Fixed Docker layer cache serving old `version.json`; added proper generation pipeline via `generate-version.sh` → `packages/api/version.json`
+- **Admin panel inaccessible in local mode** — Admin routes were only mounted in agency mode; now available in both modes with JWT-based auth for local-user
+- **Clone producing empty sites (MySQL)** — `mysqldump` failed silently due to MySQL 8.4 TLS enforcement; fixed with `--skip-ssl --no-tablespaces` flags
+- **Clone wrong database engine** — Clone now inherits the source site's actual DB engine from the snapshot instead of the product config default
+- **Clone race condition** — Restore now waits for the WordPress entrypoint to complete before overwriting wp-content
+- **Features showing when disabled** — Changed `DEFAULT_FEATURES` to all `false` so features only appear when explicitly enabled
+- **Password modal missing in local mode** — Modal was only rendered in agency mode return block; now included in local mode
+- **Rate limiting in local mode** — All rate limiters bypassed in local mode for unrestricted development
+
+### Changed
+- **Admin panel adapted for local mode** — Hidden Users/Analytics tabs; filtered sites/logs/stats by local-user; renamed Product→Template throughout; agency-only features greyed out with "Agency only" badge; hidden update/SSH sections
+- **Dockerfile** — Updated API Dockerfile to include `version.json` and expose port 3737
+
 ## [1.6.0] - 2026-03-18
 
 ### Added

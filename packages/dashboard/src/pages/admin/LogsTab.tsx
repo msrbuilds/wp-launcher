@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { SiteLog, PaginatedResponse, PAGE_SIZE } from './shared';
 import { useAdminHeaders } from './AdminLayout';
+import { useIsLocalMode } from '../../context/SettingsContext';
 import Pagination from './Pagination';
 
 export default function LogsTab() {
   const headers = useAdminHeaders();
+  const isLocal = useIsLocalMode();
   const [logs, setLogs] = useState<SiteLog[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -33,9 +35,9 @@ export default function LogsTab() {
             <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
               <th style={{ padding: '0.5rem' }}>Time</th>
               <th style={{ padding: '0.5rem' }}>Action</th>
-              <th style={{ padding: '0.5rem' }}>User</th>
+              {!isLocal && <th style={{ padding: '0.5rem' }}>User</th>}
               <th style={{ padding: '0.5rem' }}>Site</th>
-              <th style={{ padding: '0.5rem' }}>Product</th>
+              <th style={{ padding: '0.5rem' }}>{isLocal ? 'Template' : 'Product'}</th>
             </tr>
           </thead>
           <tbody>
@@ -45,7 +47,7 @@ export default function LogsTab() {
                 <td style={{ padding: '0.5rem' }}>
                   <span className={`badge ${log.action === 'created' ? 'badge-running' : 'badge-expired'}`}>{log.action}</span>
                 </td>
-                <td style={{ padding: '0.5rem' }}>{log.user_email || '—'}</td>
+                {!isLocal && <td style={{ padding: '0.5rem' }}>{log.user_email || '—'}</td>}
                 <td style={{ padding: '0.5rem' }}>
                   {log.site_url ? <a href={log.site_url} target="_blank" rel="noopener noreferrer">{log.subdomain}</a> : log.subdomain}
                 </td>

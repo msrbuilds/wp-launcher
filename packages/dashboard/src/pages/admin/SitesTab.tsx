@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AdminSite, PaginatedResponse, PAGE_SIZE } from './shared';
 import { useAdminHeaders } from './AdminLayout';
+import { useIsLocalMode } from '../../context/SettingsContext';
 import Pagination from './Pagination';
 
 export default function SitesTab() {
   const headers = useAdminHeaders();
+  const isLocal = useIsLocalMode();
   const [sites, setSites] = useState<AdminSite[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -38,7 +40,7 @@ export default function SitesTab() {
           <thead>
             <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
               <th style={{ padding: '0.5rem' }}>Subdomain</th>
-              <th style={{ padding: '0.5rem' }}>Product</th>
+              <th style={{ padding: '0.5rem' }}>{isLocal ? 'Template' : 'Product'}</th>
               <th style={{ padding: '0.5rem' }}>Status</th>
               <th style={{ padding: '0.5rem' }}>Created</th>
               <th style={{ padding: '0.5rem' }}>Actions</th>

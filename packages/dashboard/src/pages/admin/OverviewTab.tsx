@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Stats, AdminSite, SiteLog, FEATURE_META } from './shared';
 import { useAdminHeaders } from './AdminLayout';
+import { useIsLocalMode } from '../../context/SettingsContext';
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -13,6 +14,7 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
 
 export default function OverviewTab() {
   const headers = useAdminHeaders();
+  const isLocal = useIsLocalMode();
   const [stats, setStats] = useState<Stats | null>(null);
   const [recentSites, setRecentSites] = useState<AdminSite[]>([]);
   const [recentLogs, setRecentLogs] = useState<SiteLog[]>([]);
@@ -55,8 +57,8 @@ export default function OverviewTab() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
           <StatCard label="Total Sites Created" value={stats.totalSitesCreated} />
           <StatCard label="Active Sites" value={stats.activeSites} />
-          <StatCard label="Total Users" value={stats.totalUsers} />
-          <StatCard label="Verified Users" value={stats.verifiedUsers} />
+          {!isLocal && <StatCard label="Total Users" value={stats.totalUsers} />}
+          {!isLocal && <StatCard label="Verified Users" value={stats.verifiedUsers} />}
         </div>
       )}
 
@@ -91,7 +93,7 @@ export default function OverviewTab() {
         <div className="card">
           <h3 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'Poppins, sans-serif' }}>Active Modules</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {FEATURE_META.map((f) => (
+            {FEATURE_META.filter((f) => !isLocal || !f.agencyOnly).map((f) => (
               <div key={f.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.5rem', background: features[f.key] ? '#f0fdf4' : 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: features[f.key] ? '#22c55e' : 'var(--text-light)', flexShrink: 0 }} />
@@ -115,7 +117,7 @@ export default function OverviewTab() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
-                  {['Time', 'Action', 'User', 'Site', 'Product'].map((h) => (
+                  {['Time', 'Action', ...(!isLocal ? ['User'] : []), 'Site', isLocal ? 'Template' : 'Product'].map((h) => (
                     <th key={h} style={{ padding: '0.5rem', fontFamily: 'Poppins, sans-serif', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>{h}</th>
                   ))}
                 </tr>
@@ -127,7 +129,7 @@ export default function OverviewTab() {
                     <td style={{ padding: '0.5rem' }}>
                       <span className={`badge ${log.action === 'created' ? 'badge-running' : log.action === 'error' ? 'badge-error' : 'badge-expired'}`}>{log.action}</span>
                     </td>
-                    <td style={{ padding: '0.5rem' }}>{log.user_email || '—'}</td>
+                    {!isLocal && <td style={{ padding: '0.5rem' }}>{log.user_email || '—'}</td>}
                     <td style={{ padding: '0.5rem' }}>
                       {log.site_url ? <a href={log.site_url} target="_blank" rel="noopener noreferrer">{log.subdomain}</a> : log.subdomain}
                     </td>

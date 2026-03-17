@@ -123,10 +123,10 @@ export async function createSnapshot(containerId: string, snapshotId: string): P
   return await res.json() as { snapshotId: string; sizeBytes: number; dbEngine: string };
 }
 
-export async function restoreSnapshot(containerId: string, snapshotId: string): Promise<void> {
+export async function restoreSnapshot(containerId: string, snapshotId: string, newSiteUrl?: string): Promise<void> {
   await provisionerFetch(`/containers/${containerId}/restore`, {
     method: 'POST',
-    body: JSON.stringify({ snapshotId }),
+    body: JSON.stringify({ snapshotId, newSiteUrl }),
   });
 }
 

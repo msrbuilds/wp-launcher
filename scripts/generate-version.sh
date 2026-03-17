@@ -32,4 +32,7 @@ cat > "$ROOT_DIR/version.json" <<EOF
 }
 EOF
 
+# Also copy into packages/api so Docker build context (./packages/api) can include it
+cp "$ROOT_DIR/version.json" "$ROOT_DIR/packages/api/version.json"
+
 echo "Generated version.json: v${VERSION} (${COMMIT})"

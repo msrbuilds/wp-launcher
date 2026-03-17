@@ -1,6 +1,6 @@
 {
   "name": "@wp-launcher/api",
-  "version": "1.0.0",
+  "version": "1.6.1",
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",

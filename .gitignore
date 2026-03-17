@@ -62,3 +62,4 @@ docker-compose.override.yml
 
 # Generated
 version.json
+packages/api/version.json

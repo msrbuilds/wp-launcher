@@ -196,7 +196,6 @@ export default function SitesListPage() {
         body: JSON.stringify({}),
       });
       if (res.ok) {
-        alert('Site cloned successfully! Refresh to see the new site.');
         fetchSites();
       } else {
         const data = await res.json();
@@ -357,6 +356,39 @@ export default function SitesListPage() {
   }
 
   const [fetchError, setFetchError] = useState('');
+  const [siteReady, setSiteReady] = useState<Record<string, boolean>>({});
+
+  // Poll readiness for sites created in the last 2 minutes
+  useEffect(() => {
+    const recentSites = sites.filter(s => s.status === 'running' && (Date.now() - new Date(s.createdAt).getTime()) < 120000 && !siteReady[s.id]);
+    if (recentSites.length === 0) return;
+    let cancelled = false;
+    for (const s of recentSites) {
+      (async () => {
+        for (let i = 0; i < 30 && !cancelled; i++) {
+          try {
+            const res = await fetch(`/api/sites/${s.id}/ready`, { credentials: 'include' });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.ready) {
+                setSiteReady(prev => ({ ...prev, [s.id]: true }));
+                return;
+              }
+            }
+          } catch { /* not ready */ }
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      })();
+    }
+    return () => { cancelled = true; };
+  }, [sites.map(s => s.id).join(',')]);
+
+  function isSiteReady(site: Site): boolean {
+    if (site.status !== 'running') return false;
+    // Sites older than 2 minutes are always considered ready
+    if (Date.now() - new Date(site.createdAt).getTime() > 120000) return true;
+    return !!siteReady[site.id];
+  }
 
   function fetchSites() {
     const url = '/api/sites';
@@ -736,6 +768,11 @@ export default function SitesListPage() {
                   <td><span className="site-card-product">{site.productId}</span></td>
                   <td className="site-table-date">{new Date(site.createdAt).toLocaleDateString()}</td>
                   <td>
+                    {!isSiteReady(site) && site.status === 'running' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                        <span className="spinner spinner-sm spinner-dark" /> Setting up...
+                      </div>
+                    ) : (
                     <div className="site-table-actions" style={{ justifyContent: 'flex-end' }}>
                       <button
                         className="btn btn-primary btn-xs"
@@ -769,192 +806,70 @@ export default function SitesListPage() {
                         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
                         WP-CLI
                       </button>
-                      {canClone && (
-                      <button
-                        className="btn btn-secondary btn-xs"
-                        onClick={() => handleCloneSite(site.id)}
-                        disabled={cloning === site.id || site.status !== 'running'}
-                        title="Clone this site"
-                      >
-                        {cloning === site.id ? <><span className="spinner spinner-sm" /></> : (
-                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
-                        )}
-                        Clone
-                      </button>
-                      )}
-                      {!isLocal && canDomain && (
-                      <button
-                        className={`btn btn-secondary btn-xs${expandedSite === site.id && expandedPanel === 'domain' ? ' btn-active' : ''}`}
-                        onClick={() => {
-                          if (expandedSite === site.id && expandedPanel === 'domain') {
-                            setExpandedSite(null);
-                            setExpandedPanel(null);
-                          } else {
-                            setExpandedSite(site.id);
-                            setExpandedPanel('domain');
-                            if (!domainStatus[site.id]) fetchDomainStatus(site.id);
-                          }
-                        }}
-                        disabled={site.status !== 'running'}
-                        title="Custom Domain"
-                        style={expandedSite === site.id && expandedPanel === 'domain' ? { borderColor: '#fb8500', color: '#fb8500' } : {}}
-                      >
-                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 2.164A8.961 8.961 0 0 1 21 12c0 .778-.099 1.533-.284 2.253" /></svg>
-                        Domain
-                      </button>
-                      )}
-                      {canTemplate && (
-                      <button
-                        className="btn btn-secondary btn-xs"
-                        onClick={() => {
-                          setTemplateModal(site.id);
-                          setTemplateId('');
-                          setTemplateName('');
-                          setTemplateError('');
-                        }}
-                        disabled={site.status !== 'running'}
-                        title="Save as Template"
-                      >
-                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
-                        Template
-                      </button>
-                      )}
-                      {canSnapshot && (
-                      <button
-                        className={`btn btn-secondary btn-xs${expandedSite === site.id && expandedPanel === 'snapshots' ? ' btn-active' : ''}`}
-                        onClick={() => {
-                          if (expandedSite === site.id && expandedPanel === 'snapshots') {
-                            setExpandedSite(null);
-                            setExpandedPanel(null);
-                          } else {
-                            setExpandedSite(site.id);
-                            setExpandedPanel('snapshots');
-                            if (!snapshots[site.id]) fetchSnapshots(site.id);
-                          }
-                        }}
-                        title="Snapshots"
-                        style={expandedSite === site.id && expandedPanel === 'snapshots' ? { borderColor: '#fb8500', color: '#fb8500' } : {}}
-                      >
-                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" /></svg>
-                        Snaps
-                      </button>
-                      )}
-                      {canPhp && (
-                      <button
-                        className={`btn btn-secondary btn-xs${expandedSite === site.id && expandedPanel === 'php' ? ' btn-active' : ''}`}
-                        onClick={() => {
-                          if (expandedSite === site.id && expandedPanel === 'php') {
-                            setExpandedSite(null);
-                            setExpandedPanel(null);
-                          } else {
-                            setExpandedSite(site.id);
-                            setExpandedPanel('php');
-                            if (!phpConfigs[site.id]) fetchPhpConfig(site.id);
-                          }
-                        }}
-                        title="PHP Settings"
-                        style={expandedSite === site.id && expandedPanel === 'php' ? { borderColor: '#fb8500', color: '#fb8500' } : {}}
-                      >
-                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
-                        PHP
-                      </button>
-                      )}
-                      {canHealth && site.status === 'running' && (
-                      <button
-                        className={`btn btn-secondary btn-xs${expandedSite === site.id && expandedPanel === 'health' ? ' btn-active' : ''}`}
-                        onClick={() => {
-                          if (expandedSite === site.id && expandedPanel === 'health') {
-                            setExpandedSite(null);
-                            setExpandedPanel(null);
-                          } else {
-                            setExpandedSite(site.id);
-                            setExpandedPanel('health');
-                            fetchHealthStats(site.id);
-                          }
-                        }}
-                        title="Resource usage"
-                        style={expandedSite === site.id && expandedPanel === 'health' ? { borderColor: '#fb8500', color: '#fb8500' } : {}}
-                      >
-                        {healthLoading === site.id ? <span className="spinner spinner-sm" /> : (
-                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
-                        )}
-                        Stats
-                      </button>
-                      )}
-                      {canShare && site.status === 'running' && (
-                      <button
-                        className={`btn btn-secondary btn-xs${expandedSite === site.id && expandedPanel === 'share' ? ' btn-active' : ''}`}
-                        onClick={() => {
-                          if (expandedSite === site.id && expandedPanel === 'share') {
-                            setExpandedSite(null); setExpandedPanel(null);
-                          } else {
-                            setExpandedSite(site.id); setExpandedPanel('share' as any);
-                            fetchShares(site.id);
-                          }
-                        }}
-                        title="Share site"
-                        style={expandedSite === site.id && expandedPanel === 'share' ? { borderColor: '#fb8500', color: '#fb8500' } : {}}
-                      >
-                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
-                        Share
-                      </button>
-                      )}
-                      {canPassword && site.status === 'running' && (
-                      <button
-                        className="btn btn-secondary btn-xs"
-                        onClick={() => { setPasswordModal(site.id); setPasswordValue(''); }}
-                        disabled={passwordLoading === site.id}
-                        title="Password protect frontend"
-                      >
-                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
-                        Password
-                      </button>
-                      )}
-                      {canExport && site.status === 'running' && (
-                      <button
-                        className="btn btn-secondary btn-xs"
-                        onClick={() => handleExportZip(site.id)}
-                        disabled={exportLoading === site.id}
-                        title="Download site as ZIP"
-                      >
-                        {exportLoading === site.id ? <span className="spinner spinner-sm" /> : (
-                          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                        )}
-                        Export
-                      </button>
-                      )}
-                      {canExtend && site.status === 'running' && (
+                      {/* Tools dropdown for feature actions */}
+                      {(canClone || canTemplate || canSnapshot || canPhp || canHealth || canPassword || canExport) && site.status === 'running' && (
                         <div style={{ position: 'relative' }}>
                           <button
-                            className="btn btn-outline btn-xs"
-                            onClick={() => setExtendOpen(extendOpen === site.id ? null : site.id)}
-                            title="Extend expiration"
+                            className="btn btn-secondary btn-xs"
+                            onClick={() => cloning !== site.id && setActionsOpen(actionsOpen === site.id ? null : site.id)}
+                            disabled={cloning === site.id}
+                            title="Tools"
                           >
-                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                            Extend
+                            {cloning === site.id ? (
+                              <><span className="spinner spinner-sm" /> Cloning...</>
+                            ) : (
+                              <><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z" /></svg> Tools</>
+                            )}
                           </button>
-                          {extendOpen === site.id && (
+                          {actionsOpen === site.id && (
                             <div style={{
                               position: 'absolute', top: '100%', right: 0, marginTop: 4,
                               background: '#fff', border: '1px solid var(--border)', borderRadius: 8,
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: 140,
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: 160,
                               padding: '0.25rem 0',
                             }}>
-                              {EXTEND_OPTIONS.map(opt => (
-                                <button
-                                  key={opt.value}
-                                  onClick={() => handleExtend(site.id, opt.value)}
-                                  style={{
-                                    display: 'block', width: '100%', padding: '0.4rem 0.75rem',
-                                    border: 'none', background: 'none', cursor: 'pointer',
-                                    textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)',
-                                  }}
-                                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
-                                  onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                                >
-                                  + {opt.label}
+                              {canClone && (
+                                <button onClick={() => { handleCloneSite(site.id); setActionsOpen(null); }} disabled={cloning === site.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                  {cloning === site.id ? <span className="spinner spinner-sm" /> : <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>}
+                                  Clone
                                 </button>
-                              ))}
+                              )}
+                              {canTemplate && (
+                                <button onClick={() => { setTemplateModal(site.id); setTemplateId(''); setTemplateName(''); setTemplateError(''); setActionsOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
+                                  Save as Template
+                                </button>
+                              )}
+                              {canSnapshot && (
+                                <button onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('snapshots'); if (!snapshots[site.id]) fetchSnapshots(site.id); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" /></svg>
+                                  Snapshots
+                                </button>
+                              )}
+                              {canPhp && (
+                                <button onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('php'); if (!phpConfigs[site.id]) fetchPhpConfig(site.id); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+                                  PHP Config
+                                </button>
+                              )}
+                              {canHealth && (
+                                <button onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('health'); fetchHealthStats(site.id); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+                                  Stats
+                                </button>
+                              )}
+                              {canPassword && (
+                                <button onClick={() => { setPasswordModal(site.id); setPasswordValue(''); setActionsOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                                  Password
+                                </button>
+                              )}
+                              {canExport && (
+                                <button onClick={() => { handleExportZip(site.id); setActionsOpen(null); }} disabled={exportLoading === site.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                  {exportLoading === site.id ? <span className="spinner spinner-sm" /> : <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>}
+                                  Export ZIP
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -969,6 +884,7 @@ export default function SitesListPage() {
                         </svg>
                       </button>
                     </div>
+                    )}
                   </td>
                 </tr>
                 {canSnapshot && expandedSite === site.id && expandedPanel === 'snapshots' && (
@@ -1386,6 +1302,62 @@ export default function SitesListPage() {
                 >
                   {templateSaving ? <><span className="spinner spinner-sm" /> Exporting...</> : 'Save Template'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Password Protection Modal */}
+        {passwordModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div className="card" style={{ maxWidth: 420, width: '90%' }}>
+              <h3 style={{ marginBottom: '0.75rem' }}>Password Protection</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                Set a password to restrict access. Choose what to protect.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
+                {([
+                  { value: 'frontend' as const, label: 'Frontend Only', desc: 'Visitors need password, admin stays open' },
+                  { value: 'admin' as const, label: 'Admin Only', desc: 'wp-admin needs password, site stays open' },
+                  { value: 'all' as const, label: 'Entire Site', desc: 'Password required everywhere' },
+                ]).map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setPasswordScope(opt.value)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem',
+                      border: passwordScope === opt.value ? '2px solid var(--orange)' : '1px solid var(--border)',
+                      borderRadius: 8, background: passwordScope === opt.value ? '#fff8f0' : '#fafafa',
+                      cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s', width: '100%',
+                    }}
+                  >
+                    <div style={{
+                      width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                      border: passwordScope === opt.value ? '5px solid var(--orange)' : '2px solid var(--border)',
+                      background: '#fff',
+                    }} />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem', color: passwordScope === opt.value ? 'var(--orange)' : 'var(--prussian-blue)' }}>{opt.label}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.desc}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                placeholder="Enter password (min 4 chars)"
+                value={passwordValue}
+                onChange={(e) => setPasswordValue(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 6, marginBottom: '1rem', fontSize: '0.9rem', boxSizing: 'border-box' }}
+              />
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-primary btn-sm" onClick={() => handleSetPassword(passwordModal)} disabled={passwordLoading === passwordModal || passwordValue.length < 4}>
+                  {passwordLoading === passwordModal ? <><span className="spinner spinner-sm" /> Setting...</> : 'Set Password'}
+                </button>
+                <button className="btn btn-danger-outline btn-sm" onClick={() => { handleRemovePassword(passwordModal); setPasswordModal(null); }}>
+                  Remove
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={() => setPasswordModal(null)}>Cancel</button>
               </div>
             </div>
           </div>

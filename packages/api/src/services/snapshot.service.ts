@@ -118,18 +118,30 @@ export async function cloneSite(siteId: string, userId?: string, opts?: { subdom
   // Take a snapshot of the source site
   const snapshot = await takeSnapshot(siteId, `Clone source`, userId);
 
-  // Create a new site with the same product
+  // Create a new site with the same product and matching DB engine
   const newSite = await createSite({
     productId: site.product_id,
     userId: userId || site.user_id,
     userEmail: userId === 'admin' ? 'admin@localhost' : undefined,
     expiresIn: opts?.expiresIn,
     subdomain: opts?.subdomain,
+    dbEngine: (snapshot.db_engine as 'sqlite' | 'mysql' | 'mariadb') || undefined,
   });
 
-  // Restore the snapshot into the new site
+  // Wait for the new site's entrypoint to finish before restoring
   if (newSite.container_id) {
-    await dockerRestoreSnapshot(newSite.container_id, snapshot.id);
+    const subdomain = newSite.subdomain;
+    const readyUrl = `http://wp-demo-${subdomain}/.wp-launcher-ready`;
+    for (let i = 0; i < 60; i++) {
+      try {
+        const res = await fetch(readyUrl, { signal: AbortSignal.timeout(2000) });
+        if (res.ok) break;
+      } catch { /* not ready yet */ }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    // Restore the snapshot into the new site, with URL replacement for the clone
+    await dockerRestoreSnapshot(newSite.container_id, snapshot.id, newSite.site_url || undefined);
   }
 
   // Mark clone relationship

@@ -145,6 +145,11 @@ if (config.isLocalMode) {
     });
     res.json({ token, user: { id: 'local-user', email: 'local@localhost', role: 'admin' } });
   });
+
+  // Admin routes (JWT-protected in local mode, no rate limiting needed)
+  app.use('/api/admin', adminRouter);
+  app.use('/api/admin/analytics', analyticsRouter);
+  app.use('/api/admin/bulk', bulkRouter);
 } else {
   // Agency mode: auth routes with split rate limiting
   // Write ops (login, register, verify, set-password) get strict limits
@@ -192,189 +197,190 @@ if (config.isLocalMode) {
 
   // Bulk provisioning routes (under admin, API key protected)
   app.use('/api/admin/bulk', bulkRouter);
+}
 
-  // System info (admin only — full version + git details)
-  app.get('/api/admin/system/info', adminAuth, (_req, res) => {
-    const info = readVersionInfo();
-    const uptime = process.uptime();
-    res.json({
-      ...info,
-      nodeVersion: process.version,
-      platform: process.platform,
-      uptime: Math.floor(uptime),
-      uptimeFormatted: `${Math.floor(uptime / 86400)}d ${Math.floor((uptime % 86400) / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
-      memoryUsage: Math.round(process.memoryUsage().rss / 1024 / 1024),
-      env: config.nodeEnv,
-      appMode: config.appMode,
-    });
+// ── Admin endpoints available in both local and agency modes ──
+
+// System info (admin only — full version + git details)
+app.get('/api/admin/system/info', adminAuth, (_req, res) => {
+  const info = readVersionInfo();
+  const uptime = process.uptime();
+  res.json({
+    ...info,
+    nodeVersion: process.version,
+    platform: process.platform,
+    uptime: Math.floor(uptime),
+    uptimeFormatted: `${Math.floor(uptime / 86400)}d ${Math.floor((uptime % 86400) / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
+    memoryUsage: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    env: config.nodeEnv,
+    appMode: config.appMode,
   });
+});
 
-  // Check for updates (admin only) — compares local version with latest GitHub release
-  app.get('/api/admin/system/update-check', adminAuth, async (_req, res) => {
-    try {
-      const info = readVersionInfo();
-      const currentVersion = info.version || '0.0.0';
+// Check for updates (admin only) — compares local version with latest GitHub release
+app.get('/api/admin/system/update-check', adminAuth, async (_req, res) => {
+  try {
+    const info = readVersionInfo();
+    const currentVersion = info.version || '0.0.0';
 
-      // In local/development mode, skip update checks — dev is always "latest"
-      if (config.isLocalMode || config.nodeEnv === 'development') {
-        res.json({ currentVersion, latestVersion: currentVersion, updateAvailable: false, source: 'local' });
-        return;
-      }
+    // In local/development mode, skip update checks — dev is always "latest"
+    if (config.isLocalMode || config.nodeEnv === 'development') {
+      res.json({ currentVersion, latestVersion: currentVersion, updateAvailable: false, source: 'local' });
+      return;
+    }
 
-      // Fetch latest release from GitHub API
-      const response = await fetch('https://api.github.com/repos/msrbuilds/wp-launcher/releases/latest', {
+    // Fetch latest release from GitHub API
+    const response = await fetch('https://api.github.com/repos/msrbuilds/wp-launcher/releases/latest', {
+      headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'WP-Launcher' },
+    });
+
+    if (!response.ok) {
+      // Fallback: check latest tag
+      const tagResponse = await fetch('https://api.github.com/repos/msrbuilds/wp-launcher/tags?per_page=1', {
         headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'WP-Launcher' },
       });
-
-      if (!response.ok) {
-        // Fallback: check latest tag
-        const tagResponse = await fetch('https://api.github.com/repos/msrbuilds/wp-launcher/tags?per_page=1', {
-          headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'WP-Launcher' },
-        });
-        if (tagResponse.ok) {
-          const tags = await tagResponse.json() as any[];
-          if (tags.length > 0) {
-            const latestTag = (tags[0].name as string).replace(/^v/, '');
-            const updateAvailable = compareVersions(latestTag, currentVersion) > 0;
-            res.json({ currentVersion, latestVersion: latestTag, updateAvailable, source: 'tag' });
-            return;
-          }
-        }
-        // Fallback: compare commits
-        const commitResponse = await fetch('https://api.github.com/repos/msrbuilds/wp-launcher/commits/main', {
-          headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'WP-Launcher' },
-        });
-        if (commitResponse.ok) {
-          const commit = await commitResponse.json() as any;
-          const latestCommit = commit.sha?.substring(0, 7) || 'unknown';
-          const updateAvailable = info.commit !== latestCommit && info.commitFull !== commit.sha;
-          res.json({
-            currentVersion,
-            latestVersion: currentVersion,
-            latestCommit,
-            currentCommit: info.commit,
-            updateAvailable,
-            source: 'commit',
-            message: commit.commit?.message?.split('\n')[0] || '',
-          });
+      if (tagResponse.ok) {
+        const tags = await tagResponse.json() as any[];
+        if (tags.length > 0) {
+          const latestTag = (tags[0].name as string).replace(/^v/, '');
+          const updateAvailable = compareVersions(latestTag, currentVersion) > 0;
+          res.json({ currentVersion, latestVersion: latestTag, updateAvailable, source: 'tag' });
           return;
         }
-        res.json({ currentVersion, latestVersion: currentVersion, updateAvailable: false, error: 'Could not reach GitHub' });
+      }
+      // Fallback: compare commits
+      const commitResponse = await fetch('https://api.github.com/repos/msrbuilds/wp-launcher/commits/main', {
+        headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'WP-Launcher' },
+      });
+      if (commitResponse.ok) {
+        const commit = await commitResponse.json() as any;
+        const latestCommit = commit.sha?.substring(0, 7) || 'unknown';
+        const updateAvailable = info.commit !== latestCommit && info.commitFull !== commit.sha;
+        res.json({
+          currentVersion,
+          latestVersion: currentVersion,
+          latestCommit,
+          currentCommit: info.commit,
+          updateAvailable,
+          source: 'commit',
+          message: commit.commit?.message?.split('\n')[0] || '',
+        });
         return;
       }
-
-      const release = await response.json() as any;
-      const latestVersion = (release.tag_name || '').replace(/^v/, '');
-      const updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
-
-      res.json({
-        currentVersion,
-        latestVersion,
-        updateAvailable,
-        releaseUrl: release.html_url || '',
-        releaseNotes: release.body || '',
-        publishedAt: release.published_at || '',
-        source: 'release',
-      });
-    } catch (error) {
-      res.json({ currentVersion: readVersionInfo().version || '0.0.0', latestVersion: 'unknown', updateAvailable: false, error: 'Failed to check for updates' });
-    }
-  });
-
-  // Trigger self-update from dashboard (admin only)
-  app.post('/api/admin/system/update', adminAuth, (req: any, res) => {
-    const dataDir = path.resolve(__dirname, '..', 'data');
-    const triggerFile = path.join(dataDir, 'update-trigger');
-    const lockFile = path.join(dataDir, 'update.lock');
-
-    // Check if update already in progress
-    if (fs.existsSync(lockFile)) {
-      res.status(409).json({ error: 'An update is already in progress' });
-      return;
-    }
-    if (fs.existsSync(triggerFile)) {
-      res.status(409).json({ error: 'An update is already queued' });
+      res.json({ currentVersion, latestVersion: currentVersion, updateAvailable: false, error: 'Could not reach GitHub' });
       return;
     }
 
-    const triggerId = String(Date.now());
-    const trigger = {
-      triggerId,
-      timestamp: new Date().toISOString(),
-      initiatedBy: req.userEmail || 'admin',
-    };
+    const release = await response.json() as any;
+    const latestVersion = (release.tag_name || '').replace(/^v/, '');
+    const updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
 
-    try {
-      fs.writeFileSync(triggerFile, JSON.stringify(trigger, null, 2));
-      res.json({ status: 'pending', triggerId, message: 'Update triggered. The watcher service will execute it shortly.' });
-    } catch (err) {
-      res.status(500).json({ error: 'Failed to write update trigger' });
-    }
-  });
+    res.json({
+      currentVersion,
+      latestVersion,
+      updateAvailable,
+      releaseUrl: release.html_url || '',
+      releaseNotes: release.body || '',
+      publishedAt: release.published_at || '',
+      source: 'release',
+    });
+  } catch (error) {
+    res.json({ currentVersion: readVersionInfo().version || '0.0.0', latestVersion: 'unknown', updateAvailable: false, error: 'Failed to check for updates' });
+  }
+});
 
-  // Poll update status (admin only)
-  app.get('/api/admin/system/update-status', adminAuth, (_req, res) => {
-    const statusFile = path.resolve(__dirname, '..', 'data', 'update-status.json');
-    try {
-      if (fs.existsSync(statusFile)) {
-        const status = JSON.parse(fs.readFileSync(statusFile, 'utf-8'));
-        res.json(status);
-      } else {
-        res.json({ status: 'idle' });
-      }
-    } catch {
+// Trigger self-update from dashboard (admin only)
+app.post('/api/admin/system/update', adminAuth, (req: any, res) => {
+  const dataDir = path.resolve(__dirname, '..', 'data');
+  const triggerFile = path.join(dataDir, 'update-trigger');
+  const lockFile = path.join(dataDir, 'update.lock');
+
+  // Check if update already in progress
+  if (fs.existsSync(lockFile)) {
+    res.status(409).json({ error: 'An update is already in progress' });
+    return;
+  }
+  if (fs.existsSync(triggerFile)) {
+    res.status(409).json({ error: 'An update is already queued' });
+    return;
+  }
+
+  const triggerId = String(Date.now());
+  const trigger = {
+    triggerId,
+    timestamp: new Date().toISOString(),
+    initiatedBy: req.userEmail || 'admin',
+  };
+
+  try {
+    fs.writeFileSync(triggerFile, JSON.stringify(trigger, null, 2));
+    res.json({ status: 'pending', triggerId, message: 'Update triggered. The watcher service will execute it shortly.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to write update trigger' });
+  }
+});
+
+// Poll update status (admin only)
+app.get('/api/admin/system/update-status', adminAuth, (_req, res) => {
+  const statusFile = path.resolve(__dirname, '..', 'data', 'update-status.json');
+  try {
+    if (fs.existsSync(statusFile)) {
+      const status = JSON.parse(fs.readFileSync(statusFile, 'utf-8'));
+      res.json(status);
+    } else {
       res.json({ status: 'idle' });
     }
-  });
+  } catch {
+    res.json({ status: 'idle' });
+  }
+});
 
-  // Read update log (admin only)
-  app.get('/api/admin/system/update-log', adminAuth, (_req, res) => {
-    const logFile = path.resolve(__dirname, '..', 'data', 'update.log');
-    try {
-      if (fs.existsSync(logFile)) {
-        const content = fs.readFileSync(logFile, 'utf-8');
-        // Return last 500 lines
-        const lines = content.split('\n');
-        const tail = lines.slice(-500).join('\n');
-        res.type('text/plain').send(tail);
-      } else {
-        res.type('text/plain').send('No update log available.');
-      }
-    } catch {
-      res.type('text/plain').send('Failed to read update log.');
+// Read update log (admin only)
+app.get('/api/admin/system/update-log', adminAuth, (_req, res) => {
+  const logFile = path.resolve(__dirname, '..', 'data', 'update.log');
+  try {
+    if (fs.existsSync(logFile)) {
+      const content = fs.readFileSync(logFile, 'utf-8');
+      // Return last 500 lines
+      const lines = content.split('\n');
+      const tail = lines.slice(-500).join('\n');
+      res.type('text/plain').send(tail);
+    } else {
+      res.type('text/plain').send('No update log available.');
     }
-  });
+  } catch {
+    res.type('text/plain').send('Failed to read update log.');
+  }
+});
 
-  // Feature flags management (admin only)
-  app.get('/api/admin/features', adminAuth, (_req, res) => {
-    const db = getDb();
-    const rows = db.prepare("SELECT key, value FROM settings WHERE key LIKE 'feature.%'").all() as { key: string; value: string }[];
-    const features: Record<string, boolean> = {};
-    for (const row of rows) {
-      const name = row.key.replace('feature.', '');
-      features[name] = row.value === 'true';
-    }
-    res.json({ features });
-  });
+// Feature flags management (admin only)
+app.get('/api/admin/features', adminAuth, (_req, res) => {
+  const db = getDb();
+  const rows = db.prepare("SELECT key, value FROM settings WHERE key LIKE 'feature.%'").all() as { key: string; value: string }[];
+  const features: Record<string, boolean> = {};
+  for (const row of rows) {
+    const name = row.key.replace('feature.', '');
+    features[name] = row.value === 'true';
+  }
+  res.json({ features });
+});
 
-  app.put('/api/admin/features', adminAuth, (req, res) => {
-    const db = getDb();
-    const { features } = req.body as { features: Record<string, boolean> };
-    if (!features || typeof features !== 'object') {
-      res.status(400).json({ error: 'features object is required' });
-      return;
+app.put('/api/admin/features', adminAuth, (req, res) => {
+  const db = getDb();
+  const { features } = req.body as { features: Record<string, boolean> };
+  if (!features || typeof features !== 'object') {
+    res.status(400).json({ error: 'features object is required' });
+    return;
+  }
+  const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks', 'healthMonitoring', 'scheduledLaunch', 'collaborativeSites'];
+  const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
+  for (const [name, enabled] of Object.entries(features)) {
+    if (allowed.includes(name)) {
+      update.run(`feature.${name}`, String(enabled));
     }
-    const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks', 'healthMonitoring', 'scheduledLaunch', 'collaborativeSites'];
-    const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
-    for (const [name, enabled] of Object.entries(features)) {
-      if (allowed.includes(name)) {
-        update.run(`feature.${name}`, String(enabled));
-      }
-    }
-    res.json({ status: 'updated' });
-  });
-
-}
+  }
+  res.json({ status: 'updated' });
+});
 
 // Branding settings (available in both modes — no auth needed in local mode)
 // In agency mode, adminLimiter already applied via /api/admin prefix mount

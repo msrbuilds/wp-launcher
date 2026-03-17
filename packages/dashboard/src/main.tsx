@@ -60,26 +60,23 @@ function AppRoutes() {
             <Route path="login" element={<LoginPage />} />
             <Route path="account" element={<AccountPage />} />
             <Route path="verify" element={<VerifyPage />} />
-            <Route path="admin" element={<AdminLayout />}>
-              <Route index element={<OverviewTab />} />
-              <Route path="analytics" element={<AnalyticsTab />} />
-              <Route path="bulk" element={<BulkTab />} />
-              <Route path="products" element={<ProductsTab />} />
-              <Route path="users" element={<UsersTab />} />
-              <Route path="sites" element={<SitesTab />} />
-              <Route path="logs" element={<LogsTab />} />
-              <Route path="features" element={<FeaturesTab />} />
-              <Route path="branding" element={<BrandingTab />} />
-              <Route path="system" element={<SystemTab />} />
-            </Route>
           </>
         )}
-        {isLocal && (
-          <>
-            <Route path="login" element={<Navigate to="/" replace />} />
-            <Route path="admin/*" element={<Navigate to="/" replace />} />
-          </>
-        )}
+        {isLocal && <Route path="login" element={<Navigate to="/" replace />} />}
+        <Route path="admin" element={<AdminLayout />}>
+          <Route index element={<OverviewTab />} />
+          {!isLocal && <Route path="analytics" element={<AnalyticsTab />} />}
+          {isLocal && <Route path="analytics" element={<Navigate to="/admin" replace />} />}
+          <Route path="bulk" element={<BulkTab />} />
+          <Route path="products" element={<ProductsTab />} />
+          {!isLocal && <Route path="users" element={<UsersTab />} />}
+          {isLocal && <Route path="users" element={<Navigate to="/admin" replace />} />}
+          <Route path="sites" element={<SitesTab />} />
+          <Route path="logs" element={<LogsTab />} />
+          <Route path="features" element={<FeaturesTab />} />
+          <Route path="branding" element={<BrandingTab />} />
+          <Route path="system" element={<SystemTab />} />
+        </Route>
       </Route>
     </Routes>
   );

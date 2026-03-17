@@ -41,7 +41,7 @@ bash scripts/build-wp-image.sh
 docker compose up -d
 
 # 6. Verify
-curl -sf http://localhost:3000/health
+curl -sf http://localhost:3737/health
 wpl version
 ```
 
@@ -95,7 +95,7 @@ wpl admin:promote your@email.com
 
 ```bash
 # Use your existing API_KEY to promote via API
-curl -X POST http://localhost:3000/api/admin/users/promote \
+curl -X POST http://localhost:3737/api/admin/users/promote \
   -H "X-API-Key: $(grep API_KEY .env | cut -d= -f2)" \
   -H "Content-Type: application/json" \
   -d '{"email": "your@email.com", "role": "admin"}'

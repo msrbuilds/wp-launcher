@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAdminHeaders } from './AdminLayout';
+import { useIsLocalMode } from '../../context/SettingsContext';
 
 interface SystemInfo {
   version: string;
@@ -34,6 +35,7 @@ interface UpdateCheck {
 
 export default function SystemTab() {
   const headers = useAdminHeaders();
+  const isLocal = useIsLocalMode();
   const [info, setInfo] = useState<SystemInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [update, setUpdate] = useState<UpdateCheck | null>(null);
@@ -166,8 +168,8 @@ export default function SystemTab() {
         </div>
       </div>
 
-      {/* Update Notification */}
-      {update?.updateAvailable && (
+      {/* Update Notification (agency mode only) */}
+      {!isLocal && update?.updateAvailable && (
         <div style={{
           marginBottom: '1rem', padding: '1rem 1.25rem', borderRadius: '8px',
           background: 'linear-gradient(135deg, #fefce8, #fef9c3)', border: '1px solid #fde68a',
@@ -208,7 +210,7 @@ export default function SystemTab() {
         </div>
       )}
 
-      {update && !update.updateAvailable && !update.error && (
+      {!isLocal && update && !update.updateAvailable && !update.error && (
         <div style={{
           marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '8px',
           background: '#f0fdf4', border: '1px solid #bbf7d0',
@@ -248,8 +250,8 @@ export default function SystemTab() {
         </div>
       </div>
 
-      {/* Update Progress / Log Viewer */}
-      {showLog && (
+      {/* Update Progress / Log Viewer (agency mode only) */}
+      {!isLocal && showLog && (
         <div className="card" style={{ marginBottom: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
             <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', margin: 0, fontFamily: 'Poppins, sans-serif' }}>
@@ -305,8 +307,8 @@ export default function SystemTab() {
         </div>
       )}
 
-      {/* Manual Update Instructions (collapsible) */}
-      <div className="card">
+      {/* Manual Update Instructions (agency mode only) */}
+      {!isLocal && <div className="card">
         <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.75rem', fontFamily: 'Poppins, sans-serif' }}>
           Manual Update (SSH)
         </h4>
@@ -316,7 +318,7 @@ export default function SystemTab() {
         <div style={{ background: '#1e293b', color: '#e2e8f0', padding: '0.75rem 1rem', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.78rem', lineHeight: 1.8 }}>
           <div><span style={{ color: '#fb8500' }}>wpl</span> update</div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

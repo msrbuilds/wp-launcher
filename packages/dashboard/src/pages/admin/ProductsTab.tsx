@@ -1,31 +1,37 @@
 import { useState, useEffect, useCallback } from 'react';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
+import { useIsLocalMode } from '../../context/SettingsContext';
 
 export default function ProductsTab() {
   const headers = useAdminHeaders();
+  const isLocal = useIsLocalMode();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  const noun = isLocal ? 'template' : 'product';
+  const Noun = isLocal ? 'Template' : 'Product';
+  const apiBase = isLocal ? '/api/templates' : '/api/products';
+
   const fetchProducts = useCallback(() => {
     setLoading(true);
-    fetch('/api/products', { credentials: 'include' })
+    fetch(apiBase, { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setProducts(data); })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [apiBase]);
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete product "${name}"? This cannot be undone.`)) return;
+    if (!confirm(`Delete ${noun} "${name}"? This cannot be undone.`)) return;
     setDeleting(id);
     try {
-      const res = await fetch(`/api/products/${id}`, { method: 'DELETE', headers, credentials: 'include' });
-      if (!res.ok) { const data = await res.json(); alert(data.error || 'Failed to delete product'); }
-    } catch { alert('Failed to delete product'); }
+      const res = await fetch(`${apiBase}/${id}`, { method: 'DELETE', headers, credentials: 'include' });
+      if (!res.ok) { const data = await res.json(); alert(data.error || `Failed to delete ${noun}`); }
+    } catch { alert(`Failed to delete ${noun}`); }
     finally { setDeleting(null); fetchProducts(); }
   }
 
@@ -33,9 +39,9 @@ export default function ProductsTab() {
 
   return (
     <div className="card">
-      <h3 style={{ marginBottom: '1rem' }}>Products ({products.length})</h3>
+      <h3 style={{ marginBottom: '1rem' }}>{Noun}s ({products.length})</h3>
       {products.length === 0 ? (
-        <p style={{ color: '#64748b' }}>No products configured.</p>
+        <p style={{ color: '#64748b' }}>No {noun}s configured.</p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>

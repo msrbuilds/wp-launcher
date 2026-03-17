@@ -1004,7 +1004,7 @@ a.btn-primary:hover {
 
 .sites-table-wrap {
   padding: 0;
-  overflow-x: auto;
+  overflow: visible;
 }
 
 .sites-table {

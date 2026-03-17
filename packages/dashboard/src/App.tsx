@@ -64,7 +64,7 @@ export default function App() {
             <NavLink to="/sites" className={({ isActive }) => isActive ? 'active' : ''}>
               {isLocal ? 'Sites' : 'My Sites'}
             </NavLink>
-            {!isLocal && isAdmin && (
+            {isAdmin && (
               <NavLink to="/admin" className={({ isActive }) => isActive ? 'active' : ''}>
                 Admin
               </NavLink>

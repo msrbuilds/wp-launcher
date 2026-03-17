@@ -22,8 +22,9 @@ function isFeatureEnabled(key: string): boolean {
 
 const router = Router();
 
-// Skip rate limiting for admin (API key) requests
+// Skip rate limiting for admin (API key) requests and local mode
 function isAdminRequest(req: Request): boolean {
+  if (config.isLocalMode) return true;
   const apiKey = req.headers['x-api-key'] as string | undefined;
   if (!apiKey || !config.apiKey) return false;
   try {

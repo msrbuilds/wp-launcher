@@ -42,11 +42,11 @@ const DEFAULT_COLORS: ColorPalette = {
 };
 
 const DEFAULT_FEATURES: FeatureFlags = {
-  cloning: true,
-  snapshots: true,
-  templates: true,
-  customDomains: true,
-  phpConfig: true,
+  cloning: false,
+  snapshots: false,
+  templates: false,
+  customDomains: false,
+  phpConfig: false,
   siteExtend: false,
   sitePassword: false,
   exportZip: false,

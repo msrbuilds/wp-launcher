@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { adminAuth } from '../middleware/auth';
 import { AuthRequest } from '../middleware/userAuth';
+import { config } from '../config';
 import { listUsers, getUsersCount, deleteUser, updateUserRole } from '../services/user.service';
 import { listWebhooks, createWebhook, deleteWebhook, toggleWebhook } from '../services/webhook.service';
 import {
@@ -12,6 +13,7 @@ import {
   getSiteStats,
   deleteSite,
 } from '../services/site.service';
+import { getDb } from '../utils/db';
 
 const router = Router();
 
@@ -19,10 +21,18 @@ const router = Router();
 router.use(adminAuth);
 
 // Dashboard stats
+// In local mode, only count local-user's sites
 router.get('/stats', (_req: AuthRequest, res: Response) => {
   try {
-    const stats = getSiteStats();
-    res.json(stats);
+    if (config.isLocalMode) {
+      const db = getDb();
+      const totalSitesCreated = (db.prepare("SELECT COUNT(*) as count FROM site_logs WHERE action = 'created' AND user_id = 'local-user'").get() as { count: number }).count;
+      const activeSites = (db.prepare("SELECT COUNT(*) as count FROM sites WHERE status = 'running' AND user_id = 'local-user'").get() as { count: number }).count;
+      res.json({ totalSitesCreated, activeSites, totalUsers: 1, verifiedUsers: 1 });
+    } else {
+      const stats = getSiteStats();
+      res.json(stats);
+    }
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -64,14 +74,22 @@ router.delete('/users/:id', (req: AuthRequest, res: Response) => {
 });
 
 // List all sites (paginated, including expired)
+// In local mode, only show sites owned by local-user
 router.get('/sites', (req: AuthRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
-    const sites = listAllSites(limit, offset);
-    const total = getAllSitesCount();
+    const db = getDb();
+    let sites, total: number;
+    if (config.isLocalMode) {
+      sites = db.prepare("SELECT * FROM sites WHERE user_id = 'local-user' ORDER BY created_at DESC LIMIT ? OFFSET ?").all(limit, offset) as any[];
+      total = (db.prepare("SELECT COUNT(*) as count FROM sites WHERE user_id = 'local-user'").get() as { count: number }).count;
+    } else {
+      sites = listAllSites(limit, offset);
+      total = getAllSitesCount();
+    }
     res.json({
-      data: sites.map((s) => ({
+      data: sites.map((s: any) => ({
         id: s.id,
         subdomain: s.subdomain,
         productId: s.product_id,
@@ -102,12 +120,20 @@ router.delete('/sites/:id', async (req: AuthRequest, res: Response) => {
 });
 
 // Site logs (paginated)
+// In local mode, only show logs from local-user
 router.get('/logs', (req: AuthRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
-    const logs = getSiteLogs(limit, offset);
-    const total = getSiteLogsCount();
+    let logs, total: number;
+    if (config.isLocalMode) {
+      const db = getDb();
+      logs = db.prepare("SELECT * FROM site_logs WHERE user_id = 'local-user' ORDER BY created_at DESC LIMIT ? OFFSET ?").all(limit, offset);
+      total = (db.prepare("SELECT COUNT(*) as count FROM site_logs WHERE user_id = 'local-user'").get() as { count: number }).count;
+    } else {
+      logs = getSiteLogs(limit, offset);
+      total = getSiteLogsCount();
+    }
     res.json({ data: logs, total, limit, offset });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

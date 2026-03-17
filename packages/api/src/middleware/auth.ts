@@ -55,10 +55,17 @@ export function adminAuth(req: AuthRequest, res: Response, next: NextFunction): 
   if (token) {
     try {
       const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string };
-      if (decoded.role === 'admin' || decoded.userId === 'local-user') {
+      // Local-user is always admin (no DB row exists)
+      if (decoded.userId === 'local-user') {
+        req.userId = decoded.userId;
+        req.userEmail = decoded.email;
+        req.userRole = 'admin';
+        return next();
+      }
+      if (decoded.role === 'admin') {
         // Double-check DB role to prevent stale token escalation
         const user = getUserById(decoded.userId);
-        if (user && (user.role === 'admin' || decoded.userId === 'local-user')) {
+        if (user && user.role === 'admin') {
           req.userId = decoded.userId;
           req.userEmail = decoded.email;
           req.userRole = 'admin';
