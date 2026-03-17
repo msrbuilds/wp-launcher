@@ -188,12 +188,22 @@ async function checkDns(domain: string): Promise<string> {
     if (serverIps.length > 0 && domainIps.some((ip) => serverIps.includes(ip))) {
       return 'verified';
     }
-    // Has A record but doesn't point to us
-    if (domainIps.length > 0) {
-      return 'pending';
-    }
   } catch {
-    // No A record either
+    // No A record
+  }
+
+  // Fallback: HTTP connectivity probe — if the domain routes to our Traefik,
+  // DNS is working regardless of Cloudflare proxy masking the base domain IPs
+  try {
+    const res = await fetch(`http://${domain}/`, {
+      method: 'HEAD',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(5000),
+    });
+    // Any response (even a redirect) means Traefik is handling this domain
+    if (res.status < 500) return 'verified';
+  } catch {
+    // Domain not reachable
   }
 
   return 'pending';

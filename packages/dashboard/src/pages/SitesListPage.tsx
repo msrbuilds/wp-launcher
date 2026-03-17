@@ -87,6 +87,7 @@ export default function SitesListPage() {
   const [domainStatus, setDomainStatus] = useState<Record<string, { domain: string | null; status: string; dns?: { baseDomain?: string; serverIp?: string } }>>({});
   const [domainSaving, setDomainSaving] = useState<string | null>(null);
   const [domainError, setDomainError] = useState<Record<string, string>>({});
+  const [domainRechecking, setDomainRechecking] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState<string | null>(null);
   const [activityLog, setActivityLog] = useState<{ action: string; subdomain: string; product_id: string; created_at: string; site_url: string | null }[]>([]);
   const [showActivity, setShowActivity] = useState(false);
@@ -239,7 +240,8 @@ export default function SitesListPage() {
     }
   }
 
-  async function fetchDomainStatus(siteId: string) {
+  async function fetchDomainStatus(siteId: string, showLoading = false) {
+    if (showLoading) setDomainRechecking(siteId);
     try {
       const res = await fetch(`/api/sites/${siteId}/domain`, { credentials: 'include' });
       if (res.ok) {
@@ -248,6 +250,7 @@ export default function SitesListPage() {
         if (data.domain) setDomainInput((prev) => ({ ...prev, [siteId]: data.domain }));
       }
     } catch { /* ignore */ }
+    finally { if (showLoading) setDomainRechecking(null); }
   }
 
   async function handleSetDomain(siteId: string) {
@@ -1038,9 +1041,10 @@ export default function SitesListPage() {
                               </span>
                               <button
                                 className="btn btn-secondary btn-xs"
-                                onClick={() => fetchDomainStatus(site.id)}
+                                onClick={() => fetchDomainStatus(site.id, true)}
+                                disabled={domainRechecking === site.id}
                                 style={{ marginLeft: 'auto' }}
-                              >Recheck</button>
+                              >{domainRechecking === site.id ? <><span className="spinner spinner-sm" /> Checking...</> : 'Recheck'}</button>
                               <button
                                 className="btn btn-danger-outline btn-xs"
                                 onClick={() => handleRemoveDomain(site.id)}
@@ -1734,7 +1738,7 @@ export default function SitesListPage() {
                     <span style={{ color: domainStatus[site.id].status === 'verified' ? '#48bb78' : '#ecc94b', fontSize: '0.75rem', fontWeight: 600 }}>
                       {domainStatus[site.id].status === 'verified' ? 'Verified' : 'Pending DNS'}
                     </span>
-                    <button className="btn btn-secondary btn-xs" onClick={() => fetchDomainStatus(site.id)} disabled={domainSaving === site.id}>Recheck</button>
+                    <button className="btn btn-secondary btn-xs" onClick={() => fetchDomainStatus(site.id, true)} disabled={domainRechecking === site.id}>{domainRechecking === site.id ? <><span className="spinner spinner-sm" /> Checking...</> : 'Recheck'}</button>
                     <button className="btn btn-danger-outline btn-xs" onClick={() => handleRemoveDomain(site.id)} disabled={domainSaving === site.id}>Remove</button>
                   </div>
                   {domainStatus[site.id].status !== 'verified' && (
