@@ -2,6 +2,23 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [1.7.1] - 2026-03-19
+
+### Added
+- **Public Sharing** — Share local WordPress sites publicly via three methods:
+  - **Cloudflare Quick Tunnel** — Free public HTTPS URL (`*.trycloudflare.com`), no account needed
+  - **ngrok** — Public URL via ngrok (requires free auth token)
+  - **LAN** — Share on local network via IP address and auto-assigned port
+- **Share Publicly** button in Tools dropdown with inline tunnel panel
+- Tunnel status polling with auto-retry until URL is established
+- Feature toggle for public sharing in admin Features tab
+- Auto-cleanup of tunnel containers when sites are deleted or expire
+
+### Security
+- Tunnel containers are ephemeral, discovered via Docker labels (no DB state)
+- Share endpoints require JWT auth with site ownership check
+- Tunnel containers isolated on internal Docker network
+
 ## [1.7.0] - 2026-03-19
 
 ### Added

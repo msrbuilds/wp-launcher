@@ -9,6 +9,7 @@ import { setCustomDomain, getCustomDomain, removeCustomDomain, getDnsInstruction
 import { conditionalAuth, conditionalOptionalAuth, AuthRequest } from '../middleware/userAuth';
 import { scheduleNewLaunch, listScheduledLaunches, cancelScheduledLaunch } from '../services/schedule.service';
 import { shareSite, listSiteShares, listSharedWithMe, revokeShare, updateShareRole } from '../services/share.service';
+import { createTunnel, getTunnelStatus, removeTunnel } from '../services/tunnel.service';
 import { config } from '../config';
 import { asyncHandler } from '../utils/asyncHandler';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors';
@@ -479,6 +480,47 @@ router.get('/:id/db-credentials', conditionalAuth, asyncHandler(async (req: Auth
     database: credentials.database,
     adminerUrl,
   });
+}));
+
+// --- Public Sharing (Tunnels) ---
+
+router.post('/:id/tunnel', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!isFeatureEnabled('publicSharing')) throw new ForbiddenError('Public sharing is disabled');
+  const site = getSite(req.params.id);
+  if (!site) throw new NotFoundError('Site not found');
+  if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only share your own sites');
+  if (!site.container_id || site.status !== 'running') throw new ValidationError('Site is not running');
+
+  const { method, ngrokAuthToken } = req.body;
+  if (!method || !['lan', 'cloudflare', 'ngrok'].includes(method)) {
+    throw new ValidationError('method must be lan, cloudflare, or ngrok');
+  }
+  if (method === 'ngrok' && !ngrokAuthToken) {
+    throw new ValidationError('ngrokAuthToken is required for ngrok sharing');
+  }
+
+  const result = await createTunnel(site.subdomain, method, ngrokAuthToken);
+  res.status(201).json(result);
+}));
+
+router.get('/:id/tunnel', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!isFeatureEnabled('publicSharing')) throw new ForbiddenError('Public sharing is disabled');
+  const site = getSite(req.params.id);
+  if (!site) throw new NotFoundError('Site not found');
+  if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('Access denied');
+
+  const status = await getTunnelStatus(site.subdomain);
+  res.json(status);
+}));
+
+router.delete('/:id/tunnel', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!isFeatureEnabled('publicSharing')) throw new ForbiddenError('Public sharing is disabled');
+  const site = getSite(req.params.id);
+  if (!site) throw new NotFoundError('Site not found');
+  if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('Access denied');
+
+  await removeTunnel(site.subdomain);
+  res.json({ message: 'Tunnel removed' });
 }));
 
 // --- Site Sharing ---

@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { getDb } from '../utils/db';
 import { removeSiteContainer, listManagedContainers } from './docker.service';
+import { removeTunnel } from './tunnel.service';
 import { fireWebhookEvent } from './webhook.service';
 
 interface ExpiredSite {
@@ -41,6 +42,7 @@ async function cleanupExpiredSites(): Promise<void> {
   for (const site of expiredSites) {
     try {
       if (site.container_id) {
+        await removeTunnel(site.subdomain).catch(() => {});
         await removeSiteContainer(site.container_id);
         console.log(`[cleanup] Removed container for site: ${site.subdomain}`);
       }

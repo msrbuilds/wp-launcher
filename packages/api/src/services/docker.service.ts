@@ -6,7 +6,7 @@
 const PROVISIONER_URL = process.env.PROVISIONER_URL || 'http://provisioner:4000';
 const INTERNAL_KEY = process.env.PROVISIONER_INTERNAL_KEY || '';
 
-async function provisionerFetch(path: string, options: RequestInit = {}): Promise<Response> {
+export async function provisionerFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(INTERNAL_KEY ? { 'x-internal-key': INTERNAL_KEY } : {}),

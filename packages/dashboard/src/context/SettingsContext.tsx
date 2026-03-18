@@ -14,6 +14,7 @@ export interface FeatureFlags {
   scheduledLaunch: boolean;
   collaborativeSites: boolean;
   adminer: boolean;
+  publicSharing: boolean;
 }
 
 export interface Branding {
@@ -56,6 +57,7 @@ const DEFAULT_FEATURES: FeatureFlags = {
   scheduledLaunch: false,
   collaborativeSites: false,
   adminer: false,
+  publicSharing: false,
 };
 
 const DEFAULT_BRANDING: Branding = {

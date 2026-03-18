@@ -1577,6 +1577,224 @@ app.get('/exports/:exportId/download', (req: Request, res: Response) => {
   });
 });
 
+// ── Public Sharing (Tunnel Containers) ──
+
+const SHARE_IMAGES: Record<string, string> = {
+  lan: 'alpine/socat',
+  cloudflare: 'cloudflare/cloudflared:latest',
+  ngrok: 'ngrok/ngrok:latest',
+};
+
+async function pullImageIfNeeded(image: string): Promise<void> {
+  try {
+    await docker.getImage(image).inspect();
+  } catch {
+    console.log(`[provisioner] Pulling ${image}...`);
+    const stream = await docker.pull(image);
+    await new Promise<void>((resolve, reject) => {
+      docker.modem.followProgress(stream, (err: Error | null) => {
+        if (err) reject(err); else resolve();
+      });
+    });
+    console.log(`[provisioner] ${image} pulled.`);
+  }
+}
+
+async function findShareContainer(subdomain: string): Promise<Docker.ContainerInfo | null> {
+  const containers = await docker.listContainers({
+    all: true,
+    filters: { label: [`wp-launcher.share.site-subdomain=${subdomain}`] },
+  });
+  return containers[0] || null;
+}
+
+// Create a share tunnel
+app.post('/shares', async (req: Request, res: Response) => {
+  try {
+    const { subdomain, method, ngrokAuthToken } = req.body;
+    if (!subdomain || !method || !['lan', 'cloudflare', 'ngrok'].includes(method)) {
+      res.status(400).json({ error: 'subdomain and method (lan|cloudflare|ngrok) are required' });
+      return;
+    }
+    if (method === 'ngrok' && !ngrokAuthToken) {
+      res.status(400).json({ error: 'ngrokAuthToken is required for ngrok sharing' });
+      return;
+    }
+
+    // Check site container exists
+    const siteContainerName = `wp-demo-${subdomain}`;
+    try {
+      const siteInfo = await docker.getContainer(siteContainerName).inspect();
+      if (!siteInfo.State.Running) {
+        res.status(400).json({ error: 'Site container is not running' });
+        return;
+      }
+    } catch {
+      res.status(404).json({ error: 'Site container not found' });
+      return;
+    }
+
+    // Check for existing share
+    const existing = await findShareContainer(subdomain);
+    if (existing) {
+      res.status(409).json({ error: 'Site already has an active share. Remove it first.' });
+      return;
+    }
+
+    const image = SHARE_IMAGES[method];
+    await pullImageIfNeeded(image);
+
+    const shareContainerName = `wp-share-${subdomain}`;
+    const labels: Record<string, string> = {
+      'wp-launcher.share': 'true',
+      'wp-launcher.share.site-subdomain': subdomain,
+      'wp-launcher.share.method': method,
+      'traefik.enable': 'false',
+    };
+
+    let containerConfig: any;
+
+    if (method === 'lan') {
+      containerConfig = {
+        Image: image,
+        name: shareContainerName,
+        Cmd: ['TCP-LISTEN:80,fork,reuseaddr', `TCP:${siteContainerName}:80`],
+        Labels: labels,
+        ExposedPorts: { '80/tcp': {} },
+        HostConfig: {
+          NetworkMode: DOCKER_NETWORK,
+          PortBindings: { '80/tcp': [{ HostPort: '0' }] },
+          RestartPolicy: { Name: 'no' as const },
+        },
+      };
+    } else if (method === 'cloudflare') {
+      containerConfig = {
+        Image: image,
+        name: shareContainerName,
+        Cmd: ['tunnel', '--url', `http://${siteContainerName}:80`],
+        Labels: labels,
+        HostConfig: {
+          NetworkMode: DOCKER_NETWORK,
+          RestartPolicy: { Name: 'no' as const },
+        },
+      };
+    } else {
+      containerConfig = {
+        Image: image,
+        name: shareContainerName,
+        Cmd: ['http', `http://${siteContainerName}:80`],
+        Env: [`NGROK_AUTHTOKEN=${ngrokAuthToken}`],
+        Labels: labels,
+        HostConfig: {
+          NetworkMode: DOCKER_NETWORK,
+          RestartPolicy: { Name: 'no' as const },
+        },
+      };
+    }
+
+    const container = await docker.createContainer(containerConfig);
+    await container.start();
+    console.log(`[provisioner] Share container ${shareContainerName} started (${method})`);
+
+    res.status(201).json({ containerId: container.id, method });
+  } catch (err: any) {
+    console.error('[provisioner] share create error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get share status and URL
+app.get('/shares/:subdomain', async (req: Request, res: Response) => {
+  try {
+    const { subdomain } = req.params;
+    const info = await findShareContainer(subdomain);
+    if (!info) {
+      res.json({ active: false });
+      return;
+    }
+
+    const method = info.Labels['wp-launcher.share.method'];
+    const container = docker.getContainer(info.Id);
+    const inspect = await container.inspect();
+
+    if (!inspect.State.Running) {
+      res.json({ active: false, method, status: 'stopped' });
+      return;
+    }
+
+    let url: string | null = null;
+
+    if (method === 'lan') {
+      const portBindings = inspect.NetworkSettings.Ports?.['80/tcp'];
+      const hostPort = portBindings?.[0]?.HostPort;
+      if (hostPort) {
+        // Get gateway IP (host machine's Docker bridge IP)
+        try {
+          const network = docker.getNetwork(DOCKER_NETWORK);
+          const netInfo = await network.inspect();
+          const gateway = netInfo.IPAM?.Config?.[0]?.Gateway || 'localhost';
+          url = `http://${gateway}:${hostPort}`;
+        } catch {
+          url = `http://localhost:${hostPort}`;
+        }
+      }
+    } else if (method === 'cloudflare') {
+      // Parse logs for trycloudflare.com URL
+      try {
+        const logs = await container.logs({ stdout: true, stderr: true, follow: false, tail: 50 });
+        const logStr = logs.toString();
+        const match = logStr.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+        if (match) url = match[0];
+      } catch {}
+    } else if (method === 'ngrok') {
+      // Query ngrok API
+      try {
+        const ngrokApiUrl = `http://wp-share-${subdomain}:4040/api/tunnels`;
+        const resp = await fetch(ngrokApiUrl);
+        if (resp.ok) {
+          const data = await resp.json() as any;
+          if (data.tunnels?.[0]?.public_url) {
+            url = data.tunnels[0].public_url;
+          }
+        }
+      } catch {}
+    }
+
+    res.json({
+      active: true,
+      method,
+      url,
+      containerId: info.Id,
+      status: url ? 'ready' : 'connecting',
+    });
+  } catch (err: any) {
+    console.error('[provisioner] share status error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Remove share tunnel
+app.delete('/shares/:subdomain', async (req: Request, res: Response) => {
+  try {
+    const { subdomain } = req.params;
+    const info = await findShareContainer(subdomain);
+    if (!info) {
+      res.json({ status: 'not_found' });
+      return;
+    }
+
+    const container = docker.getContainer(info.Id);
+    try { await container.stop({ t: 2 }); } catch {}
+    try { await container.remove({ force: true }); } catch {}
+    console.log(`[provisioner] Share container wp-share-${subdomain} removed`);
+
+    res.json({ status: 'removed' });
+  } catch (err: any) {
+    console.error('[provisioner] share remove error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[provisioner] Running on port ${PORT}`);
 });

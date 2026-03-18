@@ -65,6 +65,7 @@ export default function SitesListPage() {
   const canHealth = features.healthMonitoring;
   const canShare = features.collaborativeSites;
   const canAdminer = features.adminer;
+  const canTunnel = features.publicSharing;
   const [sites, setSites] = useState<Site[]>([]);
   const [maxSites, setMaxSites] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,7 +73,7 @@ export default function SitesListPage() {
   const [filterTemplate, setFilterTemplate] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [expandedSite, setExpandedSite] = useState<string | null>(null);
-  const [expandedPanel, setExpandedPanel] = useState<'php' | 'snapshots' | 'domain' | 'health' | 'share' | null>(null);
+  const [expandedPanel, setExpandedPanel] = useState<'php' | 'snapshots' | 'domain' | 'health' | 'share' | 'tunnel' | null>(null);
   const [phpConfigs, setPhpConfigs] = useState<Record<string, PhpConfig>>({});
   const [savingPhp, setSavingPhp] = useState<string | null>(null);
   const [phpSaveMsg, setPhpSaveMsg] = useState<Record<string, string>>({});
@@ -599,6 +600,59 @@ export default function SitesListPage() {
     setTimeout(() => setDbCopied(''), 2000);
   }
 
+  // Public Sharing (Tunnels)
+  const [tunnelStatus, setTunnelStatus] = useState<Record<string, { active: boolean; method?: string; url?: string | null; status?: string }>>({});
+  const [tunnelCreating, setTunnelCreating] = useState<string | null>(null);
+  const [tunnelMethod, setTunnelMethod] = useState<'lan' | 'cloudflare' | 'ngrok'>('cloudflare');
+  const [ngrokToken, setNgrokToken] = useState('');
+  const [tunnelCopied, setTunnelCopied] = useState(false);
+
+  async function fetchTunnelStatus(siteId: string, poll = false) {
+    try {
+      const res = await fetch(`/api/sites/${siteId}/tunnel`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setTunnelStatus(prev => ({ ...prev, [siteId]: data }));
+        if (poll && data.active && data.status === 'connecting') {
+          setTimeout(() => fetchTunnelStatus(siteId, true), 2000);
+        }
+      }
+    } catch {}
+  }
+
+  async function handleCreateTunnel(siteId: string) {
+    setTunnelCreating(siteId);
+    try {
+      const body: any = { method: tunnelMethod };
+      if (tunnelMethod === 'ngrok') body.ngrokAuthToken = ngrokToken;
+      const res = await fetch(`/api/sites/${siteId}/tunnel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to create tunnel' }));
+        alert(err.error || 'Failed to create tunnel');
+        return;
+      }
+      // Poll for URL
+      setTimeout(() => fetchTunnelStatus(siteId, true), 2000);
+      setTunnelStatus(prev => ({ ...prev, [siteId]: { active: true, method: tunnelMethod, url: null, status: 'connecting' } }));
+    } catch {
+      alert('Failed to create tunnel');
+    } finally {
+      setTunnelCreating(null);
+    }
+  }
+
+  async function handleRemoveTunnel(siteId: string) {
+    try {
+      await fetch(`/api/sites/${siteId}/tunnel`, { method: 'DELETE', credentials: 'include' });
+      setTunnelStatus(prev => ({ ...prev, [siteId]: { active: false } }));
+    } catch {}
+  }
+
   // Site health stats
   const [healthStats, setHealthStats] = useState<Record<string, any>>({});
   const [healthLoading, setHealthLoading] = useState<string | null>(null);
@@ -840,7 +894,7 @@ export default function SitesListPage() {
                         WP-CLI
                       </button>
                       {/* Tools dropdown for feature actions */}
-                      {(canClone || canTemplate || canSnapshot || canPhp || canHealth || canPassword || canExport || canAdminer) && site.status === 'running' && (
+                      {(canClone || canTemplate || canSnapshot || canPhp || canHealth || canPassword || canExport || canAdminer || canTunnel) && site.status === 'running' && (
                         <div style={{ position: 'relative' }}>
                           <button
                             className="btn btn-secondary btn-xs"
@@ -907,6 +961,12 @@ export default function SitesListPage() {
                                 <button onClick={() => { handleOpenAdminer(site); setActionsOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" /></svg>
                                   Database
+                                </button>
+                              )}
+                              {canTunnel && (
+                                <button onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('tunnel'); fetchTunnelStatus(site.id); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
+                                  Share Publicly
                                 </button>
                               )}
                             </div>
@@ -1273,6 +1333,82 @@ export default function SitesListPage() {
                         )}
                         {(siteShares[site.id] || []).length === 0 && (
                           <p style={{ color: '#64748b', fontSize: '0.8rem', margin: 0 }}>No shares yet. Enter an email above to share this site.</p>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {canTunnel && expandedSite === site.id && expandedPanel === 'tunnel' && (
+                  <tr key={`${site.id}-tunnel`}>
+                    <td colSpan={5} style={{ padding: 0, border: 'none' }}>
+                      <div style={{ padding: '1rem 1.25rem', background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>Share Publicly</span>
+                          <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+                        </div>
+
+                        {tunnelStatus[site.id]?.active ? (
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                              <span style={{ background: tunnelStatus[site.id].method === 'cloudflare' ? '#f48120' : tunnelStatus[site.id].method === 'ngrok' ? '#1f1e37' : '#3b82f6', color: '#fff', padding: '0.2rem 0.6rem', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                {tunnelStatus[site.id].method}
+                              </span>
+                              {tunnelStatus[site.id].status === 'connecting' ? (
+                                <span style={{ color: '#fb8500', fontSize: '0.82rem' }}><span className="spinner spinner-sm" /> Establishing tunnel...</span>
+                              ) : (
+                                <span style={{ color: '#22c55e', fontSize: '0.82rem' }}>Connected</span>
+                              )}
+                            </div>
+                            {tunnelStatus[site.id].url ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                <input readOnly value={tunnelStatus[site.id].url || ''} style={{ flex: 1, padding: '0.5rem 0.75rem', background: '#1e293b', border: '1px solid #334155', color: '#e2e8f0', fontFamily: 'monospace', fontSize: '0.85rem' }} onClick={e => (e.target as HTMLInputElement).select()} />
+                                <button className="btn btn-primary btn-xs" onClick={() => { navigator.clipboard.writeText(tunnelStatus[site.id].url || ''); setTunnelCopied(true); setTimeout(() => setTunnelCopied(false), 2000); }}>
+                                  {tunnelCopied ? 'Copied!' : 'Copy'}
+                                </button>
+                                <a href={tunnelStatus[site.id].url || ''} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-xs">Open</a>
+                              </div>
+                            ) : null}
+                            <button className="btn btn-danger-outline btn-xs" onClick={() => handleRemoveTunnel(site.id)}>Stop Sharing</button>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                              {(['cloudflare', 'lan', 'ngrok'] as const).map(m => (
+                                <button
+                                  key={m}
+                                  onClick={() => setTunnelMethod(m)}
+                                  style={{
+                                    padding: '0.5rem 1rem', border: tunnelMethod === m ? '2px solid #fb8500' : '1px solid #334155',
+                                    background: tunnelMethod === m ? 'rgba(251,133,0,0.15)' : '#1e293b', color: tunnelMethod === m ? '#fb8500' : '#94a3b8',
+                                    cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase',
+                                  }}
+                                >
+                                  {m === 'cloudflare' ? 'Cloudflare' : m === 'ngrok' ? 'ngrok' : 'LAN'}
+                                </button>
+                              ))}
+                            </div>
+                            <p style={{ color: '#94a3b8', fontSize: '0.78rem', margin: '0 0 0.75rem 0' }}>
+                              {tunnelMethod === 'cloudflare' && 'Free public URL via Cloudflare Quick Tunnel. No account needed.'}
+                              {tunnelMethod === 'ngrok' && 'Public URL via ngrok. Requires a free auth token from ngrok.com.'}
+                              {tunnelMethod === 'lan' && 'Share on your local network. Other devices can access via IP address.'}
+                            </p>
+                            {tunnelMethod === 'ngrok' && (
+                              <input
+                                type="text"
+                                placeholder="Enter ngrok auth token"
+                                value={ngrokToken}
+                                onChange={e => setNgrokToken(e.target.value)}
+                                style={{ width: '100%', padding: '0.5rem', background: '#1e293b', border: '1px solid #334155', color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.75rem', boxSizing: 'border-box' }}
+                              />
+                            )}
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() => handleCreateTunnel(site.id)}
+                              disabled={tunnelCreating === site.id || (tunnelMethod === 'ngrok' && !ngrokToken)}
+                            >
+                              {tunnelCreating === site.id ? <><span className="spinner spinner-sm" /> Starting...</> : 'Start Sharing'}
+                            </button>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -1727,6 +1863,17 @@ export default function SitesListPage() {
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" /></svg>
                 Database
+              </button>
+              )}
+              {canTunnel && site.status === 'running' && (
+              <button
+                onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('tunnel'); fetchTunnelStatus(site.id); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
+                Share Publicly
               </button>
               )}
               {canExtend && site.status === 'running' && (
