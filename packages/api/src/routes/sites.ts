@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, getSiteLogsByUser, MAX_SITES_PER_USER } from '../services/site.service';
-import { getPhpConfig, updatePhpConfig, updateAutoLoginToken, setSitePassword, getSitePasswordStatus, exportSiteZip, getExportDownloadUrl, getContainerStats } from '../services/docker.service';
+import { getPhpConfig, updatePhpConfig, updateAutoLoginToken, setSitePassword, getSitePasswordStatus, exportSiteZip, getExportDownloadUrl, getContainerStats, getDbCredentials } from '../services/docker.service';
 import { takeSnapshot, listSnapshots, restoreSnapshotToSite, deleteSnapshot, cloneSite } from '../services/snapshot.service';
 import { exportSiteAsTemplate } from '../services/template-export.service';
 import { setCustomDomain, getCustomDomain, removeCustomDomain, getDnsInstructions } from '../services/domain.service';
@@ -448,6 +448,37 @@ router.get('/:id/export-zip/:exportId/download', conditionalAuth, asyncHandler(a
   } else {
     res.end();
   }
+}));
+
+// --- Database Credentials (Adminer) ---
+
+router.get('/:id/db-credentials', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!isFeatureEnabled('adminer')) throw new ForbiddenError('Database manager is disabled');
+  const site = getSite(req.params.id);
+  if (!site) throw new NotFoundError('Site not found');
+  if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only access your own sites');
+  if (!site.container_id || site.status !== 'running') throw new ValidationError('Site is not running');
+
+  const credentials = await getDbCredentials(site.container_id);
+
+  if (credentials.dbEngine === 'sqlite') {
+    res.json({ dbEngine: 'sqlite', supported: false, message: 'SQLite sites use a file-based database and do not support Adminer' });
+    return;
+  }
+
+  const baseDomain = config.baseDomain;
+  const protocol = config.nodeEnv === 'production' ? 'https' : 'http';
+  const adminerUrl = `${protocol}://db.${baseDomain}`;
+
+  res.json({
+    dbEngine: credentials.dbEngine,
+    supported: true,
+    host: credentials.host,
+    user: credentials.user,
+    password: credentials.password,
+    database: credentials.database,
+    adminerUrl,
+  });
 }));
 
 // --- Site Sharing ---

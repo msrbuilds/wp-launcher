@@ -13,6 +13,7 @@ export interface FeatureFlags {
   healthMonitoring: boolean;
   scheduledLaunch: boolean;
   collaborativeSites: boolean;
+  adminer: boolean;
 }
 
 export interface Branding {
@@ -54,6 +55,7 @@ const DEFAULT_FEATURES: FeatureFlags = {
   healthMonitoring: false,
   scheduledLaunch: false,
   collaborativeSites: false,
+  adminer: false,
 };
 
 const DEFAULT_BRANDING: Branding = {

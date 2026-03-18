@@ -1,0 +1,412 @@
+/* WP Launcher — Adminer Theme */
+
+html {
+  --bg: #fff;
+  --fg: #1e293b;
+  --dim: #f1f5f9;
+  --lit: #f8fafc;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 90%;
+  background: #f5f5f5;
+  overflow-x: hidden;
+}
+
+/* ── Sidebar ── */
+#menu {
+  background: #14213d;
+  width: 220px;
+  padding: 0;
+  margin: 0;
+  top: 0;
+  min-height: 100vh;
+  position: fixed;
+  overflow-y: auto;
+}
+
+#foot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 220px;
+  height: 100vh;
+  z-index: 10;
+}
+
+#menu h1 {
+  padding: 1.25rem 1.25rem;
+  margin: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  font-size: 100%;
+  background: #14213d !important;
+}
+
+#menu h1, #menu h1 * {
+  color: #fff !important;
+}
+
+#h1 {
+  color: #fb8500 !important;
+  font-style: normal !important;
+  font-weight: 700;
+  text-decoration: none !important;
+}
+
+#logo { display: none; }
+
+.version { color: rgba(255,255,255,0.4) !important; font-size: 75%; display: block; margin-top: 2px; }
+#version { color: rgba(255,255,255,0.4) !important; }
+
+#menu p {
+  padding: 0.65rem 1.25rem;
+  margin: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.45);
+  font-size: 80%;
+}
+
+#menu p a {
+  padding: 0 !important;
+  display: inline !important;
+  border: none !important;
+}
+
+#menu select {
+  background: #0c1527;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 0;
+  padding: 5px 6px;
+  font-size: 90%;
+  width: 100%;
+}
+
+#menu input {
+  background: #0c1527;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 0;
+  padding: 4px 6px;
+}
+
+#menu a {
+  color: rgba(255,255,255,0.6) !important;
+  text-decoration: none !important;
+  display: block;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.85em;
+  border-left: 3px solid transparent;
+  transition: all 0.15s;
+  background: transparent !important;
+}
+
+#menu a:hover {
+  color: #fff !important;
+  background: rgba(255,255,255,0.08) !important;
+}
+
+#menu a.active, #menu a b, #menu .active a {
+  color: #fff !important;
+  border-left-color: #fb8500;
+  background: rgba(255,255,255,0.1) !important;
+}
+
+#menu a b { font-weight: 600; }
+
+/* Nav action links (SQL command, Import, Export, Create table) */
+#menu p a {
+  display: block !important;
+  padding: 0.5rem 1.25rem !important;
+  margin: 0 !important;
+  border: none !important;
+  border-left: 3px solid transparent !important;
+  border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+  color: rgba(255,255,255,0.6) !important;
+  font-size: 0.85em !important;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+#menu p a:hover {
+  background: rgba(255,255,255,0.08) !important;
+  color: #fff !important;
+}
+
+#menu p a b {
+  color: #fff !important;
+  font-weight: 600;
+}
+
+#menu p a.active, #menu p a:has(b) {
+  border-left-color: #fb8500 !important;
+  background: rgba(255,255,255,0.1) !important;
+  color: #fff !important;
+}
+
+#lang {
+  padding: 0.75rem 1.25rem;
+  position: static;
+  color: rgba(255,255,255,0.4);
+  font-size: 80%;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+#lang label { color: rgba(255,255,255,0.4); }
+
+#dbs {
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+#dbs label { color: rgba(255,255,255,0.5); font-size: 80%; }
+
+#logins, #tables {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+#tables a, #logins a {
+  background: transparent !important;
+  padding: 0.35rem 1.25rem !important;
+  font-size: 0.82em;
+}
+
+/* Hide "select" links in table list — clicking table name already navigates */
+#tables a[href*="select="] {
+  display: none !important;
+}
+
+#tables span { background: transparent !important; color: rgba(255,255,255,0.35); }
+
+/* ── Breadcrumb ── */
+#breadcrumb {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.6rem 1.5rem;
+  left: 220px;
+  color: #64748b;
+  font-size: 85%;
+  height: auto;
+  line-height: 1.5;
+}
+
+#breadcrumb a { color: #fb8500; }
+#breadcrumb a:hover { color: #e07800; }
+
+/* ── Content ── */
+#content {
+  margin-left: 220px;
+  padding: 1.5rem 2rem;
+  background: #f5f5f5;
+  overflow-x: auto;
+  max-width: calc(100vw - 220px);
+  box-sizing: border-box;
+}
+
+/* ── Typography ── */
+h2 {
+  background: none !important;
+  border: none !important;
+  color: #14213d;
+  font-size: 1.3em;
+  font-weight: 700;
+  padding: 0 !important;
+  margin: 0 0 1.25rem 0 !important;
+}
+
+h3 { color: #14213d; font-weight: 600; }
+
+/* ── Links ── */
+a { color: #fb8500; }
+a:visited { color: #e07800; }
+a:link:hover, a:visited:hover { color: #e07800; text-decoration: none; }
+
+/* ── Buttons — flat, no radius ── */
+input[type="submit"] {
+  background: #fb8500 !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 7px 18px !important;
+  font-weight: 600;
+  font-size: 0.85em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+input[type="submit"]:hover {
+  background: #e07800 !important;
+}
+
+/* ── Inputs — flat, no radius ── */
+input:not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="image"]):not([type="file"]):not([type="hidden"]),
+select:not(#menu select),
+textarea {
+  border: 1px solid #d1d5db;
+  border-radius: 0;
+  padding: 6px 10px;
+  font-size: 0.9em;
+  background: #fff;
+  transition: border-color 0.15s;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #fb8500 !important;
+  box-shadow: 0 0 0 2px rgba(251,133,0,0.12);
+}
+
+input[type="checkbox"], input[type="radio"] {
+  accent-color: #fb8500;
+}
+
+input[type="image"] {
+  border: none !important;
+  background: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Data tables ── */
+table { border-color: #e2e8f0; }
+td, th { border-color: #e2e8f0; }
+
+thead td, thead th {
+  background: #14213d !important;
+  color: #fff !important;
+  font-weight: 600;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.5rem 0.6rem;
+}
+
+thead a, thead a:link, thead a:visited, thead a:hover {
+  color: #fff !important;
+}
+
+th { background: #f8fafc; }
+
+tbody tr:hover td, tbody tr:hover th {
+  background: #f1f5f9 !important;
+}
+
+.odds tbody tr:nth-child(2n) { background: #fafafa; }
+
+/* Layout tables (login form) */
+table.layout, table.layout td, table.layout th {
+  border: none !important;
+  background: transparent;
+}
+
+table.layout th {
+  color: #14213d;
+  font-weight: 600;
+}
+
+/* ── Fieldset — flat ── */
+fieldset {
+  border: 1px solid #e2e8f0;
+  border-radius: 0;
+  background: #fff;
+}
+
+legend {
+  font-weight: 600;
+  color: #14213d;
+  padding: 0 0.5rem;
+}
+
+/* ── Messages — flat ── */
+.message {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #86efac;
+  border-radius: 0;
+  padding: 0.6rem 1rem;
+}
+
+.error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 0;
+  padding: 0.6rem 1rem;
+}
+
+/* ── SQL editor ── */
+.sqlarea {
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  font-size: 0.9em;
+  border-radius: 0;
+}
+
+code {
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  font-size: 0.9em;
+  background: #f1f5f9;
+  padding: 1px 4px;
+}
+
+/* ── Footer ── */
+#foot { border: none; }
+
+/* ── Logout ── */
+.logout {
+  background: transparent !important;
+  box-shadow: none !important;
+  position: fixed !important;
+  top: 8px;
+  right: 12px;
+  left: auto !important;
+  z-index: 100;
+}
+
+.logout a {
+  background: #dc2626 !important;
+  color: #fff !important;
+  padding: 5px 14px !important;
+  border-radius: 0 !important;
+  font-size: 0.8em !important;
+  font-weight: 600;
+  border: none !important;
+  border-left: 3px solid transparent !important;
+}
+
+.logout a:hover {
+  background: #b91c1c !important;
+}
+
+/* ── Pagination ── */
+.links a {
+  margin-right: 4px;
+  padding: 3px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 0;
+  color: #14213d;
+}
+
+.links a:hover {
+  background: #fb8500;
+  color: #fff;
+  border-color: #fb8500;
+}
+
+/* ── Misc ── */
+.type { color: #64748b; }
+.column { background: #f8fafc !important; border-radius: 0 !important; }
+.js .column { border-radius: 0 !important; }
+
+/* ── Responsive ── */
+@media (max-width: 800px) {
+  #content { margin-left: 10px !important; }
+  #breadcrumb { left: 48px !important; }
+  #menu { width: auto; min-width: 220px; }
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; }

@@ -166,6 +166,7 @@ function initSchema(db: Database.Database): void {
     'feature.healthMonitoring': 'false',
     'feature.scheduledLaunch': 'false',
     'feature.collaborativeSites': 'false',
+    'feature.adminer': 'false',
     'branding.siteTitle': 'WP Launcher',
     'branding.logoUrl': '',
     'branding.cardLayout': '',

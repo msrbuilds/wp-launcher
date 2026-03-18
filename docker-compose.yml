@@ -68,6 +68,21 @@ services:
     networks:
       - wp-launcher-network
 
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    volumes:
+      - ./adminer/adminer.css:/var/www/html/adminer.css:ro
+    environment:
+      - ADMINER_DEFAULT_SERVER=localhost
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.adminer.rule=Host(`db.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.adminer.middlewares=security-headers@file"
+      - "traefik.http.services.adminer.loadbalancer.server.port=8080"
+    networks:
+      - wp-launcher-network
+
   api:
     build: ./packages/api
     restart: unless-stopped

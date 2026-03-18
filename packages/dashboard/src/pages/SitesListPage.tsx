@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useIsLocalMode, useFeatures } from '../context/SettingsContext';
 import CountdownTimer from '../components/CountdownTimer';
@@ -63,6 +64,7 @@ export default function SitesListPage() {
   const canExport = features.exportZip;
   const canHealth = features.healthMonitoring;
   const canShare = features.collaborativeSites;
+  const canAdminer = features.adminer;
   const [sites, setSites] = useState<Site[]>([]);
   const [maxSites, setMaxSites] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -566,6 +568,37 @@ export default function SitesListPage() {
     }
   }
 
+  // Adminer (Database Manager)
+  const [dbModal, setDbModal] = useState<{ site: Site; host: string; user: string; password: string; database: string; dbEngine: string; adminerUrl: string } | null>(null);
+  const [dbCopied, setDbCopied] = useState('');
+
+  async function handleOpenAdminer(site: Site) {
+    try {
+      const res = await fetch(`/api/sites/${site.id}/db-credentials`, { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Failed to get database credentials' }));
+        alert(err.error || 'Failed to get database credentials');
+        return;
+      }
+      const data = await res.json();
+      if (!data.supported) {
+        alert(data.message || 'This site uses SQLite and does not support Adminer');
+        return;
+      }
+      console.log('[DB Modal] Setting credentials:', data);
+      setDbModal({ site, host: data.host, user: data.user, password: data.password, database: data.database, dbEngine: data.dbEngine, adminerUrl: data.adminerUrl });
+      setDbCopied('');
+    } catch {
+      alert('Failed to get database credentials');
+    }
+  }
+
+  function copyDbField(value: string, field: string) {
+    navigator.clipboard.writeText(value);
+    setDbCopied(field);
+    setTimeout(() => setDbCopied(''), 2000);
+  }
+
   // Site health stats
   const [healthStats, setHealthStats] = useState<Record<string, any>>({});
   const [healthLoading, setHealthLoading] = useState<string | null>(null);
@@ -807,7 +840,7 @@ export default function SitesListPage() {
                         WP-CLI
                       </button>
                       {/* Tools dropdown for feature actions */}
-                      {(canClone || canTemplate || canSnapshot || canPhp || canHealth || canPassword || canExport) && site.status === 'running' && (
+                      {(canClone || canTemplate || canSnapshot || canPhp || canHealth || canPassword || canExport || canAdminer) && site.status === 'running' && (
                         <div style={{ position: 'relative' }}>
                           <button
                             className="btn btn-secondary btn-xs"
@@ -868,6 +901,12 @@ export default function SitesListPage() {
                                 <button onClick={() => { handleExportZip(site.id); setActionsOpen(null); }} disabled={exportLoading === site.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
                                   {exportLoading === site.id ? <span className="spinner spinner-sm" /> : <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>}
                                   Export ZIP
+                                </button>
+                              )}
+                              {canAdminer && (
+                                <button onClick={() => { handleOpenAdminer(site); setActionsOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" /></svg>
+                                  Database
                                 </button>
                               )}
                             </div>
@@ -1362,6 +1401,46 @@ export default function SitesListPage() {
             </div>
           </div>
         )}
+        {dbModal && createPortal(
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+            <div className="card" style={{ maxWidth: 480, width: '90%' }}>
+              <h3 style={{ marginBottom: '0.25rem' }}>Database Credentials</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                {dbModal.site.subdomain} &mdash; {dbModal.dbEngine.toUpperCase()}
+              </p>
+              {[
+                { label: 'Server', value: dbModal.host, key: 'host' },
+                { label: 'Username', value: dbModal.user, key: 'user' },
+                { label: 'Password', value: dbModal.password, key: 'password' },
+                { label: 'Database', value: dbModal.database, key: 'database' },
+              ].map(field => (
+                <div key={field.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <label style={{ width: 80, fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', flexShrink: 0 }}>{field.label}</label>
+                  <input readOnly value={field.value} style={{ flex: 1, padding: '0.4rem 0.5rem', border: '1px solid var(--border)', borderRadius: 6, fontSize: '0.85rem', background: 'var(--bg-surface)', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+                  <button
+                    onClick={() => copyDbField(field.value, field.key)}
+                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border)', borderRadius: 6, background: dbCopied === field.key ? '#d4edda' : '#fff', cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+                  >
+                    {dbCopied === field.key ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    const params = new URLSearchParams({ server: dbModal.host, username: dbModal.user, db: dbModal.database });
+                    window.open(`${dbModal.adminerUrl}?${params.toString()}`, '_blank');
+                  }}
+                >
+                  Open Adminer
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={() => setDbModal(null)}>Close</button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
     );
   }
@@ -1637,6 +1716,17 @@ export default function SitesListPage() {
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
                 )}
                 Export as ZIP
+              </button>
+              )}
+              {canAdminer && site.status === 'running' && (
+              <button
+                onClick={() => { setActionsOpen(null); handleOpenAdminer(site); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" /></svg>
+                Database
               </button>
               )}
               {canExtend && site.status === 'running' && (
@@ -2124,6 +2214,46 @@ export default function SitesListPage() {
             </div>
           </div>
         </div>
+      )}
+      {dbModal && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div className="card" style={{ maxWidth: 480, width: '90%' }}>
+            <h3 style={{ marginBottom: '0.25rem' }}>Database Credentials</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+              {dbModal.site.subdomain} &mdash; {dbModal.dbEngine.toUpperCase()}
+            </p>
+            {[
+              { label: 'Server', value: dbModal.host, key: 'host' },
+              { label: 'Username', value: dbModal.user, key: 'user' },
+              { label: 'Password', value: dbModal.password, key: 'password' },
+              { label: 'Database', value: dbModal.database, key: 'database' },
+            ].map(field => (
+              <div key={field.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <label style={{ width: 80, fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', flexShrink: 0 }}>{field.label}</label>
+                <input readOnly value={field.value} style={{ flex: 1, padding: '0.4rem 0.5rem', border: '1px solid var(--border)', borderRadius: 6, fontSize: '0.85rem', background: 'var(--bg-surface)', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+                <button
+                  onClick={() => copyDbField(field.value, field.key)}
+                  style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border)', borderRadius: 6, background: dbCopied === field.key ? '#d4edda' : '#fff', cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+                >
+                  {dbCopied === field.key ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  const params = new URLSearchParams({ server: dbModal.host, username: dbModal.user, db: dbModal.database });
+                  window.open(`${dbModal.adminerUrl}?${params.toString()}`, '_blank');
+                }}
+              >
+                Open Adminer
+              </button>
+              <button className="btn btn-outline btn-sm" onClick={() => setDbModal(null)}>Close</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

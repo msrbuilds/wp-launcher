@@ -178,6 +178,13 @@ export async function exportSiteZip(containerId: string): Promise<{ exportId: st
   return await res.json() as { exportId: string; path: string; sizeBytes: number; dbEngine: string };
 }
 
+// Database Credentials (Adminer)
+
+export async function getDbCredentials(containerId: string): Promise<{ dbEngine: string; host: string; user: string; password: string; database: string }> {
+  const res = await provisionerFetch(`/containers/${containerId}/db-credentials`);
+  return await res.json() as { dbEngine: string; host: string; user: string; password: string; database: string };
+}
+
 export function getExportDownloadUrl(exportId: string): string {
   return `${PROVISIONER_URL}/exports/${exportId}/download`;
 }

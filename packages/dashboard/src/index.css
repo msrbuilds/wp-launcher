@@ -1775,8 +1775,12 @@ body:has(.admin-layout) .header .container {
   padding: 1.5rem 2rem;
   overflow-y: auto;
   min-width: 0;
-  max-width: 1100px;
+  max-width: 1200px;
   margin-left: 230px;
+}
+
+.admin-layout-local .admin-content {
+  max-width: none;
 }
 
 /* Mobile top bar — hidden on desktop */
@@ -1855,5 +1859,64 @@ body:has(.admin-layout) .header .container {
   .admin-content {
     padding: 1rem;
     margin-left: 0;
+  }
+}
+
+/* ── Local Mode: Admin as full shell (no header/footer) ── */
+
+.admin-layout-local {
+  min-height: 100vh;
+}
+
+.admin-layout-local .admin-sidebar {
+  top: 0;
+  height: 100vh;
+}
+
+.admin-nav-separator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0.35rem 1rem;
+}
+
+/* ── Local Dashboard Shortcut Cards ── */
+
+.local-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.local-shortcut-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.25rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--sc-bg);
+  border: 1px solid var(--sc-border);
+  color: var(--sc-color);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.local-shortcut-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 768px) {
+  .admin-layout-local .admin-mobile-bar {
+    top: 0;
+  }
+
+  .local-shortcuts {
+    grid-template-columns: repeat(2, 1fr);
   }
 }

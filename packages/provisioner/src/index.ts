@@ -438,6 +438,41 @@ app.get('/containers/:id/status', async (req: Request, res: Response) => {
   }
 });
 
+// Get DB credentials from a running container's environment
+app.get('/containers/:id/db-credentials', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+    const container = docker.getContainer(req.params.id);
+    const info = await container.inspect();
+    const env = info.Config.Env || [];
+    const getEnv = (key: string) => env.find((e: string) => e.startsWith(`${key}=`))?.split('=').slice(1).join('=') || '';
+
+    const dbEngine = getEnv('DB_ENGINE') || 'sqlite';
+    if (dbEngine === 'sqlite') {
+      res.json({ dbEngine: 'sqlite', host: '', user: '', password: '', database: '' });
+      return;
+    }
+
+    res.json({
+      dbEngine,
+      host: getEnv('WORDPRESS_DB_HOST'),
+      user: getEnv('WORDPRESS_DB_USER') || 'wordpress',
+      password: getEnv('WORDPRESS_DB_PASSWORD'),
+      database: getEnv('WORDPRESS_DB_NAME') || 'wordpress',
+    });
+  } catch (err: any) {
+    if (err.statusCode === 404) {
+      res.status(404).json({ error: 'Container not found' });
+      return;
+    }
+    console.error('[provisioner] db-credentials error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Container resource stats (CPU, memory)
 app.get('/containers/:id/stats', async (req: Request, res: Response) => {
   try {

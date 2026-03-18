@@ -2,6 +2,25 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [1.7.0] - 2026-03-19
+
+### Added
+- **Database Manager (Adminer)** — Built-in Adminer container for managing MySQL/MariaDB databases directly from the dashboard
+- **DB credentials modal** — Secure modal showing server, username, password, database with copy buttons and "Open Adminer" link
+- **Adminer custom theme** — Styled to match WP Launcher admin panel (dark navy sidebar, orange accents, flat design)
+- **Adminer feature toggle** — Enable/disable via admin Features tab; works in both local and agency modes
+- **Local mode dashboard** — New dashboard home page with shortcut cards (Sites, New Site, New Template, Mailpit, Admin)
+- **Local mode unified layout** — All pages wrapped in AdminLayout; sites list replaces admin Sites tab
+
+### Changed
+- **Local mode UI restructure** — Dashboard index shows shortcut cards instead of launch page; everything wrapped in admin sidebar layout
+- **Admin sidebar** — Hidden logo/version section in agency mode (already in header); wider content area for sites table
+
+### Security
+- DB credentials only accessible via authenticated API endpoint with ownership check
+- Adminer requires MySQL login — no auto-login; passwords never in URL
+- DB containers isolated on internal Docker network, not exposed on host ports
+
 ## [1.6.1] - 2026-03-18
 
 ### Added

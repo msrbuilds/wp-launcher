@@ -8,6 +8,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import App from './App';
 import LaunchPage from './pages/LaunchPage';
 import LocalLaunchPage from './pages/LocalLaunchPage';
+import LocalDashboard from './pages/LocalDashboard';
 import SitesListPage from './pages/SitesListPage';
 import LoginPage from './pages/LoginPage';
 import AccountPage from './pages/AccountPage';
@@ -40,37 +41,53 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return isAdmin ? <>{children}</> : <Navigate to="/" replace />;
 }
 
-function AppRoutes() {
-  const { loading } = useSettings();
-  const isLocal = useIsLocalMode();
+function LocalRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<AdminLayout />}>
+        <Route index element={<LocalDashboard />} />
+        <Route path="sites" element={<SitesListPage />} />
+        <Route path="create" element={<LocalLaunchPage />} />
+        <Route path="create-template" element={<CreateTemplatePage />} />
+        <Route path="products" element={<ProductsTab />} />
+        <Route path="bulk" element={<BulkTab />} />
+        <Route path="logs" element={<LogsTab />} />
+        <Route path="features" element={<FeaturesTab />} />
+        <Route path="branding" element={<BrandingTab />} />
+        <Route path="system" element={<SystemTab />} />
+        {/* Redirect old admin paths */}
+        <Route path="admin" element={<Navigate to="/" replace />} />
+        <Route path="admin/sites" element={<Navigate to="/sites" replace />} />
+        <Route path="admin/products" element={<Navigate to="/products" replace />} />
+        <Route path="admin/logs" element={<Navigate to="/logs" replace />} />
+        <Route path="admin/features" element={<Navigate to="/features" replace />} />
+        <Route path="admin/branding" element={<Navigate to="/branding" replace />} />
+        <Route path="admin/system" element={<Navigate to="/system" replace />} />
+        <Route path="admin/bulk" element={<Navigate to="/bulk" replace />} />
+        <Route path="login" element={<Navigate to="/" replace />} />
+        <Route path="launch/:productId" element={<LaunchRedirect />} />
+      </Route>
+    </Routes>
+  );
+}
 
-  if (loading) return null;
-
+function AgencyRoutes() {
   return (
     <Routes>
       <Route path="/" element={<App />}>
         <Route index element={<LaunchPage />} />
-        {isLocal && <Route path="create" element={<LocalLaunchPage />} />}
-        {isLocal && <Route path="create-template" element={<CreateTemplatePage />} />}
-        {!isLocal && <Route path="create-product" element={<AdminRoute><CreateProductPage /></AdminRoute>} />}
+        <Route path="create-product" element={<AdminRoute><CreateProductPage /></AdminRoute>} />
         <Route path="launch/:productId" element={<LaunchRedirect />} />
         <Route path="sites" element={<SitesListPage />} />
-        {!isLocal && (
-          <>
-            <Route path="login" element={<LoginPage />} />
-            <Route path="account" element={<AccountPage />} />
-            <Route path="verify" element={<VerifyPage />} />
-          </>
-        )}
-        {isLocal && <Route path="login" element={<Navigate to="/" replace />} />}
+        <Route path="login" element={<LoginPage />} />
+        <Route path="account" element={<AccountPage />} />
+        <Route path="verify" element={<VerifyPage />} />
         <Route path="admin" element={<AdminLayout />}>
           <Route index element={<OverviewTab />} />
-          {!isLocal && <Route path="analytics" element={<AnalyticsTab />} />}
-          {isLocal && <Route path="analytics" element={<Navigate to="/admin" replace />} />}
+          <Route path="analytics" element={<AnalyticsTab />} />
           <Route path="bulk" element={<BulkTab />} />
           <Route path="products" element={<ProductsTab />} />
-          {!isLocal && <Route path="users" element={<UsersTab />} />}
-          {isLocal && <Route path="users" element={<Navigate to="/admin" replace />} />}
+          <Route path="users" element={<UsersTab />} />
           <Route path="sites" element={<SitesTab />} />
           <Route path="logs" element={<LogsTab />} />
           <Route path="features" element={<FeaturesTab />} />
@@ -80,6 +97,15 @@ function AppRoutes() {
       </Route>
     </Routes>
   );
+}
+
+function AppRoutes() {
+  const { loading } = useSettings();
+  const isLocal = useIsLocalMode();
+
+  if (loading) return null;
+
+  return isLocal ? <LocalRoutes /> : <AgencyRoutes />;
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
