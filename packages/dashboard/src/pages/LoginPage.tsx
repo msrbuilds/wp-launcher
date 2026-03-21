@@ -36,10 +36,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="card auth-card" style={{ padding: '2rem' }}>
-      <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '0.375rem' }}>Welcome back</h2>
-        <p style={{ color: '#64748b', fontSize: '0.95rem' }}>
+    <div className="card auth-card login-card">
+      <div className="login-header">
+        <h2 className="login-title">Welcome back</h2>
+        <p className="login-subtitle">
           {localStorage.getItem('pendingProductLaunch')
             ? 'Log in to launch your demo site'
             : 'Log in to manage your demo sites'}
@@ -73,12 +73,12 @@ export default function LoginPage() {
 
         {error && <div className="alert-error">{error}</div>}
 
-        <button className="btn btn-primary btn-lg" type="submit" disabled={loading} style={{ width: '100%' }}>
+        <button className="btn btn-primary btn-lg login-submit" type="submit" disabled={loading}>
           {loading ? <><span className="spinner" /> Logging in...</> : 'Log In'}
         </button>
       </form>
 
-      <p style={{ marginTop: '1.25rem', fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center' }}>
+      <p className="login-footer">
         Don't have an account?{' '}
         <a href="/">Sign up with email</a>
       </p>

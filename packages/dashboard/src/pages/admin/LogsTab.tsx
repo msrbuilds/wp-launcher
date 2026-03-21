@@ -28,30 +28,30 @@ export default function LogsTab() {
 
   return (
     <div className="card">
-      <h3 style={{ marginBottom: '1rem' }}>Site Logs ({total})</h3>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+      <h3 className="lg-title">Site Logs ({total})</h3>
+      <div className="lg-table-wrap">
+        <table className="lg-table">
           <thead>
-            <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-              <th style={{ padding: '0.5rem' }}>Time</th>
-              <th style={{ padding: '0.5rem' }}>Action</th>
-              {!isLocal && <th style={{ padding: '0.5rem' }}>User</th>}
-              <th style={{ padding: '0.5rem' }}>Site</th>
-              <th style={{ padding: '0.5rem' }}>{isLocal ? 'Template' : 'Product'}</th>
+            <tr>
+              <th>Time</th>
+              <th>Action</th>
+              {!isLocal && <th>User</th>}
+              <th>Site</th>
+              <th>{isLocal ? 'Template' : 'Product'}</th>
             </tr>
           </thead>
           <tbody>
             {logs.map((log) => (
-              <tr key={log.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={{ padding: '0.5rem' }}>{new Date(log.created_at).toLocaleString()}</td>
-                <td style={{ padding: '0.5rem' }}>
+              <tr key={log.id}>
+                <td>{new Date(log.created_at).toLocaleString()}</td>
+                <td>
                   <span className={`badge ${log.action === 'created' ? 'badge-running' : 'badge-expired'}`}>{log.action}</span>
                 </td>
-                {!isLocal && <td style={{ padding: '0.5rem' }}>{log.user_email || '—'}</td>}
-                <td style={{ padding: '0.5rem' }}>
+                {!isLocal && <td>{log.user_email || '—'}</td>}
+                <td>
                   {log.site_url ? <a href={log.site_url} target="_blank" rel="noopener noreferrer">{log.subdomain}</a> : log.subdomain}
                 </td>
-                <td style={{ padding: '0.5rem' }}>{log.product_id}</td>
+                <td>{log.product_id}</td>
               </tr>
             ))}
           </tbody>

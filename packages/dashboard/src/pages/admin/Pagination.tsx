@@ -1,3 +1,4 @@
+
 export default function Pagination({
   page,
   totalPages,
@@ -36,7 +37,7 @@ export default function Pagination({
         </button>
         {buttons.map((b, i) =>
           b === '...' ? (
-            <span key={`ellipsis-${i}`} style={{ padding: '0 0.25rem', color: '#94a3b8' }}>…</span>
+            <span key={`ellipsis-${i}`} className="pg-ellipsis">…</span>
           ) : (
             <button
               key={b}

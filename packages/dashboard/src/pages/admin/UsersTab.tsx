@@ -58,44 +58,43 @@ export default function UsersTab() {
 
   return (
     <div className="card">
-      <h3 style={{ marginBottom: '1rem' }}>Users ({total})</h3>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+      <h3 className="ut-title">Users ({total})</h3>
+      <div className="ut-table-wrap">
+        <table className="ut-table">
           <thead>
-            <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-              <th style={{ padding: '0.5rem' }}>Email</th>
-              <th style={{ padding: '0.5rem' }}>Role</th>
-              <th style={{ padding: '0.5rem' }}>Verified</th>
-              <th style={{ padding: '0.5rem' }}>Created</th>
-              <th style={{ padding: '0.5rem' }}>Actions</th>
+            <tr>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Verified</th>
+              <th>Created</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {users.map((u) => {
               const isSystem = u.id === 'admin' || u.id === 'local-user';
               return (
-                <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '0.5rem' }}>
+                <tr key={u.id}>
+                  <td>
                     {u.email}
-                    {isSystem && <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: '0.5rem' }}>(system)</span>}
+                    {isSystem && <span className="ut-system-label">(system)</span>}
                   </td>
-                  <td style={{ padding: '0.5rem' }}>
-                    <span className={`badge ${u.role === 'admin' ? 'badge-running' : ''}`} style={u.role === 'admin' ? {} : { background: '#f1f5f9', color: '#64748b' }}>
+                  <td>
+                    <span className={`badge ${u.role === 'admin' ? 'badge-running' : 'ut-badge-user'}`}>
                       {u.role || 'user'}
                     </span>
                   </td>
-                  <td style={{ padding: '0.5rem' }}>
+                  <td>
                     <span className={`badge ${u.verified ? 'badge-running' : 'badge-error'}`}>{u.verified ? 'Yes' : 'No'}</span>
                   </td>
-                  <td style={{ padding: '0.5rem' }}>{new Date(u.createdAt).toLocaleString()}</td>
-                  <td style={{ padding: '0.5rem' }}>
-                    <div style={{ display: 'flex', gap: '0.375rem' }}>
+                  <td>{new Date(u.createdAt).toLocaleString()}</td>
+                  <td>
+                    <div className="ut-actions">
                       {!isSystem && (
                         <>
                           {u.role === 'admin' ? (
                             <button
-                              className="btn btn-sm"
-                              style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d' }}
+                              className="btn btn-sm ut-btn-demote"
                               onClick={() => handleRoleChange(u.id, 'user')}
                               disabled={roleUpdating === u.id}
                             >

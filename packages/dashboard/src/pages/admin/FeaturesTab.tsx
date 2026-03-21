@@ -129,53 +129,49 @@ export default function FeaturesTab() {
   return (
     <>
       <div className="card">
-        <h3 style={{ marginBottom: '0.25rem' }}>Feature Modules</h3>
-        <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+        <h3 className="ft-heading">Feature Modules</h3>
+        <p className="ft-subtext">
           Enable or disable features for regular users. Admins always have access to all features.
         </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.25rem' }}>
+        <div className="ft-feature-list">
           {FEATURE_META.map((f) => {
             const disabled = isLocal && f.agencyOnly;
             return (
               <div
                 key={f.key}
+                className="ft-feature-row"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '0.75rem 1rem',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
                   background: disabled ? '#f1f5f9' : features[f.key] ? '#f0fdf4' : '#fafafa',
                   opacity: disabled ? 0.55 : 1,
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                  <div className="ft-feature-label">
                     {f.label}
-                    {disabled && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 500, color: '#94a3b8', background: '#e2e8f0', padding: '0.15rem 0.4rem', borderRadius: 4 }}>Agency only</span>}
+                    {disabled && <span className="ft-agency-badge">Agency only</span>}
                   </div>
-                  <div style={{ color: '#64748b', fontSize: '0.8rem' }}>{f.description}</div>
+                  <div className="ft-feature-desc">{f.description}</div>
                 </div>
-                <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', flexShrink: 0, marginLeft: '1rem' }}>
+                <label className="ft-toggle-label">
                   <input
                     type="checkbox"
                     checked={!!features[f.key]}
                     disabled={disabled}
                     onChange={(e) => setFeatures((prev) => ({ ...prev, [f.key]: e.target.checked }))}
-                    style={{ opacity: 0, width: 0, height: 0 }}
+                    className="ft-toggle-input"
                   />
-                  <span style={{
-                    position: 'absolute', cursor: disabled ? 'not-allowed' : 'pointer', top: 0, left: 0, right: 0, bottom: 0,
-                    background: disabled ? '#e2e8f0' : features[f.key] ? '#22c55e' : '#cbd5e1',
-                    borderRadius: '24px', transition: 'background 0.2s',
-                  }}>
-                    <span style={{
-                      position: 'absolute', height: '18px', width: '18px',
-                      left: features[f.key] ? '23px' : '3px', bottom: '3px',
-                      background: 'white', borderRadius: '50%', transition: 'left 0.2s',
-                    }} />
+                  <span
+                    className="ft-toggle-track"
+                    style={{
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                      background: disabled ? '#e2e8f0' : features[f.key] ? '#22c55e' : '#cbd5e1',
+                    }}
+                  >
+                    <span
+                      className="ft-toggle-knob"
+                      style={{ left: features[f.key] ? '23px' : '3px' }}
+                    />
                   </span>
                 </label>
               </div>
@@ -183,12 +179,12 @@ export default function FeaturesTab() {
           })}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className="ft-actions">
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
             {saving ? <><span className="spinner" /> Saving...</> : 'Save Changes'}
           </button>
           {msg && (
-            <span style={{ fontSize: '0.85rem', color: msg.startsWith('Failed') ? '#ef4444' : '#22c55e' }}>
+            <span className={`ft-msg ${msg.startsWith('Failed') ? 'ft-msg-error' : 'ft-msg-success'}`}>
               {msg}
             </span>
           )}
@@ -197,19 +193,19 @@ export default function FeaturesTab() {
 
       {/* Webhooks Management — shown when webhooks feature is enabled */}
       {features.webhooks && (
-        <div className="card" style={{ marginTop: '1.25rem' }}>
-          <h3 style={{ marginBottom: '0.25rem' }}>Webhook Endpoints</h3>
-          <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+        <div className="card ft-webhooks-card">
+          <h3 className="ft-heading">Webhook Endpoints</h3>
+          <p className="ft-subtext">
             Configure HTTP endpoints that receive notifications when site events occur. Payloads are signed with HMAC-SHA256.
           </p>
 
           {/* Add new webhook form */}
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem', marginBottom: '1.25rem', background: '#fafafa' }}>
-            <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.75rem' }}>Add Webhook</div>
+          <div className="ft-webhook-form">
+            <div className="ft-webhook-form-title">Add Webhook</div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div className="ft-form-fields">
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.25rem', color: '#374151' }}>Endpoint URL</label>
+                <label className="ft-field-label">Endpoint URL</label>
                 <input
                   type="url"
                   id="webhook-url"
@@ -217,25 +213,19 @@ export default function FeaturesTab() {
                   placeholder="https://example.com/webhook"
                   value={newUrl}
                   onChange={(e) => setNewUrl(e.target.value)}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.85rem', boxSizing: 'border-box' }}
+                  className="ft-text-input"
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.4rem', color: '#374151' }}>Events</label>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <label className="ft-field-label-events">Events</label>
+                <div className="ft-events-row">
                   {ALL_EVENTS.map(event => (
                     <button
                       key={event}
                       type="button"
                       onClick={() => toggleEvent(event)}
-                      style={{
-                        padding: '0.3rem 0.6rem', borderRadius: 6, fontSize: '0.8rem', cursor: 'pointer',
-                        border: newEvents.includes(event) ? '2px solid var(--orange)' : '1px solid #d1d5db',
-                        background: newEvents.includes(event) ? '#fff8f0' : '#fff',
-                        color: newEvents.includes(event) ? 'var(--orange)' : '#374151',
-                        fontWeight: newEvents.includes(event) ? 600 : 400,
-                      }}
+                      className={`ft-event-btn ${newEvents.includes(event) ? 'ft-event-btn-active' : 'ft-event-btn-inactive'}`}
                     >
                       {event}
                     </button>
@@ -244,8 +234,8 @@ export default function FeaturesTab() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.25rem', color: '#374151' }}>
-                  Secret <span style={{ fontWeight: 400, color: '#9ca3af' }}>(optional — auto-generated if blank)</span>
+                <label className="ft-field-label">
+                  Secret <span className="ft-secret-hint">(optional — auto-generated if blank)</span>
                 </label>
                 <input
                   type="text"
@@ -254,16 +244,16 @@ export default function FeaturesTab() {
                   placeholder="Leave blank to auto-generate"
                   value={newSecret}
                   onChange={(e) => setNewSecret(e.target.value)}
-                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.85rem', boxSizing: 'border-box' }}
+                  className="ft-text-input"
                 />
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="ft-actions">
                 <button className="btn btn-primary btn-sm" onClick={handleAddWebhook} disabled={addingWebhook || !newUrl || newEvents.length === 0}>
                   {addingWebhook ? <><span className="spinner spinner-sm" /> Adding...</> : 'Add Webhook'}
                 </button>
                 {webhookMsg && (
-                  <span style={{ fontSize: '0.85rem', color: webhookMsg.startsWith('Failed') ? '#ef4444' : '#22c55e' }}>
+                  <span className={`ft-msg ${webhookMsg.startsWith('Failed') ? 'ft-msg-error' : 'ft-msg-success'}`}>
                     {webhookMsg}
                   </span>
                 )}
@@ -273,40 +263,37 @@ export default function FeaturesTab() {
 
           {/* Existing webhooks list */}
           {webhooksLoading ? (
-            <div style={{ textAlign: 'center', padding: '1rem' }}><span className="spinner spinner-dark" /> Loading webhooks...</div>
+            <div className="ft-loading-center"><span className="spinner spinner-dark" /> Loading webhooks...</div>
           ) : webhooks.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '1rem', color: '#9ca3af', fontSize: '0.85rem' }}>
+            <div className="ft-empty-state">
               No webhooks configured yet. Add one above.
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div className="ft-webhook-list">
               {webhooks.map(wh => (
                 <div
                   key={wh.id}
+                  className="ft-webhook-item"
                   style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '0.75rem 1rem', border: '1px solid #e2e8f0', borderRadius: '8px',
-                    background: wh.active ? '#fff' : '#f9fafb', opacity: wh.active ? 1 : 0.6,
+                    background: wh.active ? '#fff' : '#f9fafb',
+                    opacity: wh.active ? 1 : 0.6,
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.85rem', wordBreak: 'break-all' }}>{wh.url}</div>
-                    <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.3rem', flexWrap: 'wrap' }}>
+                  <div className="ft-webhook-info">
+                    <div className="ft-webhook-url">{wh.url}</div>
+                    <div className="ft-webhook-events">
                       {wh.events.split(',').map(ev => (
-                        <span key={ev} style={{
-                          padding: '0.15rem 0.4rem', borderRadius: 4, fontSize: '0.7rem',
-                          background: '#e0f2fe', color: '#0369a1', fontWeight: 500,
-                        }}>
+                        <span key={ev} className="ft-event-tag">
                           {ev.trim()}
                         </span>
                       ))}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.25rem' }}>
-                      Secret: <code style={{ fontSize: '0.7rem', background: '#f3f4f6', padding: '0.1rem 0.3rem', borderRadius: 3 }}>{wh.secret ? wh.secret.substring(0, 8) + '...' : 'none'}</code>
+                    <div className="ft-webhook-meta">
+                      Secret: <code className="ft-webhook-secret">{wh.secret ? wh.secret.substring(0, 8) + '...' : 'none'}</code>
                       {' · '}Added {new Date(wh.created_at).toLocaleDateString()}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.4rem', marginLeft: '0.75rem', flexShrink: 0 }}>
+                  <div className="ft-webhook-actions">
                     <button
                       className={`btn btn-xs ${wh.active ? 'btn-secondary' : 'btn-primary'}`}
                       onClick={() => handleToggleWebhook(wh.id, !wh.active)}

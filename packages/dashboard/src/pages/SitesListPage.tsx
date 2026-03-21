@@ -747,7 +747,7 @@ export default function SitesListPage() {
 
   if (loading) {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
+      <div className="card sl-loading">
         <span className="spinner spinner-dark" /> Loading sites...
       </div>
     );
@@ -766,7 +766,7 @@ export default function SitesListPage() {
 
   if (fetchError) {
     return (
-      <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.75rem 1rem', borderRadius: '6px', margin: '2rem' }}>
+      <div className="sl-fetch-error">
         {fetchError}
       </div>
     );
@@ -856,11 +856,11 @@ export default function SitesListPage() {
                   <td className="site-table-date">{new Date(site.createdAt).toLocaleDateString()}</td>
                   <td>
                     {!isSiteReady(site) && site.status === 'running' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                      <div className="sl-setup-indicator">
                         <span className="spinner spinner-sm spinner-dark" /> Setting up...
                       </div>
                     ) : (
-                    <div className="site-table-actions" style={{ justifyContent: 'flex-end' }}>
+                    <div className="site-table-actions sl-table-actions-right">
                       <button
                         className="btn btn-primary btn-xs"
                         title="Login to WP Admin"
@@ -895,7 +895,7 @@ export default function SitesListPage() {
                       </button>
                       {/* Tools dropdown for feature actions */}
                       {(canClone || canTemplate || canSnapshot || canPhp || canHealth || canPassword || canExport || canAdminer || canTunnel) && site.status === 'running' && (
-                        <div style={{ position: 'relative' }}>
+                        <div className="sl-dropdown-wrapper">
                           <button
                             className="btn btn-secondary btn-xs"
                             onClick={() => cloning !== site.id && setActionsOpen(actionsOpen === site.id ? null : site.id)}
@@ -909,62 +909,57 @@ export default function SitesListPage() {
                             )}
                           </button>
                           {actionsOpen === site.id && (
-                            <div style={{
-                              position: 'absolute', top: '100%', right: 0, marginTop: 4,
-                              background: '#fff', border: '1px solid var(--border)', borderRadius: 8,
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: 160,
-                              padding: '0.25rem 0',
-                            }}>
+                            <div className="sl-dropdown-menu">
                               {canClone && (
-                                <button onClick={() => { handleCloneSite(site.id); setActionsOpen(null); }} disabled={cloning === site.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                <button className="sl-dropdown-item" onClick={() => { handleCloneSite(site.id); setActionsOpen(null); }} disabled={cloning === site.id}>
                                   {cloning === site.id ? <span className="spinner spinner-sm" /> : <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>}
                                   Clone
                                 </button>
                               )}
                               {canTemplate && (
-                                <button onClick={() => { setTemplateModal(site.id); setTemplateId(''); setTemplateName(''); setTemplateError(''); setActionsOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                <button className="sl-dropdown-item" onClick={() => { setTemplateModal(site.id); setTemplateId(''); setTemplateName(''); setTemplateError(''); setActionsOpen(null); }}>
                                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
                                   Save as Template
                                 </button>
                               )}
                               {canSnapshot && (
-                                <button onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('snapshots'); if (!snapshots[site.id]) fetchSnapshots(site.id); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                <button className="sl-dropdown-item" onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('snapshots'); if (!snapshots[site.id]) fetchSnapshots(site.id); }}>
                                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" /></svg>
                                   Snapshots
                                 </button>
                               )}
                               {canPhp && (
-                                <button onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('php'); if (!phpConfigs[site.id]) fetchPhpConfig(site.id); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                <button className="sl-dropdown-item" onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('php'); if (!phpConfigs[site.id]) fetchPhpConfig(site.id); }}>
                                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                                   PHP Config
                                 </button>
                               )}
                               {canHealth && (
-                                <button onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('health'); fetchHealthStats(site.id); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                <button className="sl-dropdown-item" onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('health'); fetchHealthStats(site.id); }}>
                                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
                                   Stats
                                 </button>
                               )}
                               {canPassword && (
-                                <button onClick={() => { setPasswordModal(site.id); setPasswordValue(''); setActionsOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                <button className="sl-dropdown-item" onClick={() => { setPasswordModal(site.id); setPasswordValue(''); setActionsOpen(null); }}>
                                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
                                   Password
                                 </button>
                               )}
                               {canExport && (
-                                <button onClick={() => { handleExportZip(site.id); setActionsOpen(null); }} disabled={exportLoading === site.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                <button className="sl-dropdown-item" onClick={() => { handleExportZip(site.id); setActionsOpen(null); }} disabled={exportLoading === site.id}>
                                   {exportLoading === site.id ? <span className="spinner spinner-sm" /> : <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>}
                                   Export ZIP
                                 </button>
                               )}
                               {canAdminer && (
-                                <button onClick={() => { handleOpenAdminer(site); setActionsOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                <button className="sl-dropdown-item" onClick={() => { handleOpenAdminer(site); setActionsOpen(null); }}>
                                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" /></svg>
                                   Database
                                 </button>
                               )}
                               {canTunnel && (
-                                <button onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('tunnel'); fetchTunnelStatus(site.id); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.45rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                                <button className="sl-dropdown-item" onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('tunnel'); fetchTunnelStatus(site.id); }}>
                                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
                                   Share Publicly
                                 </button>
@@ -988,10 +983,10 @@ export default function SitesListPage() {
                 </tr>
                 {canSnapshot && expandedSite === site.id && expandedPanel === 'snapshots' && (
                   <tr key={`${site.id}-snaps`}>
-                    <td colSpan={5} style={{ padding: 0, border: 'none' }}>
-                      <div style={{ padding: '1rem 1.25rem', background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>Snapshots</span>
+                    <td colSpan={5} className="sl-expanded-cell">
+                      <div className="sl-dark-panel">
+                        <div className="sl-dark-panel-header">
+                          <span className="sl-dark-panel-title">Snapshots</span>
                           <button
                             className="btn btn-primary btn-xs"
                             onClick={() => handleTakeSnapshot(site.id)}
@@ -1001,25 +996,25 @@ export default function SitesListPage() {
                           </button>
                         </div>
                         {(snapshots[site.id] || []).length === 0 ? (
-                          <p style={{ color: '#94a3b8', fontSize: '0.8rem' }}>No snapshots yet. Take one to save the current state.</p>
+                          <p className="sl-dark-muted">No snapshots yet. Take one to save the current state.</p>
                         ) : (
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                          <table className="sl-snap-table">
                             <thead>
-                              <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-                                <th style={{ padding: '0.375rem', textAlign: 'left' }}>Name</th>
-                                <th style={{ padding: '0.375rem', textAlign: 'left' }}>Size</th>
-                                <th style={{ padding: '0.375rem', textAlign: 'left' }}>Created</th>
-                                <th style={{ padding: '0.375rem', textAlign: 'right' }}>Actions</th>
+                              <tr className="sl-snap-thead-row">
+                                <th className="sl-snap-th">Name</th>
+                                <th className="sl-snap-th">Size</th>
+                                <th className="sl-snap-th">Created</th>
+                                <th className="sl-snap-th-right">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
                               {(snapshots[site.id] || []).map((snap) => (
-                                <tr key={snap.id} style={{ borderBottom: '1px solid #1e293b', color: '#e2e8f0' }}>
-                                  <td style={{ padding: '0.375rem' }}>{snap.name}</td>
-                                  <td style={{ padding: '0.375rem' }}>{snap.size_bytes ? `${(snap.size_bytes / 1024 / 1024).toFixed(1)} MB` : '—'}</td>
-                                  <td style={{ padding: '0.375rem' }}>{new Date(snap.created_at).toLocaleString()}</td>
-                                  <td style={{ padding: '0.375rem', textAlign: 'right' }}>
-                                    <button className="btn btn-secondary btn-xs" style={{ marginRight: '0.25rem' }}
+                                <tr key={snap.id} className="sl-snap-row">
+                                  <td className="sl-snap-td">{snap.name}</td>
+                                  <td className="sl-snap-td">{snap.size_bytes ? `${(snap.size_bytes / 1024 / 1024).toFixed(1)} MB` : '—'}</td>
+                                  <td className="sl-snap-td">{new Date(snap.created_at).toLocaleString()}</td>
+                                  <td className="sl-snap-td-right">
+                                    <button className="btn btn-secondary btn-xs sl-snap-restore-btn"
                                       onClick={() => handleRestoreSnapshot(site.id, snap.id)}
                                       disabled={snapshotLoading === site.id}
                                     >Restore</button>
@@ -1038,13 +1033,13 @@ export default function SitesListPage() {
                 )}
                 {!isLocal && canDomain && expandedSite === site.id && expandedPanel === 'domain' && (
                   <tr key={`${site.id}-domain`}>
-                    <td colSpan={5} style={{ padding: 0, border: 'none' }}>
-                      <div style={{ padding: '1rem 1.25rem', background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0', marginBottom: '0.75rem', display: 'block' }}>Custom Domain</span>
+                    <td colSpan={5} className="sl-expanded-cell">
+                      <div className="sl-dark-panel">
+                        <span className="sl-dark-panel-title-block">Custom Domain</span>
                         {domainStatus[site.id]?.domain ? (
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                              <span style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>{domainStatus[site.id].domain}</span>
+                            <div className="sl-domain-row">
+                              <span className="sl-dark-text">{domainStatus[site.id].domain}</span>
                               <span style={{
                                 fontSize: '0.7rem',
                                 padding: '0.15rem 0.5rem',
@@ -1055,10 +1050,9 @@ export default function SitesListPage() {
                                 {domainStatus[site.id].status === 'verified' ? 'DNS Verified' : 'DNS Pending'}
                               </span>
                               <button
-                                className="btn btn-secondary btn-xs"
+                                className="btn btn-secondary btn-xs sl-ml-auto"
                                 onClick={() => fetchDomainStatus(site.id, true)}
                                 disabled={domainRechecking === site.id}
-                                style={{ marginLeft: 'auto' }}
                               >{domainRechecking === site.id ? <><span className="spinner spinner-sm" /> Checking...</> : 'Recheck'}</button>
                               <button
                                 className="btn btn-danger-outline btn-xs"
@@ -1066,19 +1060,19 @@ export default function SitesListPage() {
                                 disabled={domainSaving === site.id}
                               >Remove</button>
                             </div>
-                            <p style={{ color: '#94a3b8', fontSize: '0.75rem', margin: 0 }}>
+                            <p className="sl-dark-hint-inline">
                               Point a CNAME record for <strong>{domainStatus[site.id].domain}</strong> to <strong>{site.subdomain}.{window.location.hostname}</strong>
                             </p>
                           </div>
                         ) : (
                           <div>
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <div className="sl-domain-input-row">
                               <input
                                 type="text"
                                 placeholder="demo.yourdomain.com"
                                 value={domainInput[site.id] || ''}
                                 onChange={(e) => setDomainInput((prev) => ({ ...prev, [site.id]: e.target.value }))}
-                                style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
+                                className="sl-domain-input"
                                 disabled={domainSaving === site.id}
                               />
                               <button
@@ -1090,9 +1084,9 @@ export default function SitesListPage() {
                               </button>
                             </div>
                             {domainError[site.id] && (
-                              <p style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '0.35rem', marginBottom: 0 }}>{domainError[site.id]}</p>
+                              <p className="sl-domain-error">{domainError[site.id]}</p>
                             )}
-                            <p style={{ color: '#94a3b8', fontSize: '0.75rem', marginTop: '0.5rem', marginBottom: 0 }}>
+                            <p className="sl-dark-hint">
                               After setting, create a CNAME DNS record pointing to <strong>{site.subdomain}.{window.location.hostname}</strong>
                             </p>
                           </div>
@@ -1103,22 +1097,22 @@ export default function SitesListPage() {
                 )}
                 {canPhp && expandedSite === site.id && expandedPanel === 'php' && (
                   <tr key={`${site.id}-php`}>
-                    <td colSpan={5} style={{ padding: 0, border: 'none' }}>
-                      <div style={{ padding: '1rem 1.25rem', background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>PHP Settings</span>
-                          <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Changes apply instantly (Apache graceful reload)</span>
+                    <td colSpan={5} className="sl-expanded-cell">
+                      <div className="sl-dark-panel">
+                        <div className="sl-dark-panel-header-inline">
+                          <span className="sl-dark-panel-title">PHP Settings</span>
+                          <span className="sl-dark-panel-subtitle">Changes apply instantly (Apache graceful reload)</span>
                         </div>
                         {loadingPhp === site.id ? (
-                          <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8' }}>
+                          <div className="sl-dark-loading">
                             <span className="spinner spinner-sm" /> Loading PHP config...
                           </div>
                         ) : (
                         <>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem' }}>
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <label style={{ fontSize: '0.75rem' }}>Memory Limit</label>
-                            <select value={getPhpConfig(site.id).memoryLimit} onChange={(e) => updatePhpField(site.id, 'memoryLimit', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                        <div className="sl-php-grid">
+                          <div className="form-group sl-php-field">
+                            <label className="sl-php-label">Memory Limit</label>
+                            <select value={getPhpConfig(site.id).memoryLimit} onChange={(e) => updatePhpField(site.id, 'memoryLimit', e.target.value)} className="sl-php-select">
                               <option value="128M">128 MB</option>
                               <option value="256M">256 MB</option>
                               <option value="512M">512 MB</option>
@@ -1126,9 +1120,9 @@ export default function SitesListPage() {
                               <option value="-1">Unlimited</option>
                             </select>
                           </div>
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <label style={{ fontSize: '0.75rem' }}>Upload Max</label>
-                            <select value={getPhpConfig(site.id).uploadMaxFilesize} onChange={(e) => updatePhpField(site.id, 'uploadMaxFilesize', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                          <div className="form-group sl-php-field">
+                            <label className="sl-php-label">Upload Max</label>
+                            <select value={getPhpConfig(site.id).uploadMaxFilesize} onChange={(e) => updatePhpField(site.id, 'uploadMaxFilesize', e.target.value)} className="sl-php-select">
                               <option value="2M">2 MB</option>
                               <option value="16M">16 MB</option>
                               <option value="64M">64 MB</option>
@@ -1137,9 +1131,9 @@ export default function SitesListPage() {
                               <option value="512M">512 MB</option>
                             </select>
                           </div>
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <label style={{ fontSize: '0.75rem' }}>Post Max Size</label>
-                            <select value={getPhpConfig(site.id).postMaxSize} onChange={(e) => updatePhpField(site.id, 'postMaxSize', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                          <div className="form-group sl-php-field">
+                            <label className="sl-php-label">Post Max Size</label>
+                            <select value={getPhpConfig(site.id).postMaxSize} onChange={(e) => updatePhpField(site.id, 'postMaxSize', e.target.value)} className="sl-php-select">
                               <option value="8M">8 MB</option>
                               <option value="16M">16 MB</option>
                               <option value="64M">64 MB</option>
@@ -1148,9 +1142,9 @@ export default function SitesListPage() {
                               <option value="512M">512 MB</option>
                             </select>
                           </div>
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <label style={{ fontSize: '0.75rem' }}>Max Exec Time</label>
-                            <select value={getPhpConfig(site.id).maxExecutionTime} onChange={(e) => updatePhpField(site.id, 'maxExecutionTime', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                          <div className="form-group sl-php-field">
+                            <label className="sl-php-label">Max Exec Time</label>
+                            <select value={getPhpConfig(site.id).maxExecutionTime} onChange={(e) => updatePhpField(site.id, 'maxExecutionTime', e.target.value)} className="sl-php-select">
                               <option value="30">30s</option>
                               <option value="60">60s</option>
                               <option value="120">120s</option>
@@ -1158,26 +1152,26 @@ export default function SitesListPage() {
                               <option value="0">Unlimited</option>
                             </select>
                           </div>
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <label style={{ fontSize: '0.75rem' }}>Max Input Vars</label>
-                            <select value={getPhpConfig(site.id).maxInputVars} onChange={(e) => updatePhpField(site.id, 'maxInputVars', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                          <div className="form-group sl-php-field">
+                            <label className="sl-php-label">Max Input Vars</label>
+                            <select value={getPhpConfig(site.id).maxInputVars} onChange={(e) => updatePhpField(site.id, 'maxInputVars', e.target.value)} className="sl-php-select">
                               <option value="1000">1,000</option>
                               <option value="3000">3,000</option>
                               <option value="5000">5,000</option>
                               <option value="10000">10,000</option>
                             </select>
                           </div>
-                          <div className="form-group" style={{ margin: 0 }}>
-                            <label style={{ fontSize: '0.75rem' }}>Display Errors</label>
-                            <select value={getPhpConfig(site.id).displayErrors} onChange={(e) => updatePhpField(site.id, 'displayErrors', e.target.value)} style={{ fontSize: '0.8rem', padding: '0.3rem' }}>
+                          <div className="form-group sl-php-field">
+                            <label className="sl-php-label">Display Errors</label>
+                            <select value={getPhpConfig(site.id).displayErrors} onChange={(e) => updatePhpField(site.id, 'displayErrors', e.target.value)} className="sl-php-select">
                               <option value="On">On</option>
                               <option value="Off">Off</option>
                             </select>
                           </div>
                         </div>
-                        <div style={{ marginTop: '0.75rem' }}>
-                          <label style={{ fontSize: '0.75rem', display: 'block', marginBottom: '0.35rem', color: '#94a3b8' }}>Extensions</label>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                        <div className="sl-php-extensions-section">
+                          <label className="sl-php-extensions-label">Extensions</label>
+                          <div className="sl-php-extensions-wrap">
                             {AVAILABLE_EXTENSIONS.map((ext) => {
                               const active = getPhpConfig(site.id).extensions.includes(ext.value);
                               return (
@@ -1201,7 +1195,7 @@ export default function SitesListPage() {
                             })}
                           </div>
                         </div>
-                        <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <div className="sl-php-save-row">
                           <button
                             className="btn btn-primary btn-xs"
                             onClick={() => handleSavePhpConfig(site.id)}
@@ -1227,48 +1221,48 @@ export default function SitesListPage() {
                 )}
                 {canHealth && expandedSite === site.id && expandedPanel === 'health' && (
                   <tr key={`${site.id}-health`}>
-                    <td colSpan={5} style={{ padding: 0, border: 'none' }}>
-                      <div style={{ padding: '1rem 1.25rem', background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>Resource Usage</span>
+                    <td colSpan={5} className="sl-expanded-cell">
+                      <div className="sl-dark-panel">
+                        <div className="sl-dark-panel-header-inline">
+                          <span className="sl-dark-panel-title">Resource Usage</span>
                           <button className="btn btn-secondary btn-xs" onClick={() => fetchHealthStats(site.id)} disabled={healthLoading === site.id}>
                             {healthLoading === site.id ? <span className="spinner spinner-sm" /> : 'Refresh'}
                           </button>
-                          <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+                          <button className="btn btn-secondary btn-xs sl-ml-auto" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }}>Close</button>
                         </div>
                         {healthStats[site.id] ? (
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem' }}>
-                            <div style={{ background: '#1e293b', borderRadius: 8, padding: '0.75rem' }}>
-                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.3rem' }}>CPU</div>
-                              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: healthStats[site.id].cpu.percent > 80 ? '#ef4444' : '#22c55e' }}>
+                          <div className="sl-health-grid">
+                            <div className="sl-health-card">
+                              <div className="sl-health-card-label">CPU</div>
+                              <div className="sl-health-card-value-lg" style={{ color: healthStats[site.id].cpu.percent > 80 ? '#ef4444' : '#22c55e' }}>
                                 {healthStats[site.id].cpu.percent}%
                               </div>
-                              <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{healthStats[site.id].cpu.cores} core(s)</div>
+                              <div className="sl-health-card-sublabel">{healthStats[site.id].cpu.cores} core(s)</div>
                             </div>
-                            <div style={{ background: '#1e293b', borderRadius: 8, padding: '0.75rem' }}>
-                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Memory</div>
-                              <div style={{ fontSize: '1.25rem', fontWeight: 700, color: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e' }}>
+                            <div className="sl-health-card">
+                              <div className="sl-health-card-label">Memory</div>
+                              <div className="sl-health-card-value-lg" style={{ color: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e' }}>
                                 {healthStats[site.id].memory.usedMB} MB
                               </div>
-                              <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                              <div className="sl-health-card-sublabel">
                                 {healthStats[site.id].memory.percent}% of {healthStats[site.id].memory.limitMB} MB
                               </div>
-                              <div style={{ marginTop: '0.4rem', height: 4, background: '#334155', borderRadius: 2, overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${Math.min(healthStats[site.id].memory.percent, 100)}%`, background: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e', borderRadius: 2 }} />
+                              <div className="sl-health-bar-track">
+                                <div className="sl-health-bar-fill" style={{ width: `${Math.min(healthStats[site.id].memory.percent, 100)}%`, background: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e' }} />
                               </div>
                             </div>
-                            <div style={{ background: '#1e293b', borderRadius: 8, padding: '0.75rem' }}>
-                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Network</div>
-                              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>
+                            <div className="sl-health-card">
+                              <div className="sl-health-card-label">Network</div>
+                              <div className="sl-health-card-value-md">
                                 {(healthStats[site.id].network.rxBytes / 1024 / 1024).toFixed(1)} MB in
                               </div>
-                              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>
+                              <div className="sl-health-card-value-md">
                                 {(healthStats[site.id].network.txBytes / 1024 / 1024).toFixed(1)} MB out
                               </div>
                             </div>
-                            <div style={{ background: '#1e293b', borderRadius: 8, padding: '0.75rem' }}>
-                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Uptime</div>
-                              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>
+                            <div className="sl-health-card">
+                              <div className="sl-health-card-label">Uptime</div>
+                              <div className="sl-health-card-value-md">
                                 {(() => {
                                   const ms = Date.now() - new Date(healthStats[site.id].uptime).getTime();
                                   const h = Math.floor(ms / 3600000);
@@ -1276,11 +1270,11 @@ export default function SitesListPage() {
                                   return h > 0 ? `${h}h ${m}m` : `${m}m`;
                                 })()}
                               </div>
-                              <div style={{ fontSize: '0.7rem', color: '#64748b' }}>PID {healthStats[site.id].pid}</div>
+                              <div className="sl-health-card-sublabel">PID {healthStats[site.id].pid}</div>
                             </div>
                           </div>
                         ) : (
-                          <div style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8' }}>
+                          <div className="sl-dark-loading">
                             <span className="spinner spinner-sm" /> Loading stats...
                           </div>
                         )}
@@ -1290,24 +1284,24 @@ export default function SitesListPage() {
                 )}
                 {canShare && expandedSite === site.id && expandedPanel === 'share' && (
                   <tr key={`${site.id}-share`}>
-                    <td colSpan={5} style={{ padding: 0, border: 'none' }}>
-                      <div style={{ padding: '1rem 1.25rem', background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>Share Site</span>
-                          <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+                    <td colSpan={5} className="sl-expanded-cell">
+                      <div className="sl-dark-panel">
+                        <div className="sl-dark-panel-header-inline">
+                          <span className="sl-dark-panel-title">Share Site</span>
+                          <button className="btn btn-secondary btn-xs sl-ml-auto" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }}>Close</button>
                         </div>
-                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                        <div className="sl-share-form-row">
                           <input
                             type="email"
                             placeholder="user@example.com"
                             value={shareEmail}
                             onChange={e => setShareEmail(e.target.value)}
-                            style={{ flex: 1, minWidth: 180, padding: '0.35rem 0.5rem', borderRadius: 4, border: '1px solid #4a5568', background: '#2d3748', color: '#e2e8f0', fontSize: '0.85rem' }}
+                            className="sl-share-input-dark"
                           />
                           <select
                             value={shareRole}
                             onChange={e => setShareRole(e.target.value as 'viewer' | 'admin')}
-                            style={{ padding: '0.35rem 0.5rem', borderRadius: 4, border: '1px solid #4a5568', background: '#2d3748', color: '#e2e8f0', fontSize: '0.85rem' }}
+                            className="sl-share-select-dark"
                           >
                             <option value="viewer">Viewer</option>
                             <option value="admin">Admin</option>
@@ -1318,21 +1312,21 @@ export default function SitesListPage() {
                         </div>
                         {shareMsg && <div style={{ fontSize: '0.8rem', color: shareMsg.includes('success') ? '#22c55e' : '#ef4444', marginBottom: '0.5rem' }}>{shareMsg}</div>}
                         {(siteShares[site.id] || []).length > 0 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          <div className="sl-share-list">
                             {(siteShares[site.id] || []).map((s: any) => (
-                              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.3rem 0.5rem', background: '#1e293b', borderRadius: 4, fontSize: '0.8rem' }}>
-                                <span style={{ color: '#e2e8f0' }}>
+                              <div key={s.id} className="sl-share-item-dark">
+                                <span className="sl-dark-text-lg">
                                   {s.shared_with_email}
-                                  <span style={{ color: '#94a3b8', marginLeft: '0.5rem', fontSize: '0.7rem', textTransform: 'uppercase' }}>{s.role}</span>
+                                  <span className="sl-share-role-badge">{s.role}</span>
                                   <span style={{ color: s.status === 'accepted' ? '#22c55e' : '#ecc94b', marginLeft: '0.5rem', fontSize: '0.7rem' }}>{s.status}</span>
                                 </span>
-                                <button className="btn btn-danger-outline btn-xs" onClick={() => handleRevokeShare(site.id, s.id)} style={{ fontSize: '0.7rem' }}>Revoke</button>
+                                <button className="btn btn-danger-outline btn-xs sl-revoke-btn-sm" onClick={() => handleRevokeShare(site.id, s.id)}>Revoke</button>
                               </div>
                             ))}
                           </div>
                         )}
                         {(siteShares[site.id] || []).length === 0 && (
-                          <p style={{ color: '#64748b', fontSize: '0.8rem', margin: 0 }}>No shares yet. Enter an email above to share this site.</p>
+                          <p className="sl-dark-no-data">No shares yet. Enter an email above to share this site.</p>
                         )}
                       </div>
                     </td>
@@ -1340,28 +1334,28 @@ export default function SitesListPage() {
                 )}
                 {canTunnel && expandedSite === site.id && expandedPanel === 'tunnel' && (
                   <tr key={`${site.id}-tunnel`}>
-                    <td colSpan={5} style={{ padding: 0, border: 'none' }}>
-                      <div style={{ padding: '1rem 1.25rem', background: '#0f172a', borderBottom: '1px solid #1e293b' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#e2e8f0' }}>Share Publicly</span>
-                          <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+                    <td colSpan={5} className="sl-expanded-cell">
+                      <div className="sl-dark-panel">
+                        <div className="sl-dark-panel-header-inline">
+                          <span className="sl-dark-panel-title">Share Publicly</span>
+                          <button className="btn btn-secondary btn-xs sl-ml-auto" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }}>Close</button>
                         </div>
 
                         {tunnelStatus[site.id]?.active ? (
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                            <div className="sl-tunnel-row">
                               <span style={{ background: tunnelStatus[site.id].method === 'cloudflare' ? '#f48120' : tunnelStatus[site.id].method === 'ngrok' ? '#1f1e37' : '#3b82f6', color: '#fff', padding: '0.2rem 0.6rem', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                 {tunnelStatus[site.id].method}
                               </span>
                               {tunnelStatus[site.id].status === 'connecting' ? (
-                                <span style={{ color: '#fb8500', fontSize: '0.82rem' }}><span className="spinner spinner-sm" /> Establishing tunnel...</span>
+                                <span className="sl-tunnel-connecting"><span className="spinner spinner-sm" /> Establishing tunnel...</span>
                               ) : (
-                                <span style={{ color: '#22c55e', fontSize: '0.82rem' }}>Connected</span>
+                                <span className="sl-tunnel-connected">Connected</span>
                               )}
                             </div>
                             {tunnelStatus[site.id].url ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                                <input readOnly value={tunnelStatus[site.id].url || ''} style={{ flex: 1, padding: '0.5rem 0.75rem', background: '#1e293b', border: '1px solid #334155', color: '#e2e8f0', fontFamily: 'monospace', fontSize: '0.85rem' }} onClick={e => (e.target as HTMLInputElement).select()} />
+                              <div className="sl-tunnel-url-row">
+                                <input readOnly value={tunnelStatus[site.id].url || ''} className="sl-tunnel-url-input" onClick={e => (e.target as HTMLInputElement).select()} />
                                 <button className="btn btn-primary btn-xs" onClick={() => { navigator.clipboard.writeText(tunnelStatus[site.id].url || ''); setTunnelCopied(true); setTimeout(() => setTunnelCopied(false), 2000); }}>
                                   {tunnelCopied ? 'Copied!' : 'Copy'}
                                 </button>
@@ -1372,7 +1366,7 @@ export default function SitesListPage() {
                           </div>
                         ) : (
                           <div>
-                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                            <div className="sl-tunnel-method-row">
                               {(['cloudflare', 'lan', 'ngrok'] as const).map(m => (
                                 <button
                                   key={m}
@@ -1387,7 +1381,7 @@ export default function SitesListPage() {
                                 </button>
                               ))}
                             </div>
-                            <p style={{ color: '#94a3b8', fontSize: '0.78rem', margin: '0 0 0.75rem 0' }}>
+                            <p className="sl-tunnel-desc">
                               {tunnelMethod === 'cloudflare' && 'Free public URL via Cloudflare Quick Tunnel. No account needed.'}
                               {tunnelMethod === 'ngrok' && 'Public URL via ngrok. Requires a free auth token from ngrok.com.'}
                               {tunnelMethod === 'lan' && 'Share on your local network. Other devices can access via IP address.'}
@@ -1398,7 +1392,7 @@ export default function SitesListPage() {
                                 placeholder="Enter ngrok auth token"
                                 value={ngrokToken}
                                 onChange={e => setNgrokToken(e.target.value)}
-                                style={{ width: '100%', padding: '0.5rem', background: '#1e293b', border: '1px solid #334155', color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.75rem', boxSizing: 'border-box' }}
+                                className="sl-tunnel-ngrok-input"
                               />
                             )}
                             <button
@@ -1418,7 +1412,7 @@ export default function SitesListPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={5} className="sl-empty-filtered">
                     No sites match your filters
                   </td>
                 </tr>
@@ -1429,42 +1423,42 @@ export default function SitesListPage() {
 
         {/* Save as Template Modal */}
         {templateModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          <div className="sl-modal-overlay"
             onClick={() => !templateSaving && setTemplateModal(null)}
           >
-            <div style={{ background: '#1e293b', borderRadius: '0.75rem', padding: '1.5rem', width: '100%', maxWidth: '420px', border: '1px solid #334155' }}
+            <div className="sl-template-modal-dark"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ margin: '0 0 0.25rem', color: '#e2e8f0', fontSize: '1.1rem' }}>Save as Template</h3>
-              <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: '0 0 1rem' }}>
+              <h3>Save as Template</h3>
+              <p className="sl-template-modal-dark-desc">
                 Export this site's plugins, themes, and settings as a reusable template.
               </p>
-              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                <label style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>Template ID (slug)</label>
+              <div className="form-group sl-form-group-sm">
+                <label className="sl-template-label-dark">Template ID (slug)</label>
                 <input
                   type="text"
                   value={templateId}
                   onChange={(e) => setTemplateId(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
                   placeholder="e.g. my-starter-theme"
-                  style={{ width: '100%', padding: '0.5rem', fontSize: '0.85rem' }}
+                  className="sl-template-input-dark"
                   disabled={templateSaving}
                 />
               </div>
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>Template Name</label>
+              <div className="form-group sl-form-group-md">
+                <label className="sl-template-label-dark">Template Name</label>
                 <input
                   type="text"
                   value={templateName}
                   onChange={(e) => setTemplateName(e.target.value)}
                   placeholder="e.g. My Starter Theme"
-                  style={{ width: '100%', padding: '0.5rem', fontSize: '0.85rem' }}
+                  className="sl-template-input-dark"
                   disabled={templateSaving}
                 />
               </div>
               {templateError && (
-                <div style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '0.75rem' }}>{templateError}</div>
+                <div className="sl-template-error">{templateError}</div>
               )}
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <div className="sl-modal-actions">
                 <button
                   className="btn btn-secondary btn-sm"
                   onClick={() => setTemplateModal(null)}
@@ -1484,13 +1478,13 @@ export default function SitesListPage() {
 
         {/* Password Protection Modal */}
         {passwordModal && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div className="card" style={{ maxWidth: 420, width: '90%' }}>
-              <h3 style={{ marginBottom: '0.75rem' }}>Password Protection</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+          <div className="sl-modal-overlay-inset">
+            <div className="card sl-password-modal">
+              <h3>Password Protection</h3>
+              <p className="sl-password-modal-desc">
                 Set a password to restrict access. Choose what to protect.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
+              <div className="sl-password-scope-list">
                 {([
                   { value: 'frontend' as const, label: 'Frontend Only', desc: 'Visitors need password, admin stays open' },
                   { value: 'admin' as const, label: 'Admin Only', desc: 'wp-admin needs password, site stays open' },
@@ -1513,7 +1507,7 @@ export default function SitesListPage() {
                     }} />
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.85rem', color: passwordScope === opt.value ? 'var(--orange)' : 'var(--prussian-blue)' }}>{opt.label}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.desc}</div>
+                      <div className="sl-password-scope-desc">{opt.desc}</div>
                     </div>
                   </button>
                 ))}
@@ -1523,9 +1517,9 @@ export default function SitesListPage() {
                 placeholder="Enter password (min 4 chars)"
                 value={passwordValue}
                 onChange={(e) => setPasswordValue(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 6, marginBottom: '1rem', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                className="sl-password-input"
               />
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div className="sl-modal-actions-left">
                 <button className="btn btn-primary btn-sm" onClick={() => handleSetPassword(passwordModal)} disabled={passwordLoading === passwordModal || passwordValue.length < 4}>
                   {passwordLoading === passwordModal ? <><span className="spinner spinner-sm" /> Setting...</> : 'Set Password'}
                 </button>
@@ -1538,10 +1532,10 @@ export default function SitesListPage() {
           </div>
         )}
         {dbModal && createPortal(
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-            <div className="card" style={{ maxWidth: 480, width: '90%' }}>
-              <h3 style={{ marginBottom: '0.25rem' }}>Database Credentials</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+          <div className="sl-modal-overlay-portal">
+            <div className="card sl-db-modal">
+              <h3>Database Credentials</h3>
+              <p className="sl-db-modal-desc">
                 {dbModal.site.subdomain} &mdash; {dbModal.dbEngine.toUpperCase()}
               </p>
               {[
@@ -1550,18 +1544,18 @@ export default function SitesListPage() {
                 { label: 'Password', value: dbModal.password, key: 'password' },
                 { label: 'Database', value: dbModal.database, key: 'database' },
               ].map(field => (
-                <div key={field.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <label style={{ width: 80, fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', flexShrink: 0 }}>{field.label}</label>
-                  <input readOnly value={field.value} style={{ flex: 1, padding: '0.4rem 0.5rem', border: '1px solid var(--border)', borderRadius: 6, fontSize: '0.85rem', background: 'var(--bg-surface)', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+                <div key={field.key} className="sl-db-field-row">
+                  <label className="sl-db-field-label">{field.label}</label>
+                  <input readOnly value={field.value} className="sl-db-field-input" />
                   <button
                     onClick={() => copyDbField(field.value, field.key)}
-                    style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border)', borderRadius: 6, background: dbCopied === field.key ? '#d4edda' : '#fff', cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+                    className={`sl-db-copy-btn ${dbCopied === field.key ? 'sl-db-copy-btn-copied' : 'sl-db-copy-btn-default'}`}
                   >
                     {dbCopied === field.key ? 'Copied!' : 'Copy'}
                   </button>
                 </div>
               ))}
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+              <div className="sl-db-actions">
                 <button
                   className="btn btn-primary btn-sm"
                   onClick={() => {
@@ -1591,13 +1585,13 @@ export default function SitesListPage() {
 
       {/* Shared with me */}
       {sharedWithMe.length > 0 && (
-        <div style={{ marginBottom: '1.25rem' }}>
-          <h4 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+        <div className="sl-section-block">
+          <h4 className="sl-section-heading">
             Shared with me ({sharedWithMe.length})
           </h4>
           <div className="sites-grid">
             {sharedWithMe.map((share: any) => (
-              <div key={share.id} className="card site-card" style={{ borderLeft: '3px solid #8b5cf6' }}>
+              <div key={share.id} className="card site-card sl-shared-card-accent">
                 <div className="site-card-header">
                   <div className="site-card-status">
                     <span className={`status-dot status-${share.site_status}`} />
@@ -1619,7 +1613,7 @@ export default function SitesListPage() {
                     <span className="site-card-product">{share.product_id}</span>
                   </div>
                 </div>
-                <div className="site-card-actions" style={{ padding: '0.75rem 1rem' }}>
+                <div className="site-card-actions sl-card-actions-compact">
                   <a href={share.site_url} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">Visit</a>
                   {share.role === 'admin' && share.admin_url && (
                     <a href={share.admin_url} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm">Admin</a>
@@ -1633,27 +1627,27 @@ export default function SitesListPage() {
 
       {/* Scheduled Launches */}
       {scheduledLaunches.length > 0 && (
-        <div style={{ marginBottom: '1.25rem' }}>
-          <h4 style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+        <div className="sl-section-block">
+          <h4 className="sl-section-heading">
             Scheduled ({scheduledLaunches.length})
           </h4>
           <div className="sites-grid">
             {scheduledLaunches.map((launch) => (
-              <div key={launch.id} className="card site-card" style={{ opacity: 0.7, borderStyle: 'dashed' }}>
-                <div className="site-card-header" style={{ background: '#f8fafc' }}>
+              <div key={launch.id} className="card site-card sl-scheduled-card">
+                <div className="site-card-header sl-scheduled-header">
                   <div className="site-card-status">
                     <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="var(--orange)" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                    <span style={{ color: 'var(--orange)', fontWeight: 600, fontSize: '0.8rem' }}>SCHEDULED</span>
+                    <span className="sl-scheduled-label">SCHEDULED</span>
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <span className="sl-scheduled-date">
                     {new Date(launch.scheduled_at).toLocaleDateString()} {new Date(launch.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 <div className="site-card-body">
-                  <h3 className="site-card-name" style={{ color: 'var(--text-muted)' }}>
+                  <h3 className="site-card-name sl-scheduled-name">
                     {launch.product_id}
                   </h3>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginTop: '0.25rem' }}>
+                  <div className="sl-scheduled-countdown">
                     Launches in {(() => {
                       const ms = new Date(launch.scheduled_at).getTime() - Date.now();
                       if (ms <= 0) return 'any moment now';
@@ -1665,7 +1659,7 @@ export default function SitesListPage() {
                     })()}
                   </div>
                 </div>
-                <div className="site-card-actions" style={{ padding: '0.75rem 1rem' }}>
+                <div className="site-card-actions sl-card-actions-compact">
                   <button
                     className="btn btn-danger-outline btn-sm"
                     onClick={() => handleCancelScheduled(launch.id)}
@@ -1687,7 +1681,7 @@ export default function SitesListPage() {
                 <span className={`status-dot status-${site.status}`} />
                 <span className="status-text">{site.status}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div className="sl-card-header-right">
                 <div className="site-card-timer">
                   <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -1713,14 +1707,12 @@ export default function SitesListPage() {
 
             {/* Actions panel (dropdown) */}
             {actionsOpen === site.id && (
-            <div style={{ padding: '0.5rem 1rem', borderTop: '1px solid #2d3748', background: '#1a202c', display: 'flex', flexDirection: 'column', gap: '0' }}>
+            <div className="sl-dark-actions-panel">
               {canClone && (
               <button
+                className="sl-dark-action-btn"
                 onClick={() => { handleCloneSite(site.id); setActionsOpen(null); }}
                 disabled={cloning === site.id}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 {cloning === site.id ? <span className="spinner spinner-sm" /> : (
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
@@ -1730,15 +1722,13 @@ export default function SitesListPage() {
               )}
               {canDomain && (
               <button
+                className="sl-dark-action-btn"
                 onClick={() => {
                   setActionsOpen(null);
                   setExpandedSite(site.id);
                   setExpandedPanel('domain');
                   if (!domainStatus[site.id]) fetchDomainStatus(site.id);
                 }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 2.164A8.961 8.961 0 0 1 21 12c0 .778-.099 1.533-.284 2.253" /></svg>
                 Custom Domain
@@ -1746,6 +1736,7 @@ export default function SitesListPage() {
               )}
               {canTemplate && (
               <button
+                className="sl-dark-action-btn"
                 onClick={() => {
                   setActionsOpen(null);
                   setTemplateModal(site.id);
@@ -1753,9 +1744,6 @@ export default function SitesListPage() {
                   setTemplateName('');
                   setTemplateError('');
                 }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
                 Save as Template
@@ -1763,15 +1751,13 @@ export default function SitesListPage() {
               )}
               {canSnapshot && (
               <button
+                className="sl-dark-action-btn"
                 onClick={() => {
                   setActionsOpen(null);
                   setExpandedSite(site.id);
                   setExpandedPanel('snapshots');
                   if (!snapshots[site.id]) fetchSnapshots(site.id);
                 }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" /></svg>
                 Snapshots
@@ -1779,15 +1765,13 @@ export default function SitesListPage() {
               )}
               {canPhp && (
               <button
+                className="sl-dark-action-btn"
                 onClick={() => {
                   setActionsOpen(null);
                   setExpandedSite(site.id);
                   setExpandedPanel('php');
                   if (!phpConfigs[site.id]) fetchPhpConfig(site.id);
                 }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                 PHP Settings
@@ -1795,6 +1779,7 @@ export default function SitesListPage() {
               )}
               {canShare && site.status === 'running' && (
               <button
+                className="sl-dark-action-btn"
                 onClick={() => {
                   setActionsOpen(null);
                   // Toggle: if already open, close
@@ -1805,9 +1790,6 @@ export default function SitesListPage() {
                     fetchShares(site.id);
                   }
                 }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
                 Share Site
@@ -1815,15 +1797,13 @@ export default function SitesListPage() {
               )}
               {canHealth && site.status === 'running' && (
               <button
+                className="sl-dark-action-btn"
                 onClick={() => {
                   setActionsOpen(null);
                   setExpandedSite(site.id);
                   setExpandedPanel('health');
                   fetchHealthStats(site.id);
                 }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
                 Resource Stats
@@ -1831,10 +1811,8 @@ export default function SitesListPage() {
               )}
               {canPassword && site.status === 'running' && (
               <button
+                className="sl-dark-action-btn"
                 onClick={() => { setActionsOpen(null); setPasswordModal(site.id); setPasswordValue(''); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
                 Password Protection
@@ -1842,11 +1820,9 @@ export default function SitesListPage() {
               )}
               {canExport && site.status === 'running' && (
               <button
+                className="sl-dark-action-btn"
                 onClick={() => { setActionsOpen(null); handleExportZip(site.id); }}
                 disabled={exportLoading === site.id}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 {exportLoading === site.id ? <span className="spinner spinner-sm" /> : (
                   <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
@@ -1856,10 +1832,8 @@ export default function SitesListPage() {
               )}
               {canAdminer && site.status === 'running' && (
               <button
+                className="sl-dark-action-btn"
                 onClick={() => { setActionsOpen(null); handleOpenAdminer(site); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" /></svg>
                 Database
@@ -1867,10 +1841,8 @@ export default function SitesListPage() {
               )}
               {canTunnel && site.status === 'running' && (
               <button
+                className="sl-dark-action-btn"
                 onClick={() => { setActionsOpen(null); setExpandedSite(site.id); setExpandedPanel('tunnel'); fetchTunnelStatus(site.id); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" /></svg>
                 Share Publicly
@@ -1878,14 +1850,12 @@ export default function SitesListPage() {
               )}
               {canExtend && site.status === 'running' && (
               <>
-                <div style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Extend by</div>
+                <div className="sl-dark-extend-label">Extend by</div>
                 {EXTEND_OPTIONS.map(opt => (
                   <button
                     key={opt.value}
+                    className="sl-dark-action-btn-sm"
                     onClick={() => { handleExtend(site.id, opt.value); setActionsOpen(null); }}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.5rem', background: 'transparent', border: 'none', color: '#e2e8f0', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
                     <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                     + {opt.label}
@@ -1893,12 +1863,10 @@ export default function SitesListPage() {
                 ))}
               </>
               )}
-              <div style={{ borderTop: '1px solid #2d3748', margin: '0.25rem 0' }} />
+              <div className="sl-dark-separator" />
               <button
+                className="sl-dark-action-btn-danger"
                 onClick={() => { handleDelete(site.id); setActionsOpen(null); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.5rem', background: 'transparent', border: 'none', color: '#fc8181', cursor: 'pointer', fontSize: '0.85rem', borderRadius: '4px', width: '100%', textAlign: 'left' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d3748')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
               >
                 <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
                 Delete Site
@@ -1908,22 +1876,22 @@ export default function SitesListPage() {
 
             {/* Expandable panels for agency mode — placed right after dropdown for visibility */}
             {canSnapshot && expandedSite === site.id && expandedPanel === 'snapshots' && (
-            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid #2d3748', background: '#1a202c' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <strong style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>Snapshots</strong>
+            <div className="sl-card-panel">
+              <div className="sl-card-panel-header">
+                <strong className="sl-panel-title">Snapshots</strong>
                 <button className="btn btn-primary btn-xs" onClick={() => handleTakeSnapshot(site.id)} disabled={snapshotLoading === site.id}>
                   {snapshotLoading === site.id ? <span className="spinner spinner-sm" /> : '+ Create'}
                 </button>
-                <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+                <button className="btn btn-secondary btn-xs sl-ml-auto" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }}>Close</button>
               </div>
               {(snapshots[site.id] || []).length === 0 ? (
-                <p style={{ color: '#a0aec0', fontSize: '0.8rem', margin: 0 }}>No snapshots yet</p>
+                <p className="sl-snap-list-empty">No snapshots yet</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <div className="sl-share-list">
                   {(snapshots[site.id] || []).map((snap) => (
-                    <div key={snap.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0.5rem', background: '#2d3748', borderRadius: '4px', fontSize: '0.8rem' }}>
-                      <span style={{ color: '#e2e8f0' }}>{snap.name} <span style={{ color: '#a0aec0' }}>({new Date(snap.created_at).toLocaleDateString()})</span></span>
-                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                    <div key={snap.id} className="sl-snap-item">
+                      <span className="sl-snap-item-name">{snap.name} <span className="sl-snap-item-date">({new Date(snap.created_at).toLocaleDateString()})</span></span>
+                      <div className="sl-snap-item-actions">
                         <button className="btn btn-secondary btn-xs" onClick={() => handleRestoreSnapshot(site.id, snap.id)} disabled={snapshotLoading === site.id}>Restore</button>
                         <button className="btn btn-danger-outline btn-xs" onClick={() => handleDeleteSnapshot(site.id, snap.id)} disabled={snapshotLoading === site.id}>Delete</button>
                       </div>
@@ -1935,15 +1903,15 @@ export default function SitesListPage() {
             )}
 
             {canDomain && expandedSite === site.id && expandedPanel === 'domain' && (
-            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid #2d3748', background: '#1a202c' }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <strong style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>Custom Domain</strong>
-                <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+            <div className="sl-card-panel">
+              <div className="sl-card-panel-header-spread">
+                <strong className="sl-panel-title">Custom Domain</strong>
+                <button className="btn btn-secondary btn-xs sl-ml-auto" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }}>Close</button>
               </div>
               {domainStatus[site.id]?.domain ? (
-                <div style={{ fontSize: '0.85rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <span style={{ color: '#e2e8f0' }}>{domainStatus[site.id].domain}</span>
+                <div className="sl-agency-domain-text">
+                  <div className="sl-domain-row">
+                    <span className="sl-agency-domain-name">{domainStatus[site.id].domain}</span>
                     <span style={{ color: domainStatus[site.id].status === 'verified' ? '#48bb78' : '#ecc94b', fontSize: '0.75rem', fontWeight: 600 }}>
                       {domainStatus[site.id].status === 'verified' ? 'Verified' : 'Pending DNS'}
                     </span>
@@ -1951,54 +1919,54 @@ export default function SitesListPage() {
                     <button className="btn btn-danger-outline btn-xs" onClick={() => handleRemoveDomain(site.id)} disabled={domainSaving === site.id}>Remove</button>
                   </div>
                   {domainStatus[site.id].status !== 'verified' && (
-                    <div style={{ color: '#a0aec0', fontSize: '0.75rem', margin: 0 }}>
-                      <p style={{ margin: '0 0 0.35rem', fontWeight: 600, color: '#cbd5e1' }}>Configure your DNS (choose one):</p>
-                      <p style={{ margin: '0 0 0.2rem' }}>
-                        <strong style={{ color: '#e2e8f0' }}>CNAME</strong> (for subdomains like demo.client.com):<br />
-                        <code style={{ background: '#2d3748', padding: '0.1rem 0.3rem', fontSize: '0.7rem', color: '#e2e8f0' }}>{domainStatus[site.id].domain} → CNAME → {domainStatus[site.id].dns?.baseDomain || window.location.hostname}</code>
+                    <div className="sl-agency-dns-block">
+                      <p className="sl-agency-dns-heading">Configure your DNS (choose one):</p>
+                      <p className="sl-agency-dns-entry">
+                        <strong className="sl-agency-domain-name">CNAME</strong> (for subdomains like demo.client.com):<br />
+                        <code className="sl-agency-dns-code">{domainStatus[site.id].domain} → CNAME → {domainStatus[site.id].dns?.baseDomain || window.location.hostname}</code>
                       </p>
-                      <p style={{ margin: '0 0 0.2rem' }}>
-                        <strong style={{ color: '#e2e8f0' }}>A Record</strong> (for root domains like client.com):<br />
-                        <code style={{ background: '#2d3748', padding: '0.1rem 0.3rem', fontSize: '0.7rem', color: '#e2e8f0' }}>{domainStatus[site.id].domain} → A → {domainStatus[site.id].dns?.serverIp || 'your server IP'}</code>
+                      <p className="sl-agency-dns-entry">
+                        <strong className="sl-agency-domain-name">A Record</strong> (for root domains like client.com):<br />
+                        <code className="sl-agency-dns-code">{domainStatus[site.id].domain} → A → {domainStatus[site.id].dns?.serverIp || 'your server IP'}</code>
                       </p>
-                      <p style={{ margin: '0.35rem 0 0', fontSize: '0.7rem', color: '#718096' }}>DNS changes may take up to 24-48 hours to propagate.</p>
+                      <p className="sl-agency-dns-note">DNS changes may take up to 24-48 hours to propagate.</p>
                     </div>
                   )}
                 </div>
               ) : (
                 <div>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <div className="sl-domain-input-row-spaced">
                     <input
                       type="text"
                       placeholder="demo.example.com or example.com"
                       value={domainInput[site.id] || ''}
                       onChange={(e) => setDomainInput((prev) => ({ ...prev, [site.id]: e.target.value }))}
-                      style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #4a5568', background: '#2d3748', color: '#e2e8f0', fontSize: '0.85rem', flex: 1 }}
+                      className="sl-agency-domain-input-dark"
                     />
                     <button className="btn btn-primary btn-xs" onClick={() => handleSetDomain(site.id)} disabled={domainSaving === site.id || !domainInput[site.id]}>
                       {domainSaving === site.id ? <span className="spinner spinner-sm" /> : 'Set Domain'}
                     </button>
                   </div>
-                  <p style={{ color: '#718096', fontSize: '0.7rem', margin: 0 }}>
+                  <p className="sl-agency-domain-hint">
                     After setting, you'll need to add a CNAME or A record in your DNS provider pointing to this server.
                     WordPress URLs will be automatically updated.
                   </p>
                 </div>
               )}
-              {domainError[site.id] && <p style={{ color: '#fc8181', fontSize: '0.75rem', margin: '0.25rem 0 0' }}>{domainError[site.id]}</p>}
+              {domainError[site.id] && <p className="sl-domain-error-agency">{domainError[site.id]}</p>}
             </div>
             )}
 
             {canPhp && expandedSite === site.id && expandedPanel === 'php' && (
-            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid #2d3748', background: '#1a202c' }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.5rem' }}>
-                <strong style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>PHP Configuration</strong>
-                <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+            <div className="sl-card-panel">
+              <div className="sl-card-panel-header-spread">
+                <strong className="sl-panel-title">PHP Configuration</strong>
+                <button className="btn btn-secondary btn-xs sl-ml-auto" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }}>Close</button>
               </div>
               {loadingPhp === site.id ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><span className="spinner spinner-sm" /> <span style={{ color: '#a0aec0', fontSize: '0.85rem' }}>Loading...</span></div>
+                <div className="sl-php-loading-row"><span className="spinner spinner-sm" /> <span className="sl-php-loading-text">Loading...</span></div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem' }}>
+                <div className="sl-php-grid-2col">
                   {[
                     { key: 'memoryLimit', label: 'Memory' },
                     { key: 'uploadMaxFilesize', label: 'Upload Max' },
@@ -2007,8 +1975,8 @@ export default function SitesListPage() {
                     { key: 'maxInputVars', label: 'Max Input Vars' },
                     { key: 'displayErrors', label: 'Display Errors' },
                   ].map(({ key, label }) => (
-                    <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem' }}>
-                      <label style={{ color: '#a0aec0', fontSize: '0.75rem' }}>{label}</label>
+                    <div key={key} className="sl-php-field-col">
+                      <label className="sl-php-field-label-dark">{label}</label>
                       <input
                         type="text"
                         value={(getPhpConfig(site.id) as unknown as Record<string, string>)[key] || ''}
@@ -2016,11 +1984,11 @@ export default function SitesListPage() {
                           ...prev,
                           [site.id]: { ...getPhpConfig(site.id), [key]: e.target.value },
                         }))}
-                        style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #4a5568', background: '#2d3748', color: '#e2e8f0', fontSize: '0.8rem' }}
+                        className="sl-php-field-input-dark"
                       />
                     </div>
                   ))}
-                  <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.25rem' }}>
+                  <div className="sl-php-save-row-agency">
                     <button
                       className="btn btn-primary btn-xs"
                       onClick={() => handleSavePhpConfig(site.id)}
@@ -2028,7 +1996,7 @@ export default function SitesListPage() {
                     >
                       {savingPhp === site.id ? <span className="spinner spinner-sm" /> : 'Save PHP Config'}
                     </button>
-                    {phpSaveMsg[site.id] && <span style={{ color: '#48bb78', fontSize: '0.75rem' }}>{phpSaveMsg[site.id]}</span>}
+                    {phpSaveMsg[site.id] && <span className="sl-php-save-msg-agency">{phpSaveMsg[site.id]}</span>}
                   </div>
                 </div>
               )}
@@ -2036,40 +2004,40 @@ export default function SitesListPage() {
             )}
 
             {canHealth && expandedSite === site.id && expandedPanel === 'health' && (
-            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid #2d3748', background: '#1a202c' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <strong style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>Resource Usage</strong>
+            <div className="sl-card-panel">
+              <div className="sl-dark-panel-header-inline">
+                <strong className="sl-panel-title">Resource Usage</strong>
                 <button className="btn btn-secondary btn-xs" onClick={() => fetchHealthStats(site.id)} disabled={healthLoading === site.id}>
                   {healthLoading === site.id ? <span className="spinner spinner-sm" /> : 'Refresh'}
                 </button>
-                <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+                <button className="btn btn-secondary btn-xs sl-ml-auto" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }}>Close</button>
               </div>
               {healthStats[site.id] ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                  <div style={{ background: '#2d3748', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase' }}>CPU</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: healthStats[site.id].cpu.percent > 80 ? '#ef4444' : '#22c55e' }}>{healthStats[site.id].cpu.percent}%</div>
+                <div className="sl-health-grid-2col">
+                  <div className="sl-health-card-sm">
+                    <div className="sl-health-label-sm">CPU</div>
+                    <div className="sl-health-value-lg" style={{ color: healthStats[site.id].cpu.percent > 80 ? '#ef4444' : '#22c55e' }}>{healthStats[site.id].cpu.percent}%</div>
                   </div>
-                  <div style={{ background: '#2d3748', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase' }}>Memory</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e' }}>{healthStats[site.id].memory.usedMB} MB</div>
-                    <div style={{ marginTop: '0.25rem', height: 3, background: '#1e293b', borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${Math.min(healthStats[site.id].memory.percent, 100)}%`, background: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e' }} />
+                  <div className="sl-health-card-sm">
+                    <div className="sl-health-label-sm">Memory</div>
+                    <div className="sl-health-value-lg" style={{ color: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e' }}>{healthStats[site.id].memory.usedMB} MB</div>
+                    <div className="sl-health-bar-track-sm">
+                      <div className="sl-health-bar-fill" style={{ height: '100%', width: `${Math.min(healthStats[site.id].memory.percent, 100)}%`, background: healthStats[site.id].memory.percent > 80 ? '#ef4444' : '#22c55e' }} />
                     </div>
                   </div>
-                  <div style={{ background: '#2d3748', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase' }}>Network</div>
-                    <div style={{ fontSize: '0.8rem', color: '#e2e8f0' }}>{(healthStats[site.id].network.rxBytes / 1024 / 1024).toFixed(1)} MB in / {(healthStats[site.id].network.txBytes / 1024 / 1024).toFixed(1)} MB out</div>
+                  <div className="sl-health-card-sm">
+                    <div className="sl-health-label-sm">Network</div>
+                    <div className="sl-health-value-md">{(healthStats[site.id].network.rxBytes / 1024 / 1024).toFixed(1)} MB in / {(healthStats[site.id].network.txBytes / 1024 / 1024).toFixed(1)} MB out</div>
                   </div>
-                  <div style={{ background: '#2d3748', borderRadius: 6, padding: '0.5rem 0.75rem' }}>
-                    <div style={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase' }}>Uptime</div>
-                    <div style={{ fontSize: '0.8rem', color: '#e2e8f0' }}>
+                  <div className="sl-health-card-sm">
+                    <div className="sl-health-label-sm">Uptime</div>
+                    <div className="sl-health-value-md">
                       {(() => { const ms = Date.now() - new Date(healthStats[site.id].uptime).getTime(); const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return h > 0 ? `${h}h ${m}m` : `${m}m`; })()}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '0.5rem' }}><span className="spinner spinner-sm" /> Loading...</div>
+                <div className="sl-health-loading"><span className="spinner spinner-sm" /> Loading...</div>
               )}
             </div>
             )}
@@ -2115,7 +2083,7 @@ export default function SitesListPage() {
                 Visit Site
               </a>
               {canExtend && site.status === 'running' && (
-                <div style={{ position: 'relative' }}>
+                <div className="sl-dropdown-wrapper">
                   <button
                     className="btn btn-outline btn-site-action"
                     onClick={() => setExtendOpen(extendOpen === site.id ? null : site.id)}
@@ -2124,23 +2092,12 @@ export default function SitesListPage() {
                     <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                   </button>
                   {extendOpen === site.id && (
-                    <div style={{
-                      position: 'absolute', bottom: '100%', right: 0, marginBottom: 4,
-                      background: '#fff', border: '1px solid var(--border)', borderRadius: 8,
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 50, minWidth: 140,
-                      padding: '0.25rem 0',
-                    }}>
+                    <div className="sl-dropdown-menu-up">
                       {EXTEND_OPTIONS.map(opt => (
                         <button
                           key={opt.value}
+                          className="sl-extend-dropdown-item"
                           onClick={() => handleExtend(site.id, opt.value)}
-                          style={{
-                            display: 'block', width: '100%', padding: '0.4rem 0.75rem',
-                            border: 'none', background: 'none', cursor: 'pointer',
-                            textAlign: 'left', fontSize: '0.8rem', color: 'var(--prussian-blue)',
-                          }}
-                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                         >
                           + {opt.label}
                         </button>
@@ -2162,23 +2119,23 @@ export default function SitesListPage() {
 
             {/* Share panel for mobile/card view */}
             {canShare && expandedSite === site.id && expandedPanel === 'share' && (
-            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border)', background: 'var(--bg-surface)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <strong style={{ fontSize: '0.85rem' }}>Share Site</strong>
-                <button className="btn btn-secondary btn-xs" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }} style={{ marginLeft: 'auto' }}>Close</button>
+            <div className="sl-share-panel-light">
+              <div className="sl-card-panel-header">
+                <strong className="sl-share-title-light">Share Site</strong>
+                <button className="btn btn-secondary btn-xs sl-ml-auto" onClick={() => { setExpandedSite(null); setExpandedPanel(null); }}>Close</button>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+              <div className="sl-share-form-row-light">
                 <input
                   type="email"
                   placeholder="user@example.com"
                   value={shareEmail}
                   onChange={e => setShareEmail(e.target.value)}
-                  style={{ flex: 1, minWidth: 150, padding: '0.35rem 0.5rem', borderRadius: 4, border: '1px solid var(--border)', fontSize: '0.85rem' }}
+                  className="sl-share-input-light"
                 />
                 <select
                   value={shareRole}
                   onChange={e => setShareRole(e.target.value as 'viewer' | 'admin')}
-                  style={{ padding: '0.35rem 0.5rem', borderRadius: 4, border: '1px solid var(--border)', fontSize: '0.85rem' }}
+                  className="sl-share-select-light"
                 >
                   <option value="viewer">Viewer</option>
                   <option value="admin">Admin</option>
@@ -2189,20 +2146,20 @@ export default function SitesListPage() {
               </div>
               {shareMsg && <div style={{ fontSize: '0.8rem', color: shareMsg.includes('success') ? '#22c55e' : '#ef4444', marginBottom: '0.5rem' }}>{shareMsg}</div>}
               {(siteShares[site.id] || []).length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <div className="sl-share-list">
                   {(siteShares[site.id] || []).map((s: any) => (
-                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.3rem 0.5rem', background: 'var(--white)', borderRadius: 4, border: '1px solid var(--border)', fontSize: '0.8rem' }}>
+                    <div key={s.id} className="sl-share-item-light">
                       <span>
                         {s.shared_with_email}
-                        <span style={{ color: 'var(--text-muted)', marginLeft: '0.5rem', fontSize: '0.7rem', textTransform: 'uppercase' }}>{s.role}</span>
+                        <span className="sl-share-role-badge-light">{s.role}</span>
                         <span style={{ color: s.status === 'accepted' ? '#22c55e' : '#ecc94b', marginLeft: '0.5rem', fontSize: '0.7rem' }}>{s.status}</span>
                       </span>
-                      <button className="btn btn-danger-outline btn-xs" onClick={() => handleRevokeShare(site.id, s.id)} style={{ fontSize: '0.7rem' }}>Revoke</button>
+                      <button className="btn btn-danger-outline btn-xs sl-revoke-btn-sm" onClick={() => handleRevokeShare(site.id, s.id)}>Revoke</button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p style={{ color: 'var(--text-light)', fontSize: '0.8rem', margin: 0 }}>No shares yet. Enter an email above to share.</p>
+                <p className="sl-share-no-data-light">No shares yet. Enter an email above to share.</p>
               )}
             </div>
             )}
@@ -2212,9 +2169,9 @@ export default function SitesListPage() {
 
       {/* Activity Timeline */}
       {!isLocal && (
-        <div className="card" style={{ marginTop: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showActivity ? '0.75rem' : 0 }}>
-            <h3 style={{ fontSize: '0.9rem', margin: 0 }}>Recent Activity</h3>
+        <div className="card sl-activity-card">
+          <div className={showActivity ? 'sl-activity-header-expanded' : 'sl-activity-header'}>
+            <h3 className="sl-activity-title">Recent Activity</h3>
             <button
               className="btn btn-xs btn-outline"
               onClick={() => { setShowActivity(!showActivity); if (!showActivity && activityLog.length === 0) fetchActivity(); }}
@@ -2224,23 +2181,22 @@ export default function SitesListPage() {
           </div>
           {showActivity && (
             activityLog.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>No activity yet.</p>
+              <p className="sl-activity-empty">No activity yet.</p>
             ) : (
-              <div style={{ maxHeight: '300px', overflow: 'auto' }}>
+              <div className="sl-activity-scroll">
                 {activityLog.map((log, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.5rem 0', borderBottom: i < activityLog.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                    <div style={{
-                      width: 8, height: 8, borderRadius: '50%', marginTop: 6, flexShrink: 0,
+                  <div key={i} className={i < activityLog.length - 1 ? 'sl-activity-item-bordered' : 'sl-activity-item'}>
+                    <div className="sl-activity-dot" style={{
                       background: log.action === 'created' ? '#22c55e' : log.action === 'deleted' ? '#ef4444' : log.action === 'extended' ? '#3b82f6' : '#f59e0b',
                     }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.82rem' }}>
-                        <strong style={{ textTransform: 'capitalize' }}>{log.action}</strong>
+                    <div className="sl-activity-body">
+                      <div className="sl-activity-text">
+                        <strong className="sl-activity-action">{log.action}</strong>
                         {' '}
-                        <span style={{ color: 'var(--orange)', fontWeight: 500 }}>{log.subdomain}</span>
-                        {log.product_id && <span style={{ color: 'var(--text-muted)' }}> ({log.product_id})</span>}
+                        <span className="sl-activity-subdomain">{log.subdomain}</span>
+                        {log.product_id && <span className="sl-activity-product"> ({log.product_id})</span>}
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-light)' }}>
+                      <div className="sl-activity-date">
                         {new Date(log.created_at).toLocaleString()}
                       </div>
                     </div>
@@ -2254,17 +2210,17 @@ export default function SitesListPage() {
 
       {/* Save as Template Modal (agency mode) */}
       {templateModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+        <div className="sl-modal-overlay"
           onClick={() => !templateSaving && setTemplateModal(null)}
         >
-          <div className="card" style={{ width: '100%', maxWidth: '420px' }}
+          <div className="card sl-template-modal-light"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem' }}>Save as Template</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 1rem' }}>
+            <h3>Save as Template</h3>
+            <p className="sl-template-modal-desc">
               Export this site's plugins, themes, and settings as a reusable template.
             </p>
-            <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+            <div className="form-group sl-form-group-sm">
               <label>Template ID (slug)</label>
               <input
                 type="text"
@@ -2274,7 +2230,7 @@ export default function SitesListPage() {
                 disabled={templateSaving}
               />
             </div>
-            <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <div className="form-group sl-form-group-md">
               <label>Template Name</label>
               <input
                 type="text"
@@ -2287,7 +2243,7 @@ export default function SitesListPage() {
             {templateError && (
               <div className="alert-error">{templateError}</div>
             )}
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+            <div className="sl-modal-actions">
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={() => setTemplateModal(null)}
@@ -2307,14 +2263,14 @@ export default function SitesListPage() {
 
       {/* Password Protection Modal */}
       {passwordModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card" style={{ maxWidth: 420, width: '90%' }}>
-            <h3 style={{ marginBottom: '0.75rem' }}>Password Protection</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+        <div className="sl-modal-overlay-inset">
+          <div className="card sl-password-modal">
+            <h3>Password Protection</h3>
+            <p className="sl-password-modal-desc">
               Set a password to restrict access. Choose what to protect.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginBottom: '1rem' }}>
+            <div className="sl-password-scope-list">
               {([
                 { value: 'frontend' as const, label: 'Frontend Only', desc: 'Visitors need password, admin stays open' },
                 { value: 'admin' as const, label: 'Admin Only', desc: 'wp-admin needs password, site stays open' },
@@ -2337,7 +2293,7 @@ export default function SitesListPage() {
                   }} />
                   <div>
                     <div style={{ fontWeight: 600, fontSize: '0.85rem', color: passwordScope === opt.value ? 'var(--orange)' : 'var(--prussian-blue)' }}>{opt.label}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.desc}</div>
+                    <div className="sl-password-scope-desc">{opt.desc}</div>
                   </div>
                 </button>
               ))}
@@ -2348,9 +2304,9 @@ export default function SitesListPage() {
               placeholder="Enter password (min 4 chars)"
               value={passwordValue}
               onChange={(e) => setPasswordValue(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 6, marginBottom: '1rem', fontSize: '0.9rem', boxSizing: 'border-box' }}
+              className="sl-password-input"
             />
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <div className="sl-modal-actions-left">
               <button className="btn btn-primary btn-sm" onClick={() => handleSetPassword(passwordModal)} disabled={passwordLoading === passwordModal || passwordValue.length < 4}>
                 {passwordLoading === passwordModal ? <><span className="spinner spinner-sm" /> Setting...</> : 'Set Password'}
               </button>
@@ -2363,10 +2319,10 @@ export default function SitesListPage() {
         </div>
       )}
       {dbModal && createPortal(
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div className="card" style={{ maxWidth: 480, width: '90%' }}>
-            <h3 style={{ marginBottom: '0.25rem' }}>Database Credentials</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+        <div className="sl-modal-overlay-portal">
+          <div className="card sl-db-modal">
+            <h3>Database Credentials</h3>
+            <p className="sl-db-modal-desc">
               {dbModal.site.subdomain} &mdash; {dbModal.dbEngine.toUpperCase()}
             </p>
             {[
@@ -2375,18 +2331,18 @@ export default function SitesListPage() {
               { label: 'Password', value: dbModal.password, key: 'password' },
               { label: 'Database', value: dbModal.database, key: 'database' },
             ].map(field => (
-              <div key={field.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <label style={{ width: 80, fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', flexShrink: 0 }}>{field.label}</label>
-                <input readOnly value={field.value} style={{ flex: 1, padding: '0.4rem 0.5rem', border: '1px solid var(--border)', borderRadius: 6, fontSize: '0.85rem', background: 'var(--bg-surface)', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+              <div key={field.key} className="sl-db-field-row">
+                <label className="sl-db-field-label">{field.label}</label>
+                <input readOnly value={field.value} className="sl-db-field-input" />
                 <button
                   onClick={() => copyDbField(field.value, field.key)}
-                  style={{ padding: '0.4rem 0.6rem', border: '1px solid var(--border)', borderRadius: 6, background: dbCopied === field.key ? '#d4edda' : '#fff', cursor: 'pointer', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+                  className={`sl-db-copy-btn ${dbCopied === field.key ? 'sl-db-copy-btn-copied' : 'sl-db-copy-btn-default'}`}
                 >
                   {dbCopied === field.key ? 'Copied!' : 'Copy'}
                 </button>
               </div>
             ))}
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+            <div className="sl-db-actions">
               <button
                 className="btn btn-primary btn-sm"
                 onClick={() => {

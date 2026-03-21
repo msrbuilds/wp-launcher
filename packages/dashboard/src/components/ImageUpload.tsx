@@ -25,14 +25,14 @@ export default function ImageUpload({ label, hint, preview, onFileSelect, onClea
   return (
     <div className="form-group">
       <label>{label}</label>
-      {hint && <span className="form-hint" style={{ marginTop: 0, marginBottom: '0.5rem' }}>{hint}</span>}
-      <input ref={inputRef} type="file" accept="image/*" onChange={handleChange} style={{ display: 'none' }} />
+      {hint && <span className="form-hint imgupload-hint">{hint}</span>}
+      <input ref={inputRef} type="file" accept="image/*" onChange={handleChange} className="imgupload-file-input" />
       <div
         className={`tmpl-image-upload ${className || ''}`}
         onClick={() => inputRef.current?.click()}
       >
         {preview ? (
-          <img src={preview} alt={`${label} preview`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={preview} alt={`${label} preview`} className="imgupload-preview-img" />
         ) : (
           <div className="tmpl-image-placeholder">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -41,7 +41,7 @@ export default function ImageUpload({ label, hint, preview, onFileSelect, onClea
         )}
       </div>
       {preview && (
-        <button type="button" className="btn btn-secondary btn-xs" style={{ marginTop: '0.5rem' }} onClick={handleClear}>
+        <button type="button" className="btn btn-secondary btn-xs imgupload-remove-btn" onClick={handleClear}>
           Remove
         </button>
       )}

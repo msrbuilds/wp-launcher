@@ -106,6 +106,11 @@ export async function listManagedContainers(): Promise<ManagedContainerInfo[]> {
   return await res.json() as ManagedContainerInfo[];
 }
 
+export async function pruneImages(): Promise<{ pruned: number; spaceReclaimed: number }> {
+  const res = await provisionerFetch('/images/prune', { method: 'POST' });
+  return await res.json() as { pruned: number; spaceReclaimed: number };
+}
+
 export async function buildImage(contextPath: string, tag: string): Promise<void> {
   await provisionerFetch('/images/build', {
     method: 'POST',

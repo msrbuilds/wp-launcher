@@ -351,7 +351,7 @@ export default function CreateProductPage() {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Max Concurrent Sites <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.75rem' }}>(0 = unlimited)</span></label>
+                  <label>Max Concurrent Sites <span className="cprod-label-hint">(0 = unlimited)</span></label>
                   <input
                     type="number"
                     min={0}
@@ -390,7 +390,7 @@ export default function CreateProductPage() {
                 </div>
               </div>
               <div className="form-group">
-                <label>Landing Page <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.75rem' }}>(path after login, e.g. /wp-admin/plugins.php)</span></label>
+                <label>Landing Page <span className="cprod-label-hint">(path after login, e.g. /wp-admin/plugins.php)</span></label>
                 <input
                   type="text"
                   value={landingPage}
@@ -404,7 +404,7 @@ export default function CreateProductPage() {
         {/* ── Restrictions ── */}
           {activeSection === 'restrictions' && (
             <div className="tmpl-section-body">
-              <label className="tmpl-toggle-wrap" style={{ marginBottom: '1.25rem' }}>
+              <label className="tmpl-toggle-wrap cprod-toggle-spaced">
                 <input
                   type="checkbox"
                   checked={disableFileMods}
@@ -454,7 +454,7 @@ export default function CreateProductPage() {
           {activeSection === 'branding' && (
             <div className="tmpl-section-body">
               <div className="form-group">
-                <label>Banner Text <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.75rem' }}>({'{time_remaining}'} for countdown)</span></label>
+                <label>Banner Text <span className="cprod-label-hint">({'{time_remaining}'} for countdown)</span></label>
                 <input
                   type="text"
                   value={bannerText}
@@ -488,8 +488,7 @@ export default function CreateProductPage() {
 
         <button
           type="submit"
-          className="btn btn-primary btn-lg"
-          style={{ width: '100%', marginTop: '0.5rem' }}
+          className="btn btn-primary btn-lg cprod-submit-btn"
           disabled={submitting || !id || !name}
         >
           {submitting ? (

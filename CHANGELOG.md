@@ -2,6 +2,33 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [1.8.0] - 2026-03-21
+
+### Added
+- **Site Sync (Push/Pull)** — Sync WordPress content between local WP Launcher sites and any remote WordPress site
+  - **Push** — Upload local site's database and wp-content to a remote WordPress site
+  - **Pull** — Download remote site's database and wp-content to a local site
+  - **WP Launcher Connector plugin** — WordPress plugin for remote sites that exposes REST API endpoints for sync operations
+  - Plugin downloadable directly from the Sync page in the dashboard
+  - Remote connection management with API key authentication and connection testing
+  - Pre-import URL search-replace to prevent broken URLs when syncing between different domains
+  - Connector plugin self-preservation during push (skips overwriting itself and mu-plugins)
+  - Sync history tracking with timestamps and error details
+- **Feature toggle** — `siteSync` feature flag in admin Features tab (agency-only)
+
+### Changed
+- **CSS refactor** — Extracted all inline styles across 30+ dashboard components into proper CSS classes in `index.css`
+  - All admin tabs (Overview, Analytics, Features, Branding, Bulk, System, Logs, Products, Sites, Users, Pagination)
+  - All pages (LaunchPage, LocalLaunchPage, SitesListPage, LoginPage, VerifyPage, AccountPage, CreateProductPage, CreateTemplatePage, LocalDashboard)
+  - All components (ErrorBoundary, ImageUpload, PluginRepeater, ThemeRepeater, AdminLayout, App)
+  - Dynamic/conditional styles kept as inline where necessary
+- **Features tab** — 2-column grid layout on desktop for feature modules
+- **Site Extend** — Marked as agency-only feature
+
+### Fixed
+- Sync timestamp display using UTC-aware parsing (appends Z suffix for correct timezone handling)
+- Docker dangling image cleanup integrated into cleanup service
+
 ## [1.7.1] - 2026-03-19
 
 ### Added

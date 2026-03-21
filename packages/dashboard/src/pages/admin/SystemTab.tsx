@@ -146,23 +146,23 @@ export default function SystemTab() {
   return (
     <div>
       {/* Version Header */}
-      <div className="card" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+      <div className="card sys-version-card">
         <div>
-          <h3 style={{ margin: 0, fontSize: '1.25rem' }}>
+          <h3 className="sys-version-title">
             WP Launcher
-            <span style={{ marginLeft: '0.5rem', fontSize: '1.1rem', color: 'var(--orange)', fontWeight: 700 }}>v{info.version}</span>
+            <span className="sys-version-number">v{info.version}</span>
           </h3>
           {info.commitMessage && (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '0.25rem' }}>
+            <p className="sys-commit-msg">
               Latest: {info.commitMessage}
             </p>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div className="sys-badges">
           <span className={`badge ${info.env === 'production' ? 'badge-running' : 'badge-expired'}`}>
             {info.env}
           </span>
-          <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+          <span className="badge sys-badge-mode">
             {info.appMode}
           </span>
         </div>
@@ -170,35 +170,30 @@ export default function SystemTab() {
 
       {/* Update Notification (agency mode only) */}
       {!isLocal && update?.updateAvailable && (
-        <div style={{
-          marginBottom: '1rem', padding: '1rem 1.25rem', borderRadius: '8px',
-          background: 'linear-gradient(135deg, #fefce8, #fef9c3)', border: '1px solid #fde68a',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className="sys-update-banner">
+          <div className="sys-update-info">
             <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#b45309" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
             </svg>
             <div>
-              <strong style={{ color: '#92400e', fontSize: '0.9rem' }}>
+              <strong className="sys-update-title">
                 Update Available: v{update.latestVersion}
                 {update.source === 'commit' && update.latestCommit && ` (${update.latestCommit})`}
               </strong>
-              <p style={{ color: '#a16207', fontSize: '0.8rem', margin: '0.2rem 0 0' }}>
+              <p className="sys-update-desc">
                 {update.source === 'commit' && update.message
                   ? `Latest: ${update.message}`
                   : `You are running v${update.currentVersion}. A newer version is available.`}
               </p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div className="sys-update-actions">
             {update.releaseUrl && (
               <a
                 href={update.releaseUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn btn-sm btn-outline"
-                style={{ fontSize: '0.78rem' }}
+                className="btn btn-sm btn-outline sys-btn-font-sm"
               >
                 Release Notes
               </a>
@@ -211,28 +206,24 @@ export default function SystemTab() {
       )}
 
       {!isLocal && update && !update.updateAvailable && !update.error && (
-        <div style={{
-          marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: '8px',
-          background: '#f0fdf4', border: '1px solid #bbf7d0',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className="sys-uptodate-banner">
+          <div className="sys-uptodate-info">
             <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#16a34a" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
             </svg>
-            <span style={{ color: '#166534', fontSize: '0.82rem' }}>You are running the latest version.</span>
+            <span className="sys-uptodate-text">You are running the latest version.</span>
           </div>
-          <button className="btn btn-sm btn-outline" onClick={checkForUpdates} disabled={checking} style={{ fontSize: '0.75rem' }}>
+          <button className="btn btn-sm btn-outline sys-btn-check" onClick={checkForUpdates} disabled={checking}>
             {checking ? 'Checking...' : 'Check Again'}
           </button>
         </div>
       )}
 
       {/* System Details Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+      <div className="sys-details-grid">
         {/* Version Info */}
         <div className="card">
-          <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.75rem', fontFamily: 'Poppins, sans-serif' }}>Version Info</h4>
+          <h4 className="sys-section-heading">Version Info</h4>
           <InfoRow label="Version" value={`v${info.version}`} />
           <InfoRow label="Branch" value={info.branch} />
           <InfoRow label="Commit" value={info.commit} mono />
@@ -242,7 +233,7 @@ export default function SystemTab() {
 
         {/* Runtime Info */}
         <div className="card">
-          <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.75rem', fontFamily: 'Poppins, sans-serif' }}>Runtime</h4>
+          <h4 className="sys-section-heading">Runtime</h4>
           <InfoRow label="Node.js" value={info.nodeVersion} />
           <InfoRow label="Platform" value={info.platform} />
           <InfoRow label="Uptime" value={info.uptimeFormatted} />
@@ -252,55 +243,51 @@ export default function SystemTab() {
 
       {/* Update Progress / Log Viewer (agency mode only) */}
       {!isLocal && showLog && (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-            <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', margin: 0, fontFamily: 'Poppins, sans-serif' }}>
+        <div className="card sys-card-spaced">
+          <div className="sys-log-header">
+            <h4 className="sys-section-heading--no-margin">
               Update Log
-              {updateStatus?.status === 'in_progress' && <span className="spinner spinner-sm" style={{ marginLeft: '0.5rem' }} />}
+              {updateStatus?.status === 'in_progress' && <span className="spinner spinner-sm sys-spinner-inline" />}
             </h4>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <div className="sys-log-actions">
               {updateStatus?.status === 'completed' && (
-                <span className="badge badge-running" style={{ fontSize: '0.7rem' }}>Completed</span>
+                <span className="badge badge-running sys-badge-font-sm">Completed</span>
               )}
               {updateStatus?.status === 'failed' && (
-                <span className="badge badge-expired" style={{ fontSize: '0.7rem' }}>Failed</span>
+                <span className="badge badge-expired sys-badge-font-sm">Failed</span>
               )}
               {updateStatus?.status === 'in_progress' && (
-                <span className="badge" style={{ background: '#dbeafe', color: '#1d4ed8', fontSize: '0.7rem' }}>In Progress</span>
+                <span className="badge sys-badge-in-progress">In Progress</span>
               )}
-              <button className="btn btn-sm btn-outline" onClick={() => setShowLog(false)} style={{ fontSize: '0.7rem' }}>
+              <button className="btn btn-sm btn-outline sys-btn-hide" onClick={() => setShowLog(false)}>
                 Hide
               </button>
             </div>
           </div>
 
           {updateStatus?.status === 'completed' && (
-            <div style={{ padding: '0.75rem 1rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', marginBottom: '0.75rem', fontSize: '0.82rem', color: '#166534' }}>
+            <div className="sys-status-success">
               Update completed successfully! {updateStatus.previousVersion && updateStatus.newVersion && (
                 <>v{updateStatus.previousVersion} → v{updateStatus.newVersion}. </>
               )}
-              <button className="btn btn-sm btn-primary" onClick={() => window.location.reload()} style={{ marginLeft: '0.5rem', fontSize: '0.75rem' }}>
+              <button className="btn btn-sm btn-primary sys-btn-font-xs sys-btn-inline" onClick={() => window.location.reload()}>
                 Refresh Page
               </button>
             </div>
           )}
 
           {updateStatus?.status === 'failed' && (
-            <div style={{ padding: '0.75rem 1rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', marginBottom: '0.75rem', fontSize: '0.82rem', color: '#991b1b' }}>
+            <div className="sys-status-failed">
               Update failed. {updateStatus.error && <span>{updateStatus.error}</span>}
-              <div style={{ marginTop: '0.5rem' }}>
-                <button className="btn btn-sm btn-primary" onClick={triggerUpdate} disabled={triggering} style={{ fontSize: '0.75rem' }}>Retry</button>
+              <div className="sys-retry-row">
+                <button className="btn btn-sm btn-primary sys-btn-font-xs" onClick={triggerUpdate} disabled={triggering}>Retry</button>
               </div>
             </div>
           )}
 
           <pre
             ref={logRef}
-            style={{
-              background: '#0f172a', color: '#e2e8f0', padding: '1rem', borderRadius: '6px',
-              fontFamily: 'monospace', fontSize: '0.75rem', lineHeight: 1.6,
-              maxHeight: '400px', overflow: 'auto', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-            }}
+            className="sys-log-terminal"
           >
             {updateLog || 'Waiting for output...'}
           </pre>
@@ -309,14 +296,14 @@ export default function SystemTab() {
 
       {/* Manual Update Instructions (agency mode only) */}
       {!isLocal && <div className="card">
-        <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.75rem', fontFamily: 'Poppins, sans-serif' }}>
+        <h4 className="sys-section-heading">
           Manual Update (SSH)
         </h4>
-        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+        <p className="sys-manual-desc">
           You can also update manually via SSH:
         </p>
-        <div style={{ background: '#1e293b', color: '#e2e8f0', padding: '0.75rem 1rem', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.78rem', lineHeight: 1.8 }}>
-          <div><span style={{ color: '#fb8500' }}>wpl</span> update</div>
+        <div className="sys-manual-code">
+          <div><span className="sys-cmd-accent">wpl</span> update</div>
         </div>
       </div>}
     </div>
@@ -325,9 +312,9 @@ export default function SystemTab() {
 
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0', borderBottom: '1px solid var(--border)' }}>
-      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{label}</span>
-      <span style={{ fontSize: '0.82rem', fontWeight: 600, fontFamily: mono ? 'monospace' : 'inherit' }}>{value}</span>
+    <div className="sys-info-row">
+      <span className="sys-info-label">{label}</span>
+      <span className={mono ? 'sys-info-value--mono' : 'sys-info-value'}>{value}</span>
     </div>
   );
 }

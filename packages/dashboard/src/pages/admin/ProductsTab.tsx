@@ -39,29 +39,29 @@ export default function ProductsTab() {
 
   return (
     <div className="card">
-      <h3 style={{ marginBottom: '1rem' }}>{Noun}s ({products.length})</h3>
+      <h3 className="pt-title">{Noun}s ({products.length})</h3>
       {products.length === 0 ? (
-        <p style={{ color: '#64748b' }}>No {noun}s configured.</p>
+        <p className="pt-empty">No {noun}s configured.</p>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+        <div className="pt-table-wrap">
+          <table className="pt-table">
             <thead>
-              <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-                <th style={{ padding: '0.5rem' }}>ID</th>
-                <th style={{ padding: '0.5rem' }}>Name</th>
-                <th style={{ padding: '0.5rem' }}>Database</th>
-                <th style={{ padding: '0.5rem' }}>Description</th>
-                <th style={{ padding: '0.5rem' }}>Actions</th>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Database</th>
+                <th>Description</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {products.map((p) => (
-                <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '0.5rem' }}><code>{p.id}</code></td>
-                  <td style={{ padding: '0.5rem' }}>{p.name}</td>
-                  <td style={{ padding: '0.5rem' }}>{p.database || 'sqlite'}</td>
-                  <td style={{ padding: '0.5rem', color: '#64748b', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.branding?.description || '—'}</td>
-                  <td style={{ padding: '0.5rem' }}>
+                <tr key={p.id}>
+                  <td><code>{p.id}</code></td>
+                  <td>{p.name}</td>
+                  <td>{p.database || 'sqlite'}</td>
+                  <td className="pt-desc-cell">{p.branding?.description || '—'}</td>
+                  <td>
                     <button className="btn btn-sm btn-danger" onClick={() => handleDelete(p.id, p.name)} disabled={deleting === p.id}>
                       {deleting === p.id ? <><span className="spinner" /> Deleting...</> : 'Delete'}
                     </button>

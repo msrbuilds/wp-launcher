@@ -189,13 +189,13 @@ export default function LocalLaunchPage() {
       <div className="card site-result">
         <span className="spinner spinner-hero" />
         <h3>Setting up your site...</h3>
-        <p style={{ color: '#64748b', margin: '0.5rem 0 0.25rem', fontSize: '0.95rem' }}>
+        <p className="llp-stage-text">
           {stageText}
         </p>
         <div className="progress-bar-track">
           <div className="progress-bar-fill-real" style={{ width: `${provisionProgress}%` }} />
         </div>
-        <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+        <p className="llp-progress-pct">
           {provisionProgress}%
         </p>
       </div>
@@ -251,7 +251,7 @@ export default function LocalLaunchPage() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', marginTop: '1.25rem' }}>
+        <div className="llp-result-actions">
           <button
             className="btn btn-primary btn-lg"
             onClick={async () => {
@@ -284,8 +284,8 @@ export default function LocalLaunchPage() {
   // Configure step (main form)
   return (
     <div className="local-launch-form">
-      <div className="card" style={{ padding: '2rem' }}>
-        <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem', fontWeight: 700 }}>Create a WordPress Site</h3>
+      <div className="card llp-form-card">
+        <h3 className="llp-form-title">Create a WordPress Site</h3>
         <div className="form-columns">
           <div className="form-col">
             <div className="form-group">
@@ -367,7 +367,7 @@ export default function LocalLaunchPage() {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="subdomain">Subdomain <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.8rem' }}>(optional)</span></label>
+              <label htmlFor="subdomain">Subdomain <span className="llp-optional-hint">(optional)</span></label>
               <input
                 id="subdomain"
                 type="text"
@@ -380,30 +380,17 @@ export default function LocalLaunchPage() {
         </div>
 
         {/* PHP Configuration (collapsible) */}
-        <div style={{ marginTop: '1.5rem' }}>
+        <div className="llp-php-config-section">
           <button
             type="button"
             onClick={() => setShowPhpConfig(!showPhpConfig)}
-            style={{
-              background: 'none',
-              border: '1px solid #334155',
-              borderRadius: '0.5rem',
-              color: '#94a3b8',
-              cursor: 'pointer',
-              padding: '0.5rem 1rem',
-              width: '100%',
-              textAlign: 'left',
-              fontSize: '0.85rem',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
+            className="llp-php-config-toggle"
           >
             <span>PHP Configuration</span>
-            <span style={{ fontSize: '0.7rem' }}>{showPhpConfig ? '\u25B2' : '\u25BC'}</span>
+            <span className="llp-php-config-arrow">{showPhpConfig ? '\u25B2' : '\u25BC'}</span>
           </button>
           {showPhpConfig && (
-            <div style={{ marginTop: '0.75rem', padding: '1rem', background: '#0f172a', borderRadius: '0.5rem', border: '1px solid #1e293b' }}>
+            <div className="llp-php-config-panel">
               <div className="form-row">
                 <div className="form-group">
                   <label>Memory Limit</label>
@@ -468,9 +455,9 @@ export default function LocalLaunchPage() {
                   </select>
                 </div>
               </div>
-              <div className="form-group" style={{ marginTop: '0.5rem' }}>
-                <label>PHP Extensions <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.75rem' }}>(click to toggle)</span></label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.35rem' }}>
+              <div className="form-group llp-extensions-group">
+                <label>PHP Extensions <span className="llp-extensions-hint">(click to toggle)</span></label>
+                <div className="llp-extensions-grid">
                   {AVAILABLE_EXTENSIONS.map((ext) => {
                     const active = phpExtensions.includes(ext.value);
                     return (
@@ -480,16 +467,7 @@ export default function LocalLaunchPage() {
                         onClick={() => setPhpExtensions(
                           active ? phpExtensions.filter((e) => e !== ext.value) : [...phpExtensions, ext.value]
                         )}
-                        style={{
-                          padding: '0.3rem 0.7rem',
-                          borderRadius: '0.35rem',
-                          border: active ? '1px solid #fb8500' : '1px solid #334155',
-                          background: active ? 'rgba(251, 133, 0, 0.15)' : 'transparent',
-                          color: active ? '#fb8500' : '#94a3b8',
-                          cursor: 'pointer',
-                          fontSize: '0.8rem',
-                          transition: 'all 0.15s',
-                        }}
+                        className={`llp-ext-btn ${active ? 'llp-ext-btn--active' : 'llp-ext-btn--inactive'}`}
                       >
                         {ext.label}
                       </button>
@@ -501,10 +479,9 @@ export default function LocalLaunchPage() {
           )}
         </div>
 
-        {error && <div className="alert-error" style={{ marginTop: '1rem' }}>{error}</div>}
+        {error && <div className="alert-error llp-error">{error}</div>}
         <button
-          className="btn btn-primary btn-lg"
-          style={{ width: '100%', marginTop: '1.5rem' }}
+          className="btn btn-primary btn-lg llp-submit"
           onClick={handleCreate}
           disabled={creating || !selectedTemplate}
         >

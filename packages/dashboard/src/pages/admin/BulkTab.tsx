@@ -84,24 +84,24 @@ export default function BulkTab() {
 
   return (
     <div>
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <h3 style={{ marginBottom: '0.75rem', fontSize: '0.95rem' }}>Bulk Site Launch</h3>
+      <div className="card bk-card-spaced">
+        <h3 className="bk-heading">Bulk Site Launch</h3>
         <form onSubmit={handleStart}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
-            <div className="form-group" style={{ margin: 0 }}>
+          <div className="bk-form-grid">
+            <div className="form-group bk-form-group-inline">
               <label>{isLocal ? 'Template' : 'Product'}</label>
-              <select value={productId} onChange={(e) => setProductId(e.target.value)} style={{ width: '100%', padding: '0.625rem 1rem', border: '1px solid var(--border)', fontSize: '0.95rem', background: 'var(--white)', color: 'var(--prussian-blue)' }}>
+              <select value={productId} onChange={(e) => setProductId(e.target.value)} className="bk-select">
                 {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
-            <div className="form-group" style={{ margin: 0 }}>
+            <div className="form-group bk-form-group-inline">
               <label>Count (1-50)</label>
               <input type="number" min={1} max={50} value={count} onChange={(e) => setCount(parseInt(e.target.value) || 1)} />
             </div>
             {!isLocal && (
-              <div className="form-group" style={{ margin: 0 }}>
+              <div className="form-group bk-form-group-inline">
                 <label>Expires In</label>
-                <select value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)} style={{ width: '100%', padding: '0.625rem 1rem', border: '1px solid var(--border)', fontSize: '0.95rem', background: 'var(--white)', color: 'var(--prussian-blue)' }}>
+                <select value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)} className="bk-select">
                   <option value="1h">1 hour</option>
                   <option value="24h">24 hours</option>
                   <option value="7d">7 days</option>
@@ -109,7 +109,7 @@ export default function BulkTab() {
                 </select>
               </div>
             )}
-            <div className="form-group" style={{ margin: 0 }}>
+            <div className="form-group bk-form-group-inline">
               <label>Prefix (optional)</label>
               <input type="text" value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="e.g. workshop" />
             </div>
@@ -121,13 +121,13 @@ export default function BulkTab() {
       </div>
 
       {activeJob && (
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <h3 style={{ fontSize: '0.95rem', margin: 0 }}>
+        <div className="card bk-card-spaced">
+          <div className="bk-job-header">
+            <h3 className="bk-job-title">
               Job: {activeJob.completed}/{activeJob.total}
-              {activeJob.failed > 0 && <span style={{ color: '#ef4444' }}> ({activeJob.failed} failed)</span>}
+              {activeJob.failed > 0 && <span className="bk-failed-count"> ({activeJob.failed} failed)</span>}
             </h3>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <div className="bk-job-actions">
               <span className={`badge badge-${activeJob.status === 'running' ? 'running' : activeJob.status === 'completed' ? 'running' : 'expired'}`}>
                 {activeJob.status}
               </span>
@@ -140,34 +140,34 @@ export default function BulkTab() {
             </div>
           </div>
 
-          <div style={{ background: '#e2e8f0', borderRadius: '4px', height: '8px', marginBottom: '0.75rem' }}>
-            <div style={{ background: '#2563eb', width: `${progress}%`, height: '100%', borderRadius: '4px', transition: 'width 0.3s' }} />
+          <div className="bk-progress-track">
+            <div className="bk-progress-fill" style={{ width: `${progress}%` }} />
           </div>
 
           {activeJob.results.length > 0 && (
-            <div style={{ overflowX: 'auto', maxHeight: '400px', overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+            <div className="bk-table-scroll">
+              <table className="bk-table">
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-                    <th style={{ padding: '0.375rem' }}>#</th>
-                    <th style={{ padding: '0.375rem' }}>Subdomain</th>
-                    <th style={{ padding: '0.375rem' }}>URL</th>
-                    <th style={{ padding: '0.375rem' }}>Password</th>
-                    <th style={{ padding: '0.375rem' }}>Status</th>
+                  <tr className="bk-thead-row">
+                    <th className="bk-th">#</th>
+                    <th className="bk-th">Subdomain</th>
+                    <th className="bk-th">URL</th>
+                    <th className="bk-th">Password</th>
+                    <th className="bk-th">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {activeJob.results.map((r) => (
-                    <tr key={r.index} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '0.375rem' }}>{r.index}</td>
-                      <td style={{ padding: '0.375rem' }}>{r.subdomain || '—'}</td>
-                      <td style={{ padding: '0.375rem' }}>
+                    <tr key={r.index} className="bk-tbody-row">
+                      <td className="bk-td">{r.index}</td>
+                      <td className="bk-td">{r.subdomain || '—'}</td>
+                      <td className="bk-td">
                         {r.url ? <a href={r.url} target="_blank" rel="noopener noreferrer">Open</a> : '—'}
                       </td>
-                      <td style={{ padding: '0.375rem' }}><code style={{ fontSize: '0.75rem' }}>{r.password || '—'}</code></td>
-                      <td style={{ padding: '0.375rem' }}>
+                      <td className="bk-td"><code className="bk-code-sm">{r.password || '—'}</code></td>
+                      <td className="bk-td">
                         {r.error
-                          ? <span style={{ color: '#ef4444' }}>{r.error}</span>
+                          ? <span className="bk-error-text">{r.error}</span>
                           : <span className="badge badge-running">OK</span>}
                       </td>
                     </tr>
@@ -181,26 +181,26 @@ export default function BulkTab() {
 
       {jobs.length > 0 && !activeJob && (
         <div className="card">
-          <h3 style={{ marginBottom: '0.75rem', fontSize: '0.95rem' }}>Recent Jobs</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+          <h3 className="bk-heading">Recent Jobs</h3>
+          <div className="bk-recent-scroll">
+            <table className="bk-recent-table">
               <thead>
-                <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-                  <th style={{ padding: '0.5rem' }}>Product</th>
-                  <th style={{ padding: '0.5rem' }}>Sites</th>
-                  <th style={{ padding: '0.5rem' }}>Status</th>
-                  <th style={{ padding: '0.5rem' }}>Created</th>
-                  <th style={{ padding: '0.5rem' }}>Actions</th>
+                <tr className="bk-recent-thead-row">
+                  <th className="bk-recent-th">Product</th>
+                  <th className="bk-recent-th">Sites</th>
+                  <th className="bk-recent-th">Status</th>
+                  <th className="bk-recent-th">Created</th>
+                  <th className="bk-recent-th">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {jobs.map((j: any) => (
-                  <tr key={j.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '0.5rem' }}>{j.product_id}</td>
-                    <td style={{ padding: '0.5rem' }}>{j.completed}/{j.total}{j.failed > 0 && ` (${j.failed} failed)`}</td>
-                    <td style={{ padding: '0.5rem' }}><span className={`badge badge-${j.status === 'completed' ? 'running' : 'expired'}`}>{j.status}</span></td>
-                    <td style={{ padding: '0.5rem' }}>{new Date(j.created_at).toLocaleString()}</td>
-                    <td style={{ padding: '0.5rem' }}>
+                  <tr key={j.id} className="bk-recent-tbody-row">
+                    <td className="bk-recent-td">{j.product_id}</td>
+                    <td className="bk-recent-td">{j.completed}/{j.total}{j.failed > 0 && ` (${j.failed} failed)`}</td>
+                    <td className="bk-recent-td"><span className={`badge badge-${j.status === 'completed' ? 'running' : 'expired'}`}>{j.status}</span></td>
+                    <td className="bk-recent-td">{new Date(j.created_at).toLocaleString()}</td>
+                    <td className="bk-recent-td">
                       <button className="btn btn-sm btn-secondary" onClick={() => {
                         fetch(`/api/admin/bulk/${j.id}`, { headers, credentials: 'include' }).then((r) => r.json()).then(setActiveJob).catch(() => {});
                       }}>View</button>

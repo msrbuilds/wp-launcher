@@ -150,6 +150,45 @@ function initSchema(db: Database.Database): void {
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS remote_connections (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      api_key TEXT NOT NULL,
+      instance_mode TEXT,
+      last_tested_at TEXT,
+      status TEXT NOT NULL DEFAULT 'untested',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS sync_history (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      remote_connection_id TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      remote_site_id TEXT,
+      remote_site_url TEXT,
+      snapshot_id TEXT,
+      db_engine TEXT,
+      size_bytes INTEGER,
+      error TEXT,
+      started_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sync_history_site ON sync_history(site_id);
+
+    CREATE TABLE IF NOT EXISTS sync_state (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL,
+      remote_connection_id TEXT NOT NULL,
+      last_synced_at TEXT,
+      last_local_manifest TEXT,
+      last_remote_manifest TEXT,
+      UNIQUE(site_id, remote_connection_id)
+    );
   `);
 
   // Seed default feature flags and branding
@@ -168,6 +207,7 @@ function initSchema(db: Database.Database): void {
     'feature.collaborativeSites': 'false',
     'feature.adminer': 'false',
     'feature.publicSharing': 'true',
+    'feature.siteSync': 'false',
     'branding.siteTitle': 'WP Launcher',
     'branding.logoUrl': '',
     'branding.cardLayout': '',

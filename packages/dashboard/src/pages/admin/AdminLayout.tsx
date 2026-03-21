@@ -39,6 +39,7 @@ function getNavItems(isLocal: boolean): NavItem[] {
       { to: '/create-template', label: 'New Template', icon: 'M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
       { to: '/bulk', label: 'Bulk Launch', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', separator: true },
       { to: '/logs', label: 'Logs', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01' },
+      { to: '/sync', label: 'Sync', icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15', separator: true },
       { to: '/features', label: 'Features', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z', separator: true },
       { to: '/branding', label: 'Branding', icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
       { to: '/system', label: 'System', icon: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01' },
@@ -83,12 +84,12 @@ export default function AdminLayout() {
   if (!isLocal) {
     if (!isAuthenticated) {
       return (
-        <div className="card auth-card" style={{ padding: '2rem' }}>
-          <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '0.375rem' }}>Admin Access</h2>
-            <p style={{ color: '#64748b', fontSize: '0.95rem' }}>Log in with an admin account to access this panel.</p>
+        <div className="card auth-card al-auth-padding">
+          <div className="al-auth-center">
+            <h2 className="al-auth-title">Admin Access</h2>
+            <p className="al-auth-subtitle">Log in with an admin account to access this panel.</p>
           </div>
-          <button className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => navigate('/login')}>
+          <button className="btn btn-primary btn-lg al-btn-full" onClick={() => navigate('/login')}>
             Go to Login
           </button>
         </div>
@@ -97,12 +98,12 @@ export default function AdminLayout() {
 
     if (!isAdmin) {
       return (
-        <div className="card auth-card" style={{ padding: '2rem' }}>
-          <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '0.375rem', color: '#dc2626' }}>Access Denied</h2>
-            <p style={{ color: '#64748b', fontSize: '0.95rem' }}>Your account does not have admin privileges. Contact an administrator to get access.</p>
+        <div className="card auth-card al-auth-padding">
+          <div className="al-auth-center">
+            <h2 className="al-auth-title-denied">Access Denied</h2>
+            <p className="al-auth-subtitle">Your account does not have admin privileges. Contact an administrator to get access.</p>
           </div>
-          <button className="btn btn-secondary btn-lg" style={{ width: '100%' }} onClick={() => navigate('/')}>
+          <button className="btn btn-secondary btn-lg al-btn-full" onClick={() => navigate('/')}>
             Back to Dashboard
           </button>
         </div>
@@ -141,16 +142,16 @@ export default function AdminLayout() {
           <div className="admin-sidebar-header">
             {isLocal ? (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <img src={branding.logoUrl || '/logo-square.png'} alt="" style={{ width: 24, height: 24, objectFit: 'contain' }} />
-                  <h3 style={{ margin: 0 }}>WP Launcher</h3>
+                <div className="al-sidebar-brand">
+                  <img src={branding.logoUrl || '/logo-square.png'} alt="" className="al-sidebar-logo" />
+                  <h3 className="al-sidebar-heading">WP Launcher</h3>
                 </div>
                 {version && (
-                  <span style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>v{version}</span>
+                  <span className="al-version">v{version}</span>
                 )}
               </>
             ) : (
-              <h3 style={{ margin: 0 }}>Admin Panel</h3>
+              <h3 className="al-sidebar-heading">Admin Panel</h3>
             )}
           </div>
           <nav className="admin-nav">
@@ -182,7 +183,7 @@ export default function AdminLayout() {
                     <path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                   <span>Mailbox</span>
-                  <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 'auto', opacity: 0.5 }}>
+                  <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="al-external-icon">
                     <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
                   </svg>
                 </a>
@@ -191,7 +192,7 @@ export default function AdminLayout() {
           </nav>
           {!isLocal && (
             <div className="admin-sidebar-footer">
-              <button className="btn btn-sm btn-danger" style={{ width: '100%' }} onClick={handleLogout}>
+              <button className="btn btn-sm btn-danger al-btn-full" onClick={handleLogout}>
                 Logout
               </button>
             </div>

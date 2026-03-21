@@ -5,9 +5,9 @@ import { Stats, AdminSite, SiteLog } from './admin/shared';
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="card" style={{ textAlign: 'center', padding: '1.25rem' }}>
-      <div style={{ fontSize: '2rem', fontWeight: 700, color: '#2563eb' }}>{value}</div>
-      <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{label}</div>
+    <div className="card stat-card">
+      <div className="stat-card-value">{value}</div>
+      <div className="stat-card-label">{label}</div>
     </div>
   );
 }
@@ -22,20 +22,20 @@ const SHORTCUTS = [
     border: 'rgba(251, 133, 0, 0.3)',
   },
   {
-    to: '/sites',
-    label: 'My Sites',
-    icon: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9',
-    color: '#2563eb',
-    bg: 'rgba(37, 99, 235, 0.1)',
-    border: 'rgba(37, 99, 235, 0.3)',
-  },
-  {
     to: '/create-template',
     label: 'New Template',
     icon: 'M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
     color: '#8b5cf6',
     bg: 'rgba(139, 92, 246, 0.1)',
     border: 'rgba(139, 92, 246, 0.3)',
+  },
+  {
+    to: '/sites',
+    label: 'My Sites',
+    icon: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9',
+    color: '#2563eb',
+    bg: 'rgba(37, 99, 235, 0.1)',
+    border: 'rgba(37, 99, 235, 0.3)',
   },
   {
     to: '/products',
@@ -113,37 +113,37 @@ export default function LocalDashboard() {
 
       {/* Stats */}
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
+        <div className="stats-grid">
           <StatCard label="Active Sites" value={stats.activeSites} />
           <StatCard label="Total Created" value={stats.totalSitesCreated} />
         </div>
       )}
 
       {/* Recent Sites + Recent Activity */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+      <div className="dashboard-panels">
         <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-            <h3 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'Poppins, sans-serif', margin: 0 }}>Recent Sites</h3>
-            <Link to="/sites" style={{ fontSize: '0.75rem', color: '#2563eb' }}>View all</Link>
+          <div className="panel-header">
+            <h3 className="panel-title">Recent Sites</h3>
+            <Link to="/sites" className="panel-link">View all</Link>
           </div>
           {recentSites.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No sites yet. <Link to="/create" style={{ color: '#fb8500' }}>Create one</Link></p>
+            <p className="panel-empty">No sites yet. <Link to="/create">Create one</Link></p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className="panel-list">
               {recentSites.map((s) => (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div key={s.id} className="panel-list-item">
+                  <div className="panel-list-item-left">
                     <span className={`status-dot status-${s.status}`} />
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-                        {s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--prussian-blue)' }}>{s.subdomain}</a> : s.subdomain}
+                      <div className="panel-site-name">
+                        {s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer">{s.subdomain}</a> : s.subdomain}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{s.productId}</div>
+                      <div className="panel-site-product">{s.productId}</div>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div className="panel-list-item-right">
                     <span className={`badge badge-${s.status}`}>{s.status}</span>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '0.15rem' }}>{timeAgo(s.createdAt)}</div>
+                    <div className="panel-time-ago">{timeAgo(s.createdAt)}</div>
                   </div>
                 </div>
               ))}
@@ -152,20 +152,20 @@ export default function LocalDashboard() {
         </div>
 
         <div className="card">
-          <h3 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'Poppins, sans-serif' }}>Recent Activity</h3>
+          <h3 className="panel-title">Recent Activity</h3>
           {recentLogs.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No activity yet.</p>
+            <p className="panel-empty">No activity yet.</p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className="panel-list">
               {recentLogs.map((log) => (
-                <div key={log.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className={`badge ${log.action === 'created' ? 'badge-running' : log.action === 'error' ? 'badge-error' : 'badge-expired'}`} style={{ fontSize: '0.7rem' }}>{log.action}</span>
-                    <span style={{ fontSize: '0.85rem' }}>
+                <div key={log.id} className="panel-list-item">
+                  <div className="panel-list-item-left">
+                    <span className={`badge activity-badge ${log.action === 'created' ? 'badge-running' : log.action === 'error' ? 'badge-error' : 'badge-expired'}`}>{log.action}</span>
+                    <span className="activity-subdomain">
                       {log.site_url ? <a href={log.site_url} target="_blank" rel="noopener noreferrer">{log.subdomain}</a> : log.subdomain}
                     </span>
                   </div>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(log.created_at)}</span>
+                  <span className="activity-time">{timeAgo(log.created_at)}</span>
                 </div>
               ))}
             </div>

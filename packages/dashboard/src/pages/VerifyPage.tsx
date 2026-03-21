@@ -32,11 +32,9 @@ export default function VerifyPage() {
         if (!ok) throw new Error(data.error);
 
         if (data.needsPassword) {
-          // New user — show password-set form
           setPasswordSetToken(data.passwordSetToken);
           setStatus('set-password');
         } else {
-          // Returning user — logged in via magic link
           login(data.user);
           setStatus('success');
         }
@@ -82,7 +80,7 @@ export default function VerifyPage() {
 
   if (status === 'verifying') {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
+      <div className="card verify-card">
         <span className="spinner" /> Verifying your email...
       </div>
     );
@@ -90,10 +88,10 @@ export default function VerifyPage() {
 
   if (status === 'error') {
     return (
-      <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
-        <h3 style={{ color: '#dc2626', marginBottom: '1rem' }}>Verification Failed</h3>
-        <p style={{ color: '#64748b' }}>{error}</p>
-        <button className="btn btn-primary" onClick={() => navigate('/')} style={{ marginTop: '1rem' }}>
+      <div className="card verify-card">
+        <h3 className="verify-error-title">Verification Failed</h3>
+        <p className="verify-error-text">{error}</p>
+        <button className="btn btn-primary verify-error-btn" onClick={() => navigate('/')}>
           Try Again
         </button>
       </div>
@@ -102,53 +100,52 @@ export default function VerifyPage() {
 
   if (status === 'set-password') {
     return (
-      <div className="card" style={{ padding: '2rem', maxWidth: '400px', margin: '0 auto' }}>
-        <h3 style={{ color: '#166534', marginBottom: '0.5rem', textAlign: 'center' }}>Email Verified!</h3>
-        <p style={{ color: '#64748b', marginBottom: '1.5rem', textAlign: 'center' }}>
+      <div className="card verify-password-card">
+        <h3 className="verify-success-title">Email Verified!</h3>
+        <p className="verify-success-text">
           Set a password to complete your account setup.
         </p>
 
         <form onSubmit={handleSetPassword}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="password" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+          <div className="verify-form-group">
+            <label htmlFor="password" className="verify-form-label">
               Password
             </label>
             <input
               id="password"
               type="password"
+              className="verify-form-input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="At least 8 characters"
               required
               minLength={8}
-              style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
             />
           </div>
-          <div style={{ marginBottom: '1rem' }}>
-            <label htmlFor="confirmPassword" style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500 }}>
+          <div className="verify-form-group">
+            <label htmlFor="confirmPassword" className="verify-form-label">
               Confirm Password
             </label>
             <input
               id="confirmPassword"
               type="password"
+              className="verify-form-input"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repeat your password"
               required
               minLength={8}
-              style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
             />
           </div>
 
           {error && (
-            <p style={{ color: '#dc2626', fontSize: '0.85rem', marginBottom: '1rem' }}>{error}</p>
+            <p className="verify-form-error">{error}</p>
           )}
 
           <button
             type="submit"
-            className="btn btn-primary"
+            className="btn btn-primary verify-form-submit"
             disabled={settingPassword}
-            style={{ width: '100%' }}
           >
             {settingPassword ? 'Setting password...' : 'Set Password & Continue'}
           </button>
@@ -158,10 +155,10 @@ export default function VerifyPage() {
   }
 
   return (
-    <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
-      <h3 style={{ color: '#166534', marginBottom: '1rem' }}>You're all set!</h3>
+    <div className="card verify-card">
+      <h3 className="verify-done-title">You're all set!</h3>
 
-      <p style={{ color: '#64748b', marginBottom: '1rem' }}>
+      <p className="verify-done-text">
         You're now logged in and can launch your demo site.
       </p>
 

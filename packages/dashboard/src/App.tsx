@@ -36,7 +36,7 @@ export default function App() {
       <header className="header">
         <div className="container">
           <NavLink to="/" className="header-brand">
-            <img src={branding.logoUrl || '/logo-square.png'} alt={branding.siteTitle} style={{ width: 28, height: 28, objectFit: 'contain' }} />
+            <img src={branding.logoUrl || '/logo-square.png'} alt={branding.siteTitle} className="app-brand-logo" />
             {branding.siteTitle}
             {isLocal && <span className="mode-badge">Local</span>}
             {isAdmin && version && (

@@ -1795,6 +1795,22 @@ app.delete('/shares/:subdomain', async (req: Request, res: Response) => {
   }
 });
 
+// Prune dangling images (old build layers from docker compose build)
+app.post('/images/prune', async (_req: Request, res: Response) => {
+  try {
+    const result = await docker.pruneImages({ filters: { dangling: { true: true } } });
+    const count = result.ImagesDeleted?.length || 0;
+    const space = result.SpaceReclaimed || 0;
+    if (count > 0) {
+      console.log(`[provisioner] Pruned ${count} dangling image(s), reclaimed ${(space / 1024 / 1024).toFixed(1)}MB`);
+    }
+    res.json({ pruned: count, spaceReclaimed: space });
+  } catch (err: any) {
+    console.error('[provisioner] image prune error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`[provisioner] Running on port ${PORT}`);
 });

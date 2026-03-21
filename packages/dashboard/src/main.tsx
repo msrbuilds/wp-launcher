@@ -26,6 +26,7 @@ import BrandingTab from './pages/admin/BrandingTab';
 import SystemTab from './pages/admin/SystemTab';
 import CreateTemplatePage from './pages/CreateTemplatePage';
 import CreateProductPage from './pages/CreateProductPage';
+import SyncPage from './pages/SyncPage';
 import './index.css';
 
 function LaunchRedirect() {
@@ -49,6 +50,7 @@ function LocalRoutes() {
         <Route path="sites" element={<SitesListPage />} />
         <Route path="create" element={<LocalLaunchPage />} />
         <Route path="create-template" element={<CreateTemplatePage />} />
+        <Route path="sync" element={<SyncPage />} />
         <Route path="products" element={<ProductsTab />} />
         <Route path="bulk" element={<BulkTab />} />
         <Route path="logs" element={<LogsTab />} />

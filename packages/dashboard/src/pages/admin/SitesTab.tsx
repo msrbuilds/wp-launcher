@@ -34,26 +34,26 @@ export default function SitesTab() {
 
   return (
     <div className="card">
-      <h3 style={{ marginBottom: '1rem' }}>All Sites ({total})</h3>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+      <h3 className="st-title">All Sites ({total})</h3>
+      <div className="st-table-wrap">
+        <table className="st-table">
           <thead>
-            <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left' }}>
-              <th style={{ padding: '0.5rem' }}>Subdomain</th>
-              <th style={{ padding: '0.5rem' }}>{isLocal ? 'Template' : 'Product'}</th>
-              <th style={{ padding: '0.5rem' }}>Status</th>
-              <th style={{ padding: '0.5rem' }}>Created</th>
-              <th style={{ padding: '0.5rem' }}>Actions</th>
+            <tr>
+              <th>Subdomain</th>
+              <th>{isLocal ? 'Template' : 'Product'}</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {sites.map((s) => (
-              <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                <td style={{ padding: '0.5rem' }}>{s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer">{s.subdomain}</a> : s.subdomain}</td>
-                <td style={{ padding: '0.5rem' }}>{s.productId}</td>
-                <td style={{ padding: '0.5rem' }}><span className={`badge badge-${s.status}`}>{s.status}</span></td>
-                <td style={{ padding: '0.5rem' }}>{new Date(s.createdAt).toLocaleString()}</td>
-                <td style={{ padding: '0.5rem' }}>
+              <tr key={s.id}>
+                <td>{s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer">{s.subdomain}</a> : s.subdomain}</td>
+                <td>{s.productId}</td>
+                <td><span className={`badge badge-${s.status}`}>{s.status}</span></td>
+                <td>{new Date(s.createdAt).toLocaleString()}</td>
+                <td>
                   {s.status === 'running' && <button className="btn btn-sm btn-danger" onClick={() => handleDelete(s.id)}>Delete</button>}
                 </td>
               </tr>

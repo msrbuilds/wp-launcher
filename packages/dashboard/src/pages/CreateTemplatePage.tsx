@@ -241,7 +241,7 @@ export default function CreateTemplatePage() {
         {/* ── Branding ── */}
           {activeSection === 'branding' && (
             <div className="tmpl-section-body">
-              <div className="form-row" style={{ gap: '2rem' }}>
+              <div className="form-row ctmpl-branding-row">
                 <ImageUpload
                   label="Card Image"
                   hint="Displayed as the template card background. Recommended: 600x400px."
@@ -267,8 +267,7 @@ export default function CreateTemplatePage() {
 
         <button
           type="submit"
-          className="btn btn-primary btn-lg"
-          style={{ width: '100%', marginTop: '0.5rem' }}
+          className="btn btn-primary btn-lg ctmpl-submit-btn"
           disabled={submitting || !id || !name}
         >
           {submitting ? (

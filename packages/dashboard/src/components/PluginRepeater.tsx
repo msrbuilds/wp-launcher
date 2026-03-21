@@ -27,7 +27,7 @@ export default function PluginRepeater({ plugins, onChange, removePlugins, onRem
       {plugins.map((plugin, i) => (
         <div key={i} className="tmpl-repeater-item">
           <div className="tmpl-repeater-row">
-            <div className="form-group" style={{ flex: '0 0 140px' }}>
+            <div className="form-group plugin-repeater-source">
               <label>Source</label>
               <select value={plugin.source} onChange={(e) => updatePlugin(i, { source: e.target.value as any })}>
                 <option value="wordpress.org">WordPress.org</option>
@@ -35,7 +35,7 @@ export default function PluginRepeater({ plugins, onChange, removePlugins, onRem
                 <option value="local">Upload Zip</option>
               </select>
             </div>
-            <div className="form-group" style={{ flex: 1 }}>
+            <div className="form-group plugin-repeater-content">
               {plugin.source === 'wordpress.org' && (
                 <>
                   <label>Plugin Slug</label>
@@ -94,8 +94,8 @@ export default function PluginRepeater({ plugins, onChange, removePlugins, onRem
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Plugin
       </button>
-      <div className="form-group" style={{ marginTop: '1.25rem' }}>
-        <label>Remove Default Plugins <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.75rem' }}>(comma-separated slugs)</span></label>
+      <div className="form-group plugin-repeater-remove-section">
+        <label>Remove Default Plugins <span className="plugin-repeater-label-hint">(comma-separated slugs)</span></label>
         <input
           type="text"
           value={removePlugins}

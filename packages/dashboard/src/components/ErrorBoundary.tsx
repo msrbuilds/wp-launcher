@@ -23,22 +23,14 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#e63946' }}>
+        <div className="error-boundary-container">
           <h2>Something went wrong</h2>
-          <p style={{ color: '#666', marginBottom: '1.5rem' }}>{this.state.error?.message}</p>
+          <p className="error-boundary-message">{this.state.error?.message}</p>
           <button
+            className="error-boundary-reload-btn"
             onClick={() => {
               this.setState({ hasError: false, error: null });
               window.location.reload();
-            }}
-            style={{
-              padding: '0.5rem 1.5rem',
-              background: '#e63946',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '1rem',
             }}
           >
             Reload

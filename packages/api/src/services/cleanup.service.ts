@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { getDb } from '../utils/db';
-import { removeSiteContainer, listManagedContainers } from './docker.service';
+import { removeSiteContainer, listManagedContainers, pruneImages } from './docker.service';
 import { removeTunnel } from './tunnel.service';
 import { fireWebhookEvent } from './webhook.service';
 
@@ -97,5 +97,12 @@ export async function cleanupOrphanedContainers(): Promise<void> {
     }
   } catch (err) {
     console.error('[watchdog] Error during orphan cleanup:', err);
+  }
+
+  // Prune dangling Docker images left behind by docker compose build
+  try {
+    await pruneImages();
+  } catch (err) {
+    console.error('[watchdog] Image prune error:', err);
   }
 }

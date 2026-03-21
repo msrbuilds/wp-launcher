@@ -37,16 +37,16 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="card auth-card" style={{ padding: '2rem', maxWidth: '480px' }}>
-      <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '1.5rem' }}>Account</h2>
+    <div className="card auth-card account-card">
+      <h2 className="account-title">Account</h2>
 
-      <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
-        <p style={{ margin: 0, fontSize: '0.875rem', color: '#64748b' }}>
-          Logged in as <strong style={{ color: '#0f172a' }}>{user?.email}</strong>
+      <div className="account-info">
+        <p>
+          Logged in as <strong>{user?.email}</strong>
         </p>
       </div>
 
-      <h3 style={{ marginBottom: '1rem', fontSize: '0.95rem', fontWeight: 600 }}>Change Password</h3>
+      <h3 className="account-section-title">Change Password</h3>
 
       <form onSubmit={handleChangePassword}>
         <div className="form-group">
@@ -75,7 +75,7 @@ export default function AccountPage() {
         {error && <div className="alert-error">{error}</div>}
         {message && <div className="alert-success">{message}</div>}
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="account-actions">
           <button className="btn btn-primary" type="submit" disabled={loading}>
             {loading ? 'Updating...' : 'Update Password'}
           </button>

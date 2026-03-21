@@ -5,9 +5,9 @@ import { useIsLocalMode } from '../../context/SettingsContext';
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="card" style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: '2rem', fontWeight: 700, color: '#2563eb' }}>{value}</div>
-      <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{label}</div>
+    <div className="card ov-stat-center">
+      <div className="ov-stat-value">{value}</div>
+      <div className="ov-stat-label">{label}</div>
     </div>
   );
 }
@@ -54,7 +54,7 @@ export default function OverviewTab() {
   return (
     <div>
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+        <div className="ov-stats-grid">
           <StatCard label="Total Sites Created" value={stats.totalSitesCreated} />
           <StatCard label="Active Sites" value={stats.activeSites} />
           {!isLocal && <StatCard label="Total Users" value={stats.totalUsers} />}
@@ -62,27 +62,27 @@ export default function OverviewTab() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+      <div className="ov-panels-grid">
         <div className="card">
-          <h3 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'Poppins, sans-serif' }}>Recent Sites</h3>
+          <h3 className="ov-section-title">Recent Sites</h3>
           {recentSites.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No sites yet.</p>
+            <p className="ov-muted-text">No sites yet.</p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+            <div className="ov-site-list">
               {recentSites.map((s) => (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div key={s.id} className="ov-site-row">
+                  <div className="ov-site-left">
                     <span className={`status-dot status-${s.status}`} />
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-                        {s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--prussian-blue)' }}>{s.subdomain}</a> : s.subdomain}
+                      <div className="ov-site-name">
+                        {s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="ov-site-link">{s.subdomain}</a> : s.subdomain}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{s.productId}</div>
+                      <div className="ov-site-product">{s.productId}</div>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div className="ov-site-right">
                     <span className={`badge badge-${s.status}`}>{s.status}</span>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '0.15rem' }}>{timeAgo(s.createdAt)}</div>
+                    <div className="ov-time-ago">{timeAgo(s.createdAt)}</div>
                   </div>
                 </div>
               ))}
@@ -91,15 +91,15 @@ export default function OverviewTab() {
         </div>
 
         <div className="card">
-          <h3 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'Poppins, sans-serif' }}>Active Modules</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <h3 className="ov-section-title">Active Modules</h3>
+          <div className="ov-module-list">
             {FEATURE_META.filter((f) => !isLocal || !f.agencyOnly).map((f) => (
-              <div key={f.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.5rem', background: features[f.key] ? '#f0fdf4' : 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: features[f.key] ? '#22c55e' : 'var(--text-light)', flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{f.label}</span>
+              <div key={f.key} className="ov-module-row" style={{ background: features[f.key] ? '#f0fdf4' : 'var(--bg-surface)' }}>
+                <div className="ov-module-left">
+                  <span className={`ov-module-dot ${features[f.key] ? 'ov-module-dot-on' : 'ov-module-dot-off'}`} />
+                  <span className="ov-module-name">{f.label}</span>
                 </div>
-                <span style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: features[f.key] ? '#16a34a' : 'var(--text-muted)' }}>
+                <span className={`ov-module-status ${features[f.key] ? 'ov-module-status-on' : 'ov-module-status-off'}`}>
                   {features[f.key] ? 'ON' : 'OFF'}
                 </span>
               </div>
@@ -109,31 +109,31 @@ export default function OverviewTab() {
       </div>
 
       <div className="card">
-        <h3 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: 'Poppins, sans-serif' }}>Recent Activity</h3>
+        <h3 className="ov-section-title">Recent Activity</h3>
         {recentLogs.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No activity yet.</p>
+          <p className="ov-muted-text">No activity yet.</p>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+          <div className="ov-activity-scroll">
+            <table className="ov-activity-table">
               <thead>
-                <tr style={{ borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
+                <tr className="ov-activity-thead">
                   {['Time', 'Action', ...(!isLocal ? ['User'] : []), 'Site', isLocal ? 'Template' : 'Product'].map((h) => (
-                    <th key={h} style={{ padding: '0.5rem', fontFamily: 'Poppins, sans-serif', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>{h}</th>
+                    <th key={h} className="ov-activity-th">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {recentLogs.slice(0, 10).map((log) => (
-                  <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '0.5rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(log.created_at)}</td>
-                    <td style={{ padding: '0.5rem' }}>
+                  <tr key={log.id} className="ov-activity-row">
+                    <td className="ov-activity-td-time">{timeAgo(log.created_at)}</td>
+                    <td className="ov-activity-td">
                       <span className={`badge ${log.action === 'created' ? 'badge-running' : log.action === 'error' ? 'badge-error' : 'badge-expired'}`}>{log.action}</span>
                     </td>
-                    {!isLocal && <td style={{ padding: '0.5rem' }}>{log.user_email || '—'}</td>}
-                    <td style={{ padding: '0.5rem' }}>
+                    {!isLocal && <td className="ov-activity-td">{log.user_email || '—'}</td>}
+                    <td className="ov-activity-td">
                       {log.site_url ? <a href={log.site_url} target="_blank" rel="noopener noreferrer">{log.subdomain}</a> : log.subdomain}
                     </td>
-                    <td style={{ padding: '0.5rem' }}>{log.product_id}</td>
+                    <td className="ov-activity-td">{log.product_id}</td>
                   </tr>
                 ))}
               </tbody>

@@ -7,9 +7,9 @@ import { useAdminHeaders } from './AdminLayout';
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="card" style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: '2rem', fontWeight: 700, color: '#2563eb' }}>{value}</div>
-      <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{label}</div>
+    <div className="card an-stat-center">
+      <div className="an-stat-value">{value}</div>
+      <div className="an-stat-label">{label}</div>
     </div>
   );
 }
@@ -57,7 +57,7 @@ export default function AnalyticsTab() {
   return (
     <div>
       {summary && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div className="an-summary-grid">
           <StatCard label="Sites Today" value={summary.sitesToday} />
           <StatCard label="This Week" value={summary.sitesThisWeek} />
           <StatCard label="This Month" value={summary.sitesThisMonth} />
@@ -66,16 +66,16 @@ export default function AnalyticsTab() {
         </div>
       )}
 
-      <div className="card" style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem' }}>
+      <div className="card an-range-bar">
         {([7, 30, 90] as const).map((d) => (
           <button key={d} className={`btn btn-sm ${range === d ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setRange(d)}>{d}d</button>
         ))}
       </div>
 
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <h3 style={{ marginBottom: '0.75rem', fontSize: '0.95rem' }}>Site Launches</h3>
+      <div className="card an-chart-card">
+        <h3 className="an-chart-title">Site Launches</h3>
         {launches.length === 0 ? (
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No data for this period.</p>
+          <p className="an-no-data">No data for this period.</p>
         ) : (
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={launches}>
@@ -89,10 +89,10 @@ export default function AnalyticsTab() {
         )}
       </div>
 
-      <div className="card" style={{ marginBottom: '1rem' }}>
-        <h3 style={{ marginBottom: '0.75rem', fontSize: '0.95rem' }}>Product Popularity</h3>
+      <div className="card an-chart-card">
+        <h3 className="an-chart-title">Product Popularity</h3>
         {products.length === 0 ? (
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No data yet.</p>
+          <p className="an-no-data">No data yet.</p>
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(150, products.length * 40)}>
             <BarChart data={products} layout="vertical">
@@ -107,9 +107,9 @@ export default function AnalyticsTab() {
       </div>
 
       <div className="card">
-        <h3 style={{ marginBottom: '0.75rem', fontSize: '0.95rem' }}>User Registrations</h3>
+        <h3 className="an-chart-title">User Registrations</h3>
         {registrations.length === 0 ? (
-          <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No data for this period.</p>
+          <p className="an-no-data">No data for this period.</p>
         ) : (
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={registrations}>

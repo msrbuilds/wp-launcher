@@ -261,7 +261,7 @@ export default function LaunchPage() {
       <div className="card site-result">
         <span className="spinner spinner-hero" />
         <h3>Setting up your demo site...</h3>
-        <p style={{ color: '#64748b', margin: '0.5rem 0 0.25rem', fontSize: '0.95rem' }}>
+        <p className="lp-stage-text">
           {stageText}
         </p>
         <div className="progress-bar-track">
@@ -270,7 +270,7 @@ export default function LaunchPage() {
             style={{ width: `${provisionProgress}%` }}
           />
         </div>
-        <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+        <p className="lp-progress-pct">
           {provisionProgress}%
         </p>
       </div>
@@ -295,9 +295,9 @@ export default function LaunchPage() {
           </>
         ) : (
           <>
-            <div className="result-icon" style={{ background: '#fef3c7', color: '#d97706' }}>&#9888;</div>
+            <div className="result-icon lp-result-icon-warning">&#9888;</div>
             <h3>Site is still setting up...</h3>
-            <p style={{ color: '#92400e', fontSize: '0.875rem', margin: '0 0 1rem' }}>
+            <p className="lp-result-warning-text">
               WordPress is still installing. This can take up to 2 minutes for MySQL sites. Please wait a moment before clicking login.
             </p>
           </>
@@ -338,11 +338,11 @@ export default function LaunchPage() {
           </div>
         </div>
 
-        <p style={{ margin: '1.25rem 0', fontSize: '0.875rem', color: '#64748b' }}>
+        <p className="lp-expires-text">
           Expires in: <CountdownTimer expiresAt={result.expiresAt} />
         </p>
 
-        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+        <div className="lp-result-actions">
           <button
             className="btn btn-primary btn-lg"
             onClick={async () => {
@@ -374,13 +374,13 @@ export default function LaunchPage() {
     return (
       <div className="card check-email">
         <div className="check-email-icon">&#9993;</div>
-        <h2 style={{ marginBottom: '0.5rem', fontSize: '1.35rem', fontWeight: 700 }}>Check your email</h2>
-        <p style={{ color: '#64748b', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
+        <h2 className="lp-check-email-title">Check your email</h2>
+        <p className="lp-check-email-desc">
           We've sent a verification link to <strong>{email}</strong>.
           <br />
           Click the link to verify your email and start your demo.
         </p>
-        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+        <div className="lp-check-email-actions">
           <button
             className="btn btn-primary"
             onClick={() => { setStep('email'); setError(''); }}
@@ -415,13 +415,13 @@ export default function LaunchPage() {
         {error && <div className="alert-error">{error}</div>}
 
         {fetchError && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.75rem 1rem', borderRadius: '6px', marginBottom: '1rem' }}>
+          <div className="lp-fetch-error">
             {fetchError}
           </div>
         )}
         {/* Category filter + search (only show if there are categories or multiple products) */}
         {(categories.length > 0 || products.length > 3) && (
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="lp-filter-bar">
             {products.length > 3 && (
               <input
                 type="text"
@@ -430,7 +430,7 @@ export default function LaunchPage() {
                 placeholder="Search products..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                style={{ padding: '0.4rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.82rem', minWidth: '180px', background: 'var(--white)', color: 'var(--prussian-blue)' }}
+                className="lp-search-input"
               />
             )}
             {categories.length > 0 && (
@@ -483,7 +483,7 @@ export default function LaunchPage() {
                     <p className="product-compact-desc">{product.branding.description}</p>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                <div className="lp-compact-actions">
                   <button
                     className="btn btn-primary btn-compact-launch"
                     onClick={() => isLocal ? navigate(`/create?template=${product.id}`) : handleLaunch(product.id)}
@@ -497,10 +497,9 @@ export default function LaunchPage() {
                   </button>
                   {canSchedule && (
                     <button
-                      className="btn btn-outline btn-sm"
+                      className="btn btn-outline btn-sm lp-schedule-btn-compact"
                       title="Schedule for later"
                       onClick={() => { setScheduleModal(product.id); setScheduleDate(''); setScheduleTime(''); setScheduleMsg(''); }}
-                      style={{ padding: '0.35rem' }}
                     >
                       <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                     </button>
@@ -525,8 +524,7 @@ export default function LaunchPage() {
                     <img
                       src={product.branding.logo_url}
                       alt=""
-                      className="product-card-icon-overlay"
-                      style={{ position: 'absolute', bottom: '8px', right: '8px', width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover', boxShadow: '0 1px 4px rgba(0,0,0,0.2)', background: '#fff' }}
+                      className="product-card-icon-overlay lp-icon-overlay"
                     />
                   )}
                 </div>
@@ -535,10 +533,9 @@ export default function LaunchPage() {
                   {product.branding?.description && (
                     <p className="product-card-desc">{product.branding.description}</p>
                   )}
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div className="lp-card-btn-row">
                     <button
-                      className="btn btn-primary"
-                      style={{ flex: 1 }}
+                      className="btn btn-primary lp-launch-btn-flex"
                       onClick={() => isLocal ? navigate(`/create?template=${product.id}`) : handleLaunch(product.id)}
                       disabled={!isLocal && launchingId !== null}
                     >
@@ -550,10 +547,9 @@ export default function LaunchPage() {
                     </button>
                     {canSchedule && (
                       <button
-                        className="btn btn-outline"
+                        className="btn btn-outline lp-schedule-btn-full"
                         title="Schedule for later"
                         onClick={() => { setScheduleModal(product.id); setScheduleDate(''); setScheduleTime(''); setScheduleMsg(''); }}
-                        style={{ padding: '0.5rem' }}
                       >
                         <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                       </button>
@@ -567,35 +563,35 @@ export default function LaunchPage() {
 
         {/* Schedule Modal */}
         {scheduleModal && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div className="card" style={{ maxWidth: 400, width: '90%' }}>
-              <h3 style={{ marginBottom: '0.5rem' }}>Schedule Launch</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+          <div className="lp-modal-overlay">
+            <div className="card lp-modal-card">
+              <h3 className="lp-modal-title">Schedule Launch</h3>
+              <p className="lp-modal-desc">
                 Schedule <strong>{products.find(p => p.id === scheduleModal)?.name || scheduleModal}</strong> to launch automatically at a future time.
               </p>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.25rem' }}>Date</label>
+              <div className="lp-modal-datetime-row">
+                <div className="lp-modal-field">
+                  <label className="lp-modal-field-label">Date</label>
                   <input
                     type="date"
                     value={scheduleDate}
                     onChange={(e) => setScheduleDate(e.target.value)}
                     min={new Date().toISOString().split('T')[0]}
                     max={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
-                    style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 6, fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    className="lp-modal-field-input"
                   />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.25rem' }}>Time</label>
+                <div className="lp-modal-field">
+                  <label className="lp-modal-field-label">Time</label>
                   <input
                     type="time"
                     value={scheduleTime}
                     onChange={(e) => setScheduleTime(e.target.value)}
-                    style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border)', borderRadius: 6, fontSize: '0.85rem', boxSizing: 'border-box' }}
+                    className="lp-modal-field-input"
                   />
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <div className="lp-modal-actions">
                 <button
                   className="btn btn-primary btn-sm"
                   onClick={() => handleSchedule(scheduleModal)}
@@ -605,7 +601,7 @@ export default function LaunchPage() {
                 </button>
                 <button className="btn btn-outline btn-sm" onClick={() => setScheduleModal(null)}>Cancel</button>
                 {scheduleMsg && (
-                  <span style={{ fontSize: '0.85rem', color: scheduleMsg.startsWith('Failed') || scheduleMsg.startsWith('Scheduled time') ? '#ef4444' : '#22c55e' }}>
+                  <span className="lp-schedule-msg" style={{ color: scheduleMsg.startsWith('Failed') || scheduleMsg.startsWith('Scheduled time') ? '#ef4444' : '#22c55e' }}>
                     {scheduleMsg}
                   </span>
                 )}
@@ -619,12 +615,12 @@ export default function LaunchPage() {
 
   // Step: Email (not authenticated)
   return (
-    <div className="card auth-card" style={{ padding: '2rem' }}>
-      <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: '0.375rem' }}>
+    <div className="card auth-card lp-auth-card">
+      <div className="lp-auth-header">
+        <h2 className="lp-auth-title">
           {localStorage.getItem('pendingProductLaunch') ? 'Sign in to Launch' : 'Launch a Demo Site'}
         </h2>
-        <p style={{ color: '#64748b', fontSize: '0.95rem' }}>
+        <p className="lp-auth-subtitle">
           Enter your email to get started. We'll send you a verification link.
         </p>
       </div>
@@ -644,8 +640,7 @@ export default function LaunchPage() {
       {error && <div className="alert-error">{error}</div>}
 
       <button
-        className="btn btn-primary btn-lg"
-        style={{ width: '100%' }}
+        className="btn btn-primary btn-lg lp-auth-submit"
         onClick={handleEmailSubmit}
         disabled={loading || !email}
       >
@@ -656,7 +651,7 @@ export default function LaunchPage() {
         )}
       </button>
 
-      <p style={{ marginTop: '1.25rem', fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center' }}>
+      <p className="lp-auth-footer">
         Already have an account?{' '}
         <a href="/login">Log in</a>
       </p>
