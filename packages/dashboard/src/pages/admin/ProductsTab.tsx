@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { useIsLocalMode } from '../../context/SettingsContext';
 
 export default function ProductsTab() {
   const headers = useAdminHeaders();
+  const navigate = useNavigate();
   const isLocal = useIsLocalMode();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +41,10 @@ export default function ProductsTab() {
 
   return (
     <div className="card">
-      <h3 className="pt-title">{Noun}s ({products.length})</h3>
+      <div className="pt-header">
+        <h3 className="pt-title">{Noun}s ({products.length})</h3>
+        <button className="btn btn-primary btn-sm" onClick={() => navigate(isLocal ? '/create-template' : '/create-product')}>+ New {Noun}</button>
+      </div>
       {products.length === 0 ? (
         <p className="pt-empty">No {noun}s configured.</p>
       ) : (

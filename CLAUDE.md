@@ -22,13 +22,13 @@ packages/
   api/src/                  # Express API
     index.ts                # Entry point, middleware, route mounting
     config.ts               # Env var parsing
-    routes/                 # auth.ts, sites.ts, products.ts, admin.ts, sync.ts
-    services/               # user, site, product, docker, email, cleanup, sync, sync-incremental
+    routes/                 # auth.ts, sites.ts, products.ts, admin.ts, sync.ts, projects.ts
+    services/               # user, site, product, docker, email, cleanup, sync, sync-incremental, project
     middleware/              # auth.ts (API key), userAuth.ts (JWT)
     utils/db.ts             # SQLite schema & init
   provisioner/src/index.ts  # Docker operations (create/delete containers, build images)
   dashboard/src/
-    pages/                  # LaunchPage, SitesListPage, LoginPage, VerifyPage, SyncPage, AdminPage
+    pages/                  # LaunchPage, SitesListPage, LoginPage, VerifyPage, SyncPage, AdminPage, ClientsPage, ProjectsPage, InvoicesPage
     context/AuthContext.tsx  # Global JWT state
     context/SettingsContext.tsx # Settings, features, branding, colors
     components/             # CountdownTimer, ErrorBoundary, ImageUpload, PluginRepeater, ThemeRepeater
@@ -101,6 +101,10 @@ Tables in `data/wp-launcher.db`:
 - **webhooks** — id, url, secret, events, active, created_at
 - **remote_connections** — id, name, url, api_key, instance_mode, last_tested_at, status, created_at
 - **sync_history** — id, site_id, remote_connection_id, direction (push|pull), status, remote_site_url, snapshot_id, db_engine, size_bytes, error, started_at, completed_at
+- **clients** — id, user_id, name, email, phone, company, notes, created_at, updated_at
+- **projects** — id, user_id, client_id, name, description, status (active/completed/on-hold/archived), created_at, updated_at
+- **project_sites** — id, project_id, site_id, created_at (link table)
+- **invoices** — id, invoice_number (INV-0001), user_id, client_id, project_id, items (JSON line items), subtotal, tax_rate, tax_amount, total, currency, status (draft/sent/paid/overdue/cancelled), issue_date, due_date, notes, created_at, updated_at
 
 ## API Endpoints
 
@@ -142,6 +146,19 @@ Tables in `data/wp-launcher.db`:
 - `POST /pull` — full pull (download from remote WP Connector plugin → restore locally)
 - `GET /history` — sync history for a site
 - `GET /connector-plugin` — download WP Launcher Connector plugin as ZIP
+
+### Projects (`/api/projects/*`) — JWT required, feature-gated (`projects`)
+- `GET /dropdown/clients` — all clients for dropdowns
+- `GET /dropdown/projects` — all projects for dropdowns
+- `GET|POST /clients` — list (paginated, ?search=) / create client
+- `GET|PUT|DELETE /clients/:id` — get / update / delete client
+- `GET|POST /list` — list projects (paginated, ?status=, ?clientId=) / create project
+- `GET|PUT|DELETE /list/:id` — get (includes linked sites) / update / delete project
+- `POST /list/:id/sites` — link site to project
+- `DELETE /list/:id/sites/:siteId` — unlink site from project
+- `GET|POST /invoices` — list invoices (paginated, ?status=, ?clientId=) / create invoice
+- `GET|PUT|DELETE /invoices/:id` — get / update (draft only) / delete (draft only)
+- `PATCH /invoices/:id/status` — change status (draft→sent→paid, any→cancelled)
 
 ### Other
 - `GET /health` — health check
@@ -233,12 +250,12 @@ Each demo site gets:
 
 Stored in `settings` table as `feature.*` keys. Controlled via Admin > Features tab.
 
-`cloning`, `snapshots`, `templates`, `customDomains`, `phpConfig`, `siteExtend` (agency only), `sitePassword`, `exportZip`, `webhooks`, `healthMonitoring`, `scheduledLaunch`, `collaborativeSites`, `adminer`, `publicSharing`, `siteSync`
+`cloning`, `snapshots`, `templates`, `customDomains`, `phpConfig`, `siteExtend` (agency only), `sitePassword`, `exportZip`, `webhooks`, `healthMonitoring`, `scheduledLaunch`, `collaborativeSites`, `adminer`, `publicSharing`, `siteSync`, `projects`
 
 ## CSS Architecture
 
 - All dashboard styles in `packages/dashboard/src/index.css` (single file, no per-component CSS files)
-- CSS class naming: prefixed by component (`lp-` LaunchPage, `sl-` SitesListPage, `ft-` FeaturesTab, `br-` BrandingTab, etc.)
+- CSS class naming: prefixed by component (`lp-` LaunchPage, `sl-` SitesListPage, `ft-` FeaturesTab, `br-` BrandingTab, `cl-` ClientsPage, `pj-` ProjectsPage, `iv-` InvoicesPage, `ip-` InvoicePrintPage, etc.)
 - Global reusable classes: `card`, `btn`, `btn-primary`, `btn-secondary`, `btn-danger`, `badge`, `badge-*`, `status-dot`, `spinner`, `form-group`, `form-label`, `form-input`, `alert-*`
 - Dynamic/conditional styles (dependent on JS state) may remain inline
 - CSS custom properties for theming: `--prussian-blue`, `--orange`, `--grey`, `--text-muted`, `--text-light`, `--border`, `--bg-surface`

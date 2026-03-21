@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useIsLocalMode, useFeatures } from '../context/SettingsContext';
 import CountdownTimer from '../components/CountdownTimer';
@@ -52,6 +53,7 @@ export default function SitesListPage() {
   const { isAuthenticated } = useAuth();
   const isLocal = useIsLocalMode();
   const features = useFeatures();
+  const navigate = useNavigate();
   // Admin auth is handled via httpOnly cookie — no sessionStorage needed
   // Features are gated by feature flags — disabled features are hidden for everyone
   const canClone = features.cloning;
@@ -794,8 +796,11 @@ export default function SitesListPage() {
     return (
       <div>
         <div className="page-header">
-          <h2>Sites ({sites.length})</h2>
-          <p>Manage your WordPress sites</p>
+          <div>
+            <h2>Sites ({sites.length})</h2>
+            <p>Manage your WordPress sites</p>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => navigate('/create')}>+ New Site</button>
         </div>
 
         <div className="sites-toolbar">

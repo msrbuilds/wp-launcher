@@ -27,6 +27,11 @@ import SystemTab from './pages/admin/SystemTab';
 import CreateTemplatePage from './pages/CreateTemplatePage';
 import CreateProductPage from './pages/CreateProductPage';
 import SyncPage from './pages/SyncPage';
+import ClientsPage from './pages/admin/ClientsPage';
+import ProjectsPage from './pages/admin/ProjectsPage';
+import ProjectDetailPage from './pages/admin/ProjectDetailPage';
+import InvoicesPage from './pages/admin/InvoicesPage';
+import InvoicePrintPage from './pages/admin/InvoicePrintPage';
 import './index.css';
 
 function LaunchRedirect() {
@@ -51,6 +56,11 @@ function LocalRoutes() {
         <Route path="create" element={<LocalLaunchPage />} />
         <Route path="create-template" element={<CreateTemplatePage />} />
         <Route path="sync" element={<SyncPage />} />
+        <Route path="clients" element={<ClientsPage />} />
+        <Route path="projects" element={<ProjectsPage />} />
+        <Route path="projects/:id" element={<ProjectDetailPage />} />
+        <Route path="invoices" element={<InvoicesPage />} />
+        <Route path="invoices/:id/print" element={<InvoicePrintPage />} />
         <Route path="products" element={<ProductsTab />} />
         <Route path="bulk" element={<BulkTab />} />
         <Route path="logs" element={<LogsTab />} />
@@ -92,6 +102,11 @@ function AgencyRoutes() {
           <Route path="users" element={<UsersTab />} />
           <Route path="sites" element={<SitesTab />} />
           <Route path="logs" element={<LogsTab />} />
+          <Route path="clients" element={<ClientsPage />} />
+          <Route path="projects" element={<ProjectsPage />} />
+          <Route path="projects/:id" element={<ProjectDetailPage />} />
+          <Route path="invoices" element={<InvoicesPage />} />
+          <Route path="invoices/:id/print" element={<InvoicePrintPage />} />
           <Route path="features" element={<FeaturesTab />} />
           <Route path="branding" element={<BrandingTab />} />
           <Route path="system" element={<SystemTab />} />

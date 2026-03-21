@@ -2,6 +2,31 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [1.9.0] - 2026-03-22
+
+### Added
+- **Projects & Client Management** — Minimal CRM system for managing clients, projects, and invoices
+  - **Clients** — CRUD with search, linked to projects and invoices
+  - **Projects** — CRUD with status tracking (active/completed/on-hold/archived), link sites to projects
+  - **Invoices** — Full invoice generation with auto-numbered invoices (INV-0001), line items, tax calculation, status workflow (draft→sent→paid), and print-friendly view via browser print
+  - Print/PDF invoice layout with business branding, client details, line items table, and totals
+  - Dashboard stats cards for Clients, Projects, and Invoices counts
+  - Feature flag `projects` to enable/disable the entire feature
+- **Database tables** — `clients`, `projects`, `project_sites`, `invoices` with proper indexes and foreign keys
+
+### Changed
+- **Sidebar navigation** — Reorganized into logical groups:
+  - Dashboard / Sites / Templates
+  - Bulk Launch / Logs / Sync
+  - Clients / Projects / Invoices (when enabled)
+  - Features / Branding / System
+- Removed "New Site" and "New Template" from sidebar; added action buttons to Sites and Templates pages instead
+- Added `+ New Site` button on Sites page header, `+ New Template/Product` button on Templates/Products page header
+
+### Fixed
+- **Form inputs** — Added standalone `.form-input` CSS class so inputs work consistently both inside and outside `.form-group` wrappers
+- **Modal backgrounds** — Added white background, border-radius, and shadow to `.lp-modal-card` (was transparent)
+
 ## [1.8.0] - 2026-03-21
 
 ### Added

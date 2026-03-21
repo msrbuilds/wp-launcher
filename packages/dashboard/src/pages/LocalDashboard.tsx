@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdminHeaders } from './admin/AdminLayout';
+import { useFeatures } from '../context/SettingsContext';
 import { Stats, AdminSite, SiteLog } from './admin/shared';
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
@@ -58,7 +59,9 @@ const MAIL_SHORTCUT = {
 
 export default function LocalDashboard() {
   const headers = useAdminHeaders();
+  const features = useFeatures();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [projectStats, setProjectStats] = useState<{ clients: number; projects: number; invoices: number } | null>(null);
   const [recentSites, setRecentSites] = useState<AdminSite[]>([]);
   const [recentLogs, setRecentLogs] = useState<SiteLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +80,17 @@ export default function LocalDashboard() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!features.projects) return;
+    Promise.all([
+      fetch('/api/projects/clients?limit=1&offset=0', { headers, credentials: 'include' }).then(r => r.json()),
+      fetch('/api/projects/list?limit=1&offset=0', { headers, credentials: 'include' }).then(r => r.json()),
+      fetch('/api/projects/invoices?limit=1&offset=0', { headers, credentials: 'include' }).then(r => r.json()),
+    ])
+      .then(([c, p, i]) => setProjectStats({ clients: c.total || 0, projects: p.total || 0, invoices: i.total || 0 }))
+      .catch(() => {});
+  }, [features.projects]);
 
   const timeAgo = (dateStr: string) => {
     const diff = Date.now() - new Date(dateStr).getTime();
@@ -116,6 +130,11 @@ export default function LocalDashboard() {
         <div className="stats-grid">
           <StatCard label="Active Sites" value={stats.activeSites} />
           <StatCard label="Total Created" value={stats.totalSitesCreated} />
+          {features.projects && projectStats && <>
+            <StatCard label="Clients" value={projectStats.clients} />
+            <StatCard label="Projects" value={projectStats.projects} />
+            <StatCard label="Invoices" value={projectStats.invoices} />
+          </>}
         </div>
       )}
 

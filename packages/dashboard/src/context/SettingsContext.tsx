@@ -16,6 +16,7 @@ export interface FeatureFlags {
   adminer: boolean;
   publicSharing: boolean;
   siteSync: boolean;
+  projects: boolean;
 }
 
 export interface Branding {
@@ -60,6 +61,7 @@ const DEFAULT_FEATURES: FeatureFlags = {
   adminer: false,
   publicSharing: false,
   siteSync: false,
+  projects: false,
 };
 
 const DEFAULT_BRANDING: Branding = {
