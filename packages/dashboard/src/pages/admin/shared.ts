@@ -70,4 +70,57 @@ export const FEATURE_META: { key: string; label: string; description: string; ag
   { key: 'adminer', label: 'Database Manager (Adminer)', description: 'Allow users to access and manage site databases through Adminer' },
   { key: 'publicSharing', label: 'Public Sharing (Tunnels)', description: 'Share sites publicly via LAN, Cloudflare Tunnel, or ngrok' },
   { key: 'siteSync', label: 'Site Sync', description: 'Push/pull site content between local and remote instances' },
+  { key: 'projects', label: 'Projects & Invoices', description: 'Manage clients, projects, and generate invoices' },
 ];
+
+export interface Client {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  notes: string | null;
+  projectCount?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Project {
+  id: string;
+  client_id: string | null;
+  clientName?: string;
+  name: string;
+  description: string | null;
+  status: 'active' | 'completed' | 'on-hold' | 'archived';
+  siteCount?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceLineItem {
+  description: string;
+  qty: number;
+  rate: number;
+  amount: number;
+}
+
+export interface Invoice {
+  id: string;
+  invoice_number: string;
+  client_id: string;
+  clientName?: string;
+  project_id: string | null;
+  projectName?: string;
+  items: InvoiceLineItem[];
+  subtotal: number;
+  tax_rate: number;
+  tax_amount: number;
+  total: number;
+  currency: string;
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  issue_date: string;
+  due_date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}

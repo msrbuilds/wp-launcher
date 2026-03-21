@@ -189,6 +189,71 @@ function initSchema(db: Database.Database): void {
       last_remote_manifest TEXT,
       UNIQUE(site_id, remote_connection_id)
     );
+
+    CREATE TABLE IF NOT EXISTS clients (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      company TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_clients_user_id ON clients(user_id);
+
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      client_id TEXT,
+      name TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (client_id) REFERENCES clients(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+    CREATE INDEX IF NOT EXISTS idx_projects_client_id ON projects(client_id);
+
+    CREATE TABLE IF NOT EXISTS project_sites (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      site_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(project_id, site_id),
+      FOREIGN KEY (project_id) REFERENCES projects(id),
+      FOREIGN KEY (site_id) REFERENCES sites(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS invoices (
+      id TEXT PRIMARY KEY,
+      invoice_number TEXT UNIQUE NOT NULL,
+      user_id TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      project_id TEXT,
+      items TEXT NOT NULL DEFAULT '[]',
+      subtotal REAL NOT NULL DEFAULT 0,
+      tax_rate REAL NOT NULL DEFAULT 0,
+      tax_amount REAL NOT NULL DEFAULT 0,
+      total REAL NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'USD',
+      status TEXT NOT NULL DEFAULT 'draft',
+      issue_date TEXT NOT NULL DEFAULT (datetime('now')),
+      due_date TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (client_id) REFERENCES clients(id),
+      FOREIGN KEY (project_id) REFERENCES projects(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices(user_id);
+    CREATE INDEX IF NOT EXISTS idx_invoices_client_id ON invoices(client_id);
+    CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
   `);
 
   // Seed default feature flags and branding
@@ -208,6 +273,7 @@ function initSchema(db: Database.Database): void {
     'feature.adminer': 'false',
     'feature.publicSharing': 'true',
     'feature.siteSync': 'false',
+    'feature.projects': 'false',
     'branding.siteTitle': 'WP Launcher',
     'branding.logoUrl': '',
     'branding.cardLayout': '',

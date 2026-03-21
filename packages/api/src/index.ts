@@ -15,6 +15,7 @@ import analyticsRouter from './routes/analytics';
 import bulkRouter from './routes/bulk';
 import templatesRouter from './routes/templates';
 import syncRouter from './routes/sync';
+import projectsRouter from './routes/projects';
 import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cleanup.service';
 import { startScheduleProcessor } from './services/schedule.service';
 import { closeDb, getDb } from './utils/db';
@@ -373,7 +374,7 @@ app.put('/api/admin/features', adminAuth, (req, res) => {
     res.status(400).json({ error: 'features object is required' });
     return;
   }
-  const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks', 'healthMonitoring', 'scheduledLaunch', 'collaborativeSites', 'adminer', 'publicSharing', 'siteSync'];
+  const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks', 'healthMonitoring', 'scheduledLaunch', 'collaborativeSites', 'adminer', 'publicSharing', 'siteSync', 'projects'];
   const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
   for (const [name, enabled] of Object.entries(features)) {
     if (allowed.includes(name)) {
@@ -478,6 +479,9 @@ app.delete('/api/admin/branding/logo', ...brandingAuth, (_req: any, res: any) =>
 // Sync routes — mounted before JSON parser for /api/sync/receive (binary body)
 // The receive endpoint handles application/octet-stream, not JSON
 app.use('/api/sync', syncRouter);
+
+// Projects, clients, invoices routes (auth + feature gate handled inside router)
+app.use('/api/projects', projectsRouter);
 
 // Sites routes (rate limiting handled per-route inside the router)
 app.use('/api/sites', sitesRouter);

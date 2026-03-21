@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useIsLocalMode, useBranding, useSettings } from '../../context/SettingsContext';
+import { useIsLocalMode, useBranding, useSettings, useFeatures } from '../../context/SettingsContext';
 
 interface AdminFetchOpts {
   headers: Record<string, string>;
@@ -201,6 +201,11 @@ export default function AdminLayout() {
 
         <main className="admin-content">
           <Outlet />
+          {isLocal && (
+            <footer className="footer" style={{ marginTop: 'auto' }}>
+              Built with <a href="https://github.com/msrbuilds/wp-launcher" target="_blank" rel="noopener noreferrer">WP Launcher</a> by <a href="https://msrbuilds.com" target="_blank" rel="noopener noreferrer">MSR Builds</a>
+            </footer>
+          )}
         </main>
       </div>
     </AdminHeadersContext.Provider>
