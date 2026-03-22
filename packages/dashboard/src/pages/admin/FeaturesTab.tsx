@@ -136,7 +136,7 @@ export default function FeaturesTab() {
 
         <div className="ft-feature-list">
           {FEATURE_META.map((f) => {
-            const disabled = isLocal && f.agencyOnly;
+            const disabled = (isLocal && f.agencyOnly) || (!isLocal && f.localOnly);
             return (
               <div
                 key={f.key}
@@ -149,7 +149,8 @@ export default function FeaturesTab() {
                 <div>
                   <div className="ft-feature-label">
                     {f.label}
-                    {disabled && <span className="ft-agency-badge">Agency only</span>}
+                    {isLocal && f.agencyOnly && <span className="ft-agency-badge">Agency only</span>}
+                    {!isLocal && f.localOnly && <span className="ft-agency-badge">Local only</span>}
                   </div>
                   <div className="ft-feature-desc">{f.description}</div>
                 </div>
