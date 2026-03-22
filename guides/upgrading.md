@@ -45,6 +45,72 @@ curl -sf http://localhost:3737/health
 wpl version
 ```
 
+## Upgrading to v2.0.0 (Security Hardening)
+
+This is a major version bump focused on security. The upgrade is non-destructive — existing data, sites, and configurations are preserved. Database schema changes are auto-migrated on startup.
+
+### What Changed
+
+| Area | Before | After |
+|------|--------|-------|
+| CSRF | No protection | Origin + custom header validation on all state-changing requests |
+| Sync connections | Global (all users see all) | Per-user scoped with `user_id` ownership |
+| Sync remote URLs | Any URL accepted | SSRF protection: private IP blocking, protocol allowlist, DNS validation |
+| Auth responses | JWT token in JSON body + cookie | Cookie only (JWT removed from response body) |
+| Logo uploads | SVG allowed | SVG rejected (XSS risk) |
+| Uploaded files | Served with default headers | Restrictive CSP: `default-src 'none'` |
+| CSP header | Not configured | Full CSP on API, Traefik, and nginx |
+
+### Migration Steps
+
+#### 1. Update and rebuild
+
+```bash
+cd /opt/wp-launcher
+wpl update
+```
+
+Or manually:
+
+```bash
+git pull --ff-only
+bash scripts/generate-version.sh
+docker compose build api dashboard
+docker compose up -d
+```
+
+#### 2. Verify
+
+```bash
+# Check version
+curl -sf http://localhost:3737/api/version
+
+# Check CSP header is present
+curl -sI http://localhost:3737/health | grep -i content-security
+
+# Check CSRF blocks requests without custom header
+curl -sf -X PUT http://localhost:3737/api/admin/features \
+  -H "Content-Type: application/json" \
+  -d '{"features":{}}' \
+  --cookie "wpl_admin=your-api-key"
+# Should return 403 CSRF validation failed
+```
+
+### Breaking Changes for API Consumers
+
+1. **CSRF headers required** — Cookie-authenticated POST/PUT/PATCH/DELETE requests must include:
+   - `Origin` header matching the dashboard domain
+   - `X-Requested-With: XMLHttpRequest`
+   - Requests using `X-Api-Key` header are exempt
+
+2. **No `token` in auth responses** — If your scripts parse `data.token` from `/api/auth/login`, `/api/auth/verify`, or `/api/auth/set-password`, switch to cookie-based auth (`credentials: 'include'`).
+
+3. **SVG logo uploads rejected** — Use PNG, JPEG, WebP, or GIF instead.
+
+4. **Sync connections are user-scoped** — Existing connections are backfilled as admin-owned. Non-admin users will only see their own connections going forward.
+
+---
+
 ## Upgrading to v1.1.0 (Role-Based Admin)
 
 This version replaces the API key login with role-based admin accounts. The API key still works for machine-to-machine access (scripts, CI), but human admin login now uses email + password.

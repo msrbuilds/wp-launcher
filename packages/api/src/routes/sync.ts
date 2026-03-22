@@ -38,9 +38,10 @@ function requireSync(_req: Request, res: Response, next: () => void) {
 
 // ── Connection management ──
 
-router.get('/connections', conditionalAuth, requireSync, (_req: AuthRequest, res: Response) => {
+router.get('/connections', conditionalAuth, requireSync, (req: AuthRequest, res: Response) => {
   try {
-    const connections = listConnections();
+    const isAdmin = req.userRole === 'admin';
+    const connections = listConnections(req.userId!, isAdmin);
     // Strip API keys from response
     res.json(connections.map(c => ({
       ...c,
@@ -51,10 +52,10 @@ router.get('/connections', conditionalAuth, requireSync, (_req: AuthRequest, res
   }
 });
 
-router.post('/connections', conditionalAuth, requireSync, (req: AuthRequest, res: Response) => {
+router.post('/connections', conditionalAuth, requireSync, async (req: AuthRequest, res: Response) => {
   try {
     const { name, url, apiKey } = req.body;
-    const conn = addConnection(name, url, apiKey);
+    const conn = await addConnection(name, url, apiKey, req.userId!);
     res.status(201).json({ ...conn, api_key: '••••' + conn.api_key.slice(-4) });
   } catch (err: any) {
     const status = err.statusCode || 400;
@@ -64,7 +65,8 @@ router.post('/connections', conditionalAuth, requireSync, (req: AuthRequest, res
 
 router.post('/connections/:id/test', conditionalAuth, requireSync, async (req: AuthRequest, res: Response) => {
   try {
-    const result = await testConnection(req.params.id);
+    const isAdmin = req.userRole === 'admin';
+    const result = await testConnection(req.params.id, req.userId!, isAdmin);
     res.json(result);
   } catch (err: any) {
     const status = err.statusCode || 500;
@@ -74,7 +76,8 @@ router.post('/connections/:id/test', conditionalAuth, requireSync, async (req: A
 
 router.delete('/connections/:id', conditionalAuth, requireSync, (req: AuthRequest, res: Response) => {
   try {
-    removeConnection(req.params.id);
+    const isAdmin = req.userRole === 'admin';
+    removeConnection(req.params.id, req.userId!, isAdmin);
     res.json({ message: 'Connection removed' });
   } catch (err: any) {
     const status = err.statusCode || 500;
@@ -93,7 +96,8 @@ router.post('/push', conditionalAuth, requireSync, async (req: AuthRequest, res:
       res.status(400).json({ error: 'siteId and connectionId are required' });
       return;
     }
-    const result = await pushToRemote(siteId, connectionId, req.userId);
+    const isAdmin = req.userRole === 'admin';
+    const result = await pushToRemote(siteId, connectionId, req.userId, isAdmin);
     res.json(result);
   } catch (err: any) {
     const status = err.statusCode || 500;
@@ -108,7 +112,8 @@ router.post('/pull', conditionalAuth, requireSync, async (req: AuthRequest, res:
       res.status(400).json({ error: 'siteId and connectionId are required' });
       return;
     }
-    const result = await pullFromRemote(siteId, connectionId, req.userId);
+    const isAdmin = req.userRole === 'admin';
+    const result = await pullFromRemote(siteId, connectionId, req.userId, isAdmin);
     res.json(result);
   } catch (err: any) {
     const status = err.statusCode || 500;
@@ -121,7 +126,8 @@ router.post('/pull', conditionalAuth, requireSync, async (req: AuthRequest, res:
 router.get('/history', conditionalAuth, requireSync, (req: AuthRequest, res: Response) => {
   try {
     const siteId = req.query.siteId as string | undefined;
-    res.json(getSyncHistory(siteId));
+    const isAdmin = req.userRole === 'admin';
+    res.json(getSyncHistory(siteId, req.userId!, isAdmin));
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -129,7 +135,8 @@ router.get('/history', conditionalAuth, requireSync, (req: AuthRequest, res: Res
 
 router.get('/status/:syncId', conditionalAuth, requireSync, (req: AuthRequest, res: Response) => {
   try {
-    const status = getSyncStatus(req.params.syncId);
+    const isAdmin = req.userRole === 'admin';
+    const status = getSyncStatus(req.params.syncId, req.userId!, isAdmin);
     if (!status) {
       res.status(404).json({ error: 'Sync operation not found' });
       return;
@@ -149,7 +156,8 @@ router.post('/preview', conditionalAuth, requireSync, async (req: AuthRequest, r
       res.status(400).json({ error: 'siteId and connectionId are required' });
       return;
     }
-    const previewId = await startPreview(siteId, connectionId, req.userId);
+    const isAdmin = req.userRole === 'admin';
+    const previewId = await startPreview(siteId, connectionId, req.userId, isAdmin);
     res.json({ previewId, status: 'generating' });
   } catch (err: any) {
     const status = err.statusCode || 500;
@@ -159,7 +167,8 @@ router.post('/preview', conditionalAuth, requireSync, async (req: AuthRequest, r
 
 router.get('/preview/:previewId', conditionalAuth, requireSync, (req: AuthRequest, res: Response) => {
   try {
-    const result = getPreviewResult(req.params.previewId);
+    const isAdmin = req.userRole === 'admin';
+    const result = getPreviewResult(req.params.previewId, req.userId!, isAdmin);
     if (!result) {
       res.status(404).json({ error: 'Preview not found or expired' });
       return;
@@ -181,7 +190,8 @@ router.post('/push-selective', conditionalAuth, requireSync, async (req: AuthReq
       res.status(400).json({ error: 'Select at least one item to push' });
       return;
     }
-    const result = await pushSelective(siteId, connectionId, contentIds, filePaths, req.userId);
+    const isAdmin = req.userRole === 'admin';
+    const result = await pushSelective(siteId, connectionId, contentIds, filePaths, req.userId, isAdmin);
     res.json(result);
   } catch (err: any) {
     const status = err.statusCode || 500;
@@ -200,7 +210,8 @@ router.post('/pull-selective', conditionalAuth, requireSync, async (req: AuthReq
       res.status(400).json({ error: 'Select at least one item to pull' });
       return;
     }
-    const result = await pullSelective(siteId, connectionId, contentIds, filePaths, req.userId);
+    const isAdmin = req.userRole === 'admin';
+    const result = await pullSelective(siteId, connectionId, contentIds, filePaths, req.userId, isAdmin);
     res.json(result);
   } catch (err: any) {
     const status = err.statusCode || 500;

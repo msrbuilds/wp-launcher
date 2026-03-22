@@ -4,6 +4,7 @@ import { useAdminHeaders } from './AdminLayout';
 import { useIsLocalMode } from '../../context/SettingsContext';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Project } from './shared';
+import { apiFetch } from '../../utils/api';
 
 const STATUS_OPTIONS = ['active', 'completed', 'on-hold', 'archived'] as const;
 const STATUS_LABELS: Record<string, string> = { active: 'Active', completed: 'Completed', 'on-hold': 'On Hold', archived: 'Archived' };
@@ -28,7 +29,7 @@ export default function ProjectsPage() {
     setLoading(true);
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
     if (statusFilter) params.set('status', statusFilter);
-    fetch(`/api/projects/list?${params}`, { headers, credentials: 'include' })
+    apiFetch(`/api/projects/list?${params}`, { headers })
       .then(r => r.json())
       .then(data => { setProjects(data.data || []); setTotal(data.total || 0); })
       .catch(() => {})
@@ -36,7 +37,7 @@ export default function ProjectsPage() {
   }, [page, statusFilter, headers]);
 
   const fetchClients = useCallback(() => {
-    fetch('/api/projects/dropdown/clients', { headers, credentials: 'include' })
+    apiFetch('/api/projects/dropdown/clients', { headers })
       .then(r => r.json()).then(setClients).catch(() => {});
   }, [headers]);
 
@@ -64,7 +65,7 @@ export default function ProjectsPage() {
     try {
       const url = editing ? `/api/projects/list/${editing.id}` : '/api/projects/list';
       const method = editing ? 'PUT' : 'POST';
-      const res = await fetch(url, { method, headers: { ...headers, 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(form) });
+      const res = await apiFetch(url, { method, headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to save'); return; }
       setShowModal(false);
@@ -75,7 +76,7 @@ export default function ProjectsPage() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this project?')) return;
     try {
-      const res = await fetch(`/api/projects/list/${id}`, { method: 'DELETE', headers, credentials: 'include' });
+      const res = await apiFetch(`/api/projects/list/${id}`, { method: 'DELETE', headers });
       const data = await res.json();
       if (!res.ok) { alert(data.error || 'Failed to delete'); return; }
       fetchProjects();

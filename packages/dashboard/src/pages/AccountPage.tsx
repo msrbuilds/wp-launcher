@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../utils/api';
 
 export default function AccountPage() {
   const { user, logout } = useAuth();
@@ -16,9 +17,8 @@ export default function AccountPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/auth/update-password', {
+      const res = await apiFetch('/api/auth/update-password', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword }),
       });

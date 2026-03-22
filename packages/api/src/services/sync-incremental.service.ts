@@ -6,6 +6,7 @@ import { getDb } from '../utils/db';
 import { config } from '../config';
 import { execWpCommands } from './docker.service';
 import { NotFoundError, ForbiddenError, ValidationError } from '../utils/errors';
+import { safeFetch } from '../utils/ssrf';
 
 // ── Types ──
 
@@ -55,6 +56,7 @@ interface RemoteConnection {
   id: string;
   url: string;
   api_key: string;
+  user_id: string | null;
 }
 
 // ── Manifest Generation ──
@@ -132,7 +134,7 @@ WPEOF`;
 }
 
 export async function fetchRemoteManifest(conn: RemoteConnection): Promise<SyncManifest> {
-  const res = await fetch(`${conn.url}/wp-json/wpl-connector/v1/manifest`, {
+  const res = await safeFetch(`${conn.url}/wp-json/wpl-connector/v1/manifest`, {
     headers: { 'X-WPL-Key': conn.api_key },
     signal: AbortSignal.timeout(30000),
   });
@@ -205,12 +207,13 @@ export function computeDiff(local: SyncManifest, remote: SyncManifest): SyncDiff
 
 // ── Preview (async with caching) ──
 
-const previewCache = new Map<string, { diff: SyncDiff; localManifest: SyncManifest; remoteManifest: SyncManifest; status: string }>();
+const previewCache = new Map<string, { diff: SyncDiff; localManifest: SyncManifest; remoteManifest: SyncManifest; status: string; userId: string }>();
 
-export async function startPreview(siteId: string, connectionId: string, userId?: string): Promise<string> {
+export async function startPreview(siteId: string, connectionId: string, userId?: string, isAdmin: boolean = false): Promise<string> {
   const db = getDb();
   const conn = db.prepare('SELECT * FROM remote_connections WHERE id = ?').get(connectionId) as RemoteConnection | undefined;
   if (!conn) throw new NotFoundError('Connection not found');
+  if (!isAdmin && conn.user_id !== (userId || 'admin')) throw new ForbiddenError('You do not own this connection');
 
   const site = db.prepare('SELECT * FROM sites WHERE id = ? AND status = ?').get(siteId, 'running') as any;
   if (!site) throw new NotFoundError('Site not found or not running');
@@ -218,7 +221,7 @@ export async function startPreview(siteId: string, connectionId: string, userId?
   if (!site.container_id) throw new ValidationError('No container');
 
   const previewId = uuidv4();
-  previewCache.set(previewId, { diff: null as any, localManifest: null as any, remoteManifest: null as any, status: 'generating' });
+  previewCache.set(previewId, { diff: null as any, localManifest: null as any, remoteManifest: null as any, status: 'generating', userId: userId || 'admin' });
 
   // Run async
   (async () => {
@@ -228,20 +231,21 @@ export async function startPreview(siteId: string, connectionId: string, userId?
         fetchRemoteManifest(conn),
       ]);
       const diff = computeDiff(localManifest, remoteManifest);
-      previewCache.set(previewId, { diff, localManifest, remoteManifest, status: 'ready' });
+      previewCache.set(previewId, { diff, localManifest, remoteManifest, status: 'ready', userId: userId || 'admin' });
       // Auto-expire after 10 minutes
       setTimeout(() => previewCache.delete(previewId), 600000);
     } catch (err: any) {
-      previewCache.set(previewId, { diff: null as any, localManifest: null as any, remoteManifest: null as any, status: `error: ${err.message}` });
+      previewCache.set(previewId, { diff: null as any, localManifest: null as any, remoteManifest: null as any, status: `error: ${err.message}`, userId: userId || 'admin' });
     }
   })();
 
   return previewId;
 }
 
-export function getPreviewResult(previewId: string): { status: string; diff?: SyncDiff } | null {
+export function getPreviewResult(previewId: string, userId: string, isAdmin: boolean): { status: string; diff?: SyncDiff } | null {
   const cached = previewCache.get(previewId);
   if (!cached) return null;
+  if (!isAdmin && cached.userId !== userId) return null;
   if (cached.status === 'ready') return { status: 'ready', diff: cached.diff };
   return { status: cached.status };
 }
@@ -254,10 +258,12 @@ export async function pushSelective(
   contentIds?: number[],
   filePaths?: string[],
   userId?: string,
+  isAdmin: boolean = false,
 ): Promise<{ syncId: string; status: string }> {
   const db = getDb();
   const conn = db.prepare('SELECT * FROM remote_connections WHERE id = ?').get(connectionId) as RemoteConnection | undefined;
   if (!conn) throw new NotFoundError('Connection not found');
+  if (!isAdmin && conn.user_id !== (userId || 'admin')) throw new ForbiddenError('You do not own this connection');
 
   const site = db.prepare('SELECT * FROM sites WHERE id = ? AND status = ?').get(siteId, 'running') as any;
   if (!site) throw new NotFoundError('Site not found');
@@ -265,7 +271,7 @@ export async function pushSelective(
   if (!site.container_id) throw new ValidationError('No container');
 
   const syncId = uuidv4();
-  db.prepare(`INSERT INTO sync_history (id, site_id, remote_connection_id, direction, status) VALUES (?, ?, ?, 'push', 'syncing')`).run(syncId, siteId, connectionId);
+  db.prepare(`INSERT INTO sync_history (id, site_id, remote_connection_id, direction, status, user_id) VALUES (?, ?, ?, 'push', 'syncing', ?)`).run(syncId, siteId, connectionId, userId || 'admin');
 
   const localUrl = site.site_url || `http://${site.subdomain}.${config.baseDomain}`;
 
@@ -293,7 +299,7 @@ export async function pushSelective(
 
 
         if (posts.length > 0) {
-          const importRes = await fetch(`${conn.url}/wp-json/wpl-connector/v1/import-content`, {
+          const importRes = await safeFetch(`${conn.url}/wp-json/wpl-connector/v1/import-content`, {
             method: 'POST',
             headers: { 'X-WPL-Key': conn.api_key, 'Content-Type': 'application/json' },
             body: JSON.stringify({ posts, source_url: localUrl }),
@@ -332,10 +338,12 @@ export async function pullSelective(
   contentIds?: number[],
   filePaths?: string[],
   userId?: string,
+  isAdmin: boolean = false,
 ): Promise<{ syncId: string; status: string }> {
   const db = getDb();
   const conn = db.prepare('SELECT * FROM remote_connections WHERE id = ?').get(connectionId) as RemoteConnection | undefined;
   if (!conn) throw new NotFoundError('Connection not found');
+  if (!isAdmin && conn.user_id !== (userId || 'admin')) throw new ForbiddenError('You do not own this connection');
 
   const site = db.prepare('SELECT * FROM sites WHERE id = ? AND status = ?').get(siteId, 'running') as any;
   if (!site) throw new NotFoundError('Site not found');
@@ -343,7 +351,7 @@ export async function pullSelective(
   if (!site.container_id) throw new ValidationError('No container');
 
   const syncId = uuidv4();
-  db.prepare(`INSERT INTO sync_history (id, site_id, remote_connection_id, direction, status) VALUES (?, ?, ?, 'pull', 'syncing')`).run(syncId, siteId, connectionId);
+  db.prepare(`INSERT INTO sync_history (id, site_id, remote_connection_id, direction, status, user_id) VALUES (?, ?, ?, 'pull', 'syncing', ?)`).run(syncId, siteId, connectionId, userId || 'admin');
 
   const localUrl = site.site_url || `http://${site.subdomain}.${config.baseDomain}`;
 
@@ -353,7 +361,7 @@ export async function pullSelective(
 
       // Pull content — write post data as JSON file in shared volume, import via wp eval-file
       if (contentIds && contentIds.length > 0) {
-        const exportRes = await fetch(`${conn.url}/wp-json/wpl-connector/v1/export-content`, {
+        const exportRes = await safeFetch(`${conn.url}/wp-json/wpl-connector/v1/export-content`, {
           method: 'POST',
           headers: { 'X-WPL-Key': conn.api_key, 'Content-Type': 'application/json' },
           body: JSON.stringify({ postIds: contentIds }),

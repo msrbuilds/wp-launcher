@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useIsLocalMode, useFeatures } from '../context/SettingsContext';
 import CountdownTimer from '../components/CountdownTimer';
+import { apiFetch } from '../utils/api';
 
 interface Site {
   id: string;
@@ -104,7 +105,7 @@ export default function SitesListPage() {
   async function fetchPhpConfig(siteId: string) {
     setLoadingPhp(siteId);
     try {
-      const res = await fetch(`/api/sites/${siteId}/php-config`, { credentials: 'include' });
+      const res = await apiFetch(`/api/sites/${siteId}/php-config`);
       if (res.ok) {
         const data = await res.json();
         setPhpConfigs((prev) => ({
@@ -129,7 +130,7 @@ export default function SitesListPage() {
 
   async function fetchSnapshots(siteId: string) {
     try {
-      const res = await fetch(`/api/sites/${siteId}/snapshots`, { credentials: 'include' });
+      const res = await apiFetch(`/api/sites/${siteId}/snapshots`);
       if (res.ok) {
         const data = await res.json();
         setSnapshots((prev) => ({ ...prev, [siteId]: data }));
@@ -141,10 +142,9 @@ export default function SitesListPage() {
     const name = prompt('Snapshot name (optional):') ?? undefined;
     setSnapshotLoading(siteId);
     try {
-      const res = await fetch(`/api/sites/${siteId}/snapshots`, {
+      const res = await apiFetch(`/api/sites/${siteId}/snapshots`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ name }),
       });
       if (res.ok) {
@@ -164,9 +164,8 @@ export default function SitesListPage() {
     if (!confirm('Restore this snapshot? Current site data will be replaced.')) return;
     setSnapshotLoading(siteId);
     try {
-      const res = await fetch(`/api/sites/${siteId}/snapshots/${snapshotId}/restore`, {
+      const res = await apiFetch(`/api/sites/${siteId}/snapshots/${snapshotId}/restore`, {
         method: 'POST',
-        credentials: 'include',
       });
       if (!res.ok) {
         const data = await res.json();
@@ -182,9 +181,8 @@ export default function SitesListPage() {
   async function handleDeleteSnapshot(siteId: string, snapshotId: string) {
     if (!confirm('Delete this snapshot?')) return;
     try {
-      await fetch(`/api/sites/${siteId}/snapshots/${snapshotId}`, {
+      await apiFetch(`/api/sites/${siteId}/snapshots/${snapshotId}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
       await fetchSnapshots(siteId);
     } catch { /* ignore */ }
@@ -194,10 +192,9 @@ export default function SitesListPage() {
     if (!confirm('Clone this site? A new site will be created with the same content.')) return;
     setCloning(siteId);
     try {
-      const res = await fetch(`/api/sites/${siteId}/clone`, {
+      const res = await apiFetch(`/api/sites/${siteId}/clone`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({}),
       });
       if (res.ok) {
@@ -221,10 +218,9 @@ export default function SitesListPage() {
     setTemplateSaving(true);
     setTemplateError('');
     try {
-      const res = await fetch(`/api/sites/${siteId}/export-template`, {
+      const res = await apiFetch(`/api/sites/${siteId}/export-template`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ templateId: templateId.trim(), templateName: templateName.trim() || templateId.trim() }),
       });
       if (res.ok) {
@@ -247,7 +243,7 @@ export default function SitesListPage() {
   async function fetchDomainStatus(siteId: string, showLoading = false) {
     if (showLoading) setDomainRechecking(siteId);
     try {
-      const res = await fetch(`/api/sites/${siteId}/domain`, { credentials: 'include' });
+      const res = await apiFetch(`/api/sites/${siteId}/domain`);
       if (res.ok) {
         const data = await res.json();
         setDomainStatus((prev) => ({ ...prev, [siteId]: data }));
@@ -263,10 +259,9 @@ export default function SitesListPage() {
     setDomainSaving(siteId);
     setDomainError((prev) => ({ ...prev, [siteId]: '' }));
     try {
-      const res = await fetch(`/api/sites/${siteId}/domain`, {
+      const res = await apiFetch(`/api/sites/${siteId}/domain`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ domain }),
       });
       if (res.ok) {
@@ -287,7 +282,7 @@ export default function SitesListPage() {
     if (!confirm('Remove custom domain?')) return;
     setDomainSaving(siteId);
     try {
-      await fetch(`/api/sites/${siteId}/domain`, { method: 'DELETE', credentials: 'include' });
+      await apiFetch(`/api/sites/${siteId}/domain`, { method: 'DELETE' });
       setDomainStatus((prev) => ({ ...prev, [siteId]: { domain: null, status: 'none' } }));
       setDomainInput((prev) => ({ ...prev, [siteId]: '' }));
     } catch { /* ignore */ }
@@ -314,10 +309,9 @@ export default function SitesListPage() {
     setPhpSaveMsg((prev) => ({ ...prev, [siteId]: '' }));
     try {
       const cfg = getPhpConfig(siteId);
-      const res = await fetch(`/api/sites/${siteId}/php-config`, {
+      const res = await apiFetch(`/api/sites/${siteId}/php-config`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           memoryLimit: cfg.memoryLimit,
           uploadMaxFilesize: cfg.uploadMaxFilesize,
@@ -345,9 +339,8 @@ export default function SitesListPage() {
 
   async function handleAutoLogin(siteId: string, fallbackUrl: string) {
     try {
-      const res = await fetch(`/api/sites/${siteId}/autologin`, {
+      const res = await apiFetch(`/api/sites/${siteId}/autologin`, {
         method: 'POST',
-        credentials: 'include',
       });
       if (res.ok) {
         const data = await res.json();
@@ -372,7 +365,7 @@ export default function SitesListPage() {
       (async () => {
         for (let i = 0; i < 30 && !cancelled; i++) {
           try {
-            const res = await fetch(`/api/sites/${s.id}/ready`, { credentials: 'include' });
+            const res = await apiFetch(`/api/sites/${s.id}/ready`);
             if (res.ok) {
               const data = await res.json();
               if (data.ready) {
@@ -397,7 +390,7 @@ export default function SitesListPage() {
 
   function fetchSites() {
     const url = '/api/sites';
-    fetch(url, { credentials: 'include' })
+    apiFetch(url)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -416,7 +409,7 @@ export default function SitesListPage() {
   }
 
   function fetchActivity() {
-    fetch('/api/sites/my/activity', { credentials: 'include' })
+    apiFetch('/api/sites/my/activity')
       .then(r => r.json())
       .then(data => { if (Array.isArray(data)) setActivityLog(data.slice(0, 20)); })
       .catch(() => {});
@@ -428,7 +421,7 @@ export default function SitesListPage() {
 
   function fetchScheduled() {
     if (!canSchedule) return;
-    fetch('/api/sites/scheduled', { credentials: 'include' })
+    apiFetch('/api/sites/scheduled')
       .then(r => r.json())
       .then(data => { if (data.launches) setScheduledLaunches(data.launches.filter((l: any) => l.status === 'pending')); })
       .catch(() => {});
@@ -436,7 +429,7 @@ export default function SitesListPage() {
 
   async function handleCancelScheduled(id: string) {
     if (!confirm('Cancel this scheduled launch?')) return;
-    await fetch(`/api/sites/scheduled/${id}`, { method: 'DELETE', credentials: 'include' });
+    await apiFetch(`/api/sites/scheduled/${id}`, { method: 'DELETE' });
     fetchScheduled();
   }
 
@@ -450,9 +443,8 @@ export default function SitesListPage() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this site?')) return;
 
-    await fetch(`/api/sites/${id}`, {
+    await apiFetch(`/api/sites/${id}`, {
       method: 'DELETE',
-      credentials: 'include',
     });
     fetchSites();
   }
@@ -469,10 +461,9 @@ export default function SitesListPage() {
   async function handleExtend(siteId: string, duration: string) {
     setExtendOpen(null);
     try {
-      const res = await fetch(`/api/sites/${siteId}/extend`, {
+      const res = await apiFetch(`/api/sites/${siteId}/extend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ duration }),
       });
       if (!res.ok) {
@@ -495,10 +486,9 @@ export default function SitesListPage() {
   async function handleSetPassword(siteId: string) {
     setPasswordLoading(siteId);
     try {
-      const res = await fetch(`/api/sites/${siteId}/password`, {
+      const res = await apiFetch(`/api/sites/${siteId}/password`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ password: passwordValue || null, scope: passwordScope }),
       });
       if (!res.ok) {
@@ -518,10 +508,9 @@ export default function SitesListPage() {
   async function handleRemovePassword(siteId: string) {
     setPasswordLoading(siteId);
     try {
-      await fetch(`/api/sites/${siteId}/password`, {
+      await apiFetch(`/api/sites/${siteId}/password`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ password: null }),
       });
     } catch {}
@@ -534,9 +523,8 @@ export default function SitesListPage() {
   async function handleExportZip(siteId: string) {
     setExportLoading(siteId);
     try {
-      const res = await fetch(`/api/sites/${siteId}/export-zip`, {
+      const res = await apiFetch(`/api/sites/${siteId}/export-zip`, {
         method: 'POST',
-        credentials: 'include',
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed to export' }));
@@ -549,7 +537,7 @@ export default function SitesListPage() {
         return;
       }
       // Download with credentials and trigger browser save
-      const dlRes = await fetch(data.downloadUrl, { credentials: 'include' });
+      const dlRes = await apiFetch(data.downloadUrl);
       if (!dlRes.ok) {
         alert('Download failed');
         return;
@@ -577,7 +565,7 @@ export default function SitesListPage() {
 
   async function handleOpenAdminer(site: Site) {
     try {
-      const res = await fetch(`/api/sites/${site.id}/db-credentials`, { credentials: 'include', cache: 'no-store' });
+      const res = await apiFetch(`/api/sites/${site.id}/db-credentials`, { cache: 'no-store' });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed to get database credentials' }));
         alert(err.error || 'Failed to get database credentials');
@@ -611,7 +599,7 @@ export default function SitesListPage() {
 
   async function fetchTunnelStatus(siteId: string, poll = false) {
     try {
-      const res = await fetch(`/api/sites/${siteId}/tunnel`, { credentials: 'include' });
+      const res = await apiFetch(`/api/sites/${siteId}/tunnel`);
       if (res.ok) {
         const data = await res.json();
         setTunnelStatus(prev => ({ ...prev, [siteId]: data }));
@@ -627,10 +615,9 @@ export default function SitesListPage() {
     try {
       const body: any = { method: tunnelMethod };
       if (tunnelMethod === 'ngrok') body.ngrokAuthToken = ngrokToken;
-      const res = await fetch(`/api/sites/${siteId}/tunnel`, {
+      const res = await apiFetch(`/api/sites/${siteId}/tunnel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -650,7 +637,7 @@ export default function SitesListPage() {
 
   async function handleRemoveTunnel(siteId: string) {
     try {
-      await fetch(`/api/sites/${siteId}/tunnel`, { method: 'DELETE', credentials: 'include' });
+      await apiFetch(`/api/sites/${siteId}/tunnel`, { method: 'DELETE' });
       setTunnelStatus(prev => ({ ...prev, [siteId]: { active: false } }));
     } catch {}
   }
@@ -662,7 +649,7 @@ export default function SitesListPage() {
   async function fetchHealthStats(siteId: string) {
     setHealthLoading(siteId);
     try {
-      const res = await fetch(`/api/sites/${siteId}/stats`, { credentials: 'include' });
+      const res = await apiFetch(`/api/sites/${siteId}/stats`);
       if (res.ok) {
         const data = await res.json();
         setHealthStats(prev => ({ ...prev, [siteId]: data }));
@@ -681,7 +668,7 @@ export default function SitesListPage() {
 
   async function fetchShares(siteId: string) {
     try {
-      const res = await fetch(`/api/sites/${siteId}/shares`, { credentials: 'include' });
+      const res = await apiFetch(`/api/sites/${siteId}/shares`);
       if (res.ok) {
         const data = await res.json();
         setSiteShares(prev => ({ ...prev, [siteId]: data.shares || [] }));
@@ -691,7 +678,7 @@ export default function SitesListPage() {
 
   function fetchSharedWithMe() {
     if (!canShare) return;
-    fetch('/api/sites/shared-with-me', { credentials: 'include' })
+    apiFetch('/api/sites/shared-with-me')
       .then(r => r.json())
       .then(data => { if (data.sites) setSharedWithMe(data.sites); })
       .catch(() => {});
@@ -702,10 +689,9 @@ export default function SitesListPage() {
     setShareLoading(true);
     setShareMsg('');
     try {
-      const res = await fetch(`/api/sites/${siteId}/share`, {
+      const res = await apiFetch(`/api/sites/${siteId}/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ email: shareEmail, role: shareRole }),
       });
       if (res.ok) {
@@ -725,7 +711,7 @@ export default function SitesListPage() {
   }
 
   async function handleRevokeShare(siteId: string, shareId: string) {
-    await fetch(`/api/sites/${siteId}/shares/${shareId}`, { method: 'DELETE', credentials: 'include' });
+    await apiFetch(`/api/sites/${siteId}/shares/${shareId}`, { method: 'DELETE' });
     fetchShares(siteId);
   }
 

@@ -329,6 +329,33 @@ function initSchema(db: Database.Database): void {
     db.prepare(`UPDATE users SET role = 'admin' WHERE id = 'local-user'`).run();
   }
 
+  // Migration: add user_id to remote_connections for tenant isolation
+  try {
+    db.exec(`ALTER TABLE remote_connections ADD COLUMN user_id TEXT`);
+    // Backfill existing connections as admin-owned
+    db.exec(`UPDATE remote_connections SET user_id = 'admin' WHERE user_id IS NULL`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_remote_connections_user_id ON remote_connections(user_id)`);
+  } catch {
+    // Index already exists
+  }
+
+  // Migration: add user_id to sync_history for tenant isolation
+  try {
+    db.exec(`ALTER TABLE sync_history ADD COLUMN user_id TEXT`);
+    db.exec(`UPDATE sync_history SET user_id = 'admin' WHERE user_id IS NULL`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_sync_history_user_id ON sync_history(user_id)`);
+  } catch {
+    // Index already exists
+  }
+
   // Auto-create admin user for API key auth (needed for FK constraint on sites)
   db.prepare(`
     INSERT OR IGNORE INTO users (id, email, password_hash, verified, role)

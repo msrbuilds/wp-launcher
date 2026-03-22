@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAdminHeaders } from './AdminLayout';
 import { useIsLocalMode } from '../../context/SettingsContext';
+import { apiFetch } from '../../utils/api';
 
 interface ProjectDetail {
   id: string;
@@ -29,7 +30,7 @@ export default function ProjectDetailPage() {
 
   const fetchProject = useCallback(() => {
     setLoading(true);
-    fetch(`/api/projects/list/${id}`, { headers, credentials: 'include' })
+    apiFetch(`/api/projects/list/${id}`, { headers })
       .then(r => r.json())
       .then(data => { if (data.error) setProject(null); else setProject(data); })
       .catch(() => setProject(null))
@@ -37,7 +38,7 @@ export default function ProjectDetailPage() {
   }, [id, headers]);
 
   const fetchSites = useCallback(() => {
-    fetch('/api/sites', { headers, credentials: 'include' })
+    apiFetch('/api/sites', { headers })
       .then(r => r.json())
       .then(data => {
         const sites = (data.sites || []).filter((s: any) => s.status === 'running');
@@ -50,8 +51,8 @@ export default function ProjectDetailPage() {
   async function linkSite() {
     if (!selectedSite) return;
     try {
-      const res = await fetch(`/api/projects/list/${id}/sites`, {
-        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, credentials: 'include',
+      const res = await apiFetch(`/api/projects/list/${id}/sites`, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ siteId: selectedSite }),
       });
       const data = await res.json();
@@ -64,7 +65,7 @@ export default function ProjectDetailPage() {
   async function unlinkSite(siteId: string) {
     if (!confirm('Unlink this site from the project?')) return;
     try {
-      const res = await fetch(`/api/projects/list/${id}/sites/${siteId}`, { method: 'DELETE', headers, credentials: 'include' });
+      const res = await apiFetch(`/api/projects/list/${id}/sites/${siteId}`, { method: 'DELETE', headers });
       if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed'); return; }
       fetchProject();
     } catch { alert('Network error'); }

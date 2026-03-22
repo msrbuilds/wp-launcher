@@ -4,6 +4,7 @@ import { useAdminHeaders } from './AdminLayout';
 import { useIsLocalMode } from '../../context/SettingsContext';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Invoice, InvoiceLineItem } from './shared';
+import { apiFetch } from '../../utils/api';
 
 const STATUS_OPTIONS = ['draft', 'sent', 'paid', 'overdue', 'cancelled'] as const;
 const STATUS_LABELS: Record<string, string> = { draft: 'Draft', sent: 'Sent', paid: 'Paid', overdue: 'Overdue', cancelled: 'Cancelled' };
@@ -31,7 +32,7 @@ export default function InvoicesPage() {
     setLoading(true);
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
     if (statusFilter) params.set('status', statusFilter);
-    fetch(`/api/projects/invoices?${params}`, { headers, credentials: 'include' })
+    apiFetch(`/api/projects/invoices?${params}`, { headers })
       .then(r => r.json())
       .then(data => {
         const list = (data.data || []).map((inv: any) => ({
@@ -46,8 +47,8 @@ export default function InvoicesPage() {
   }, [page, statusFilter, headers]);
 
   const fetchDropdowns = useCallback(() => {
-    fetch('/api/projects/dropdown/clients', { headers, credentials: 'include' }).then(r => r.json()).then(setClients).catch(() => {});
-    fetch('/api/projects/dropdown/projects', { headers, credentials: 'include' }).then(r => r.json()).then(setProjects).catch(() => {});
+    apiFetch('/api/projects/dropdown/clients', { headers }).then(r => r.json()).then(setClients).catch(() => {});
+    apiFetch('/api/projects/dropdown/projects', { headers }).then(r => r.json()).then(setProjects).catch(() => {});
   }, [headers]);
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
@@ -95,7 +96,7 @@ export default function InvoicesPage() {
     try {
       const url = editing ? `/api/projects/invoices/${editing.id}` : '/api/projects/invoices';
       const method = editing ? 'PUT' : 'POST';
-      const res = await fetch(url, { method, headers: { ...headers, 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(form) });
+      const res = await apiFetch(url, { method, headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to save'); return; }
       setShowModal(false);
@@ -105,8 +106,8 @@ export default function InvoicesPage() {
 
   async function changeStatus(id: string, status: string) {
     try {
-      const res = await fetch(`/api/projects/invoices/${id}/status`, {
-        method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ status }),
+      const res = await apiFetch(`/api/projects/invoices/${id}/status`, {
+        method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
       });
       const data = await res.json();
       if (!res.ok) { alert(data.error || 'Failed'); return; }
@@ -117,7 +118,7 @@ export default function InvoicesPage() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this invoice?')) return;
     try {
-      const res = await fetch(`/api/projects/invoices/${id}`, { method: 'DELETE', headers, credentials: 'include' });
+      const res = await apiFetch(`/api/projects/invoices/${id}`, { method: 'DELETE', headers });
       const data = await res.json();
       if (!res.ok) { alert(data.error || 'Failed to delete'); return; }
       fetchInvoices();

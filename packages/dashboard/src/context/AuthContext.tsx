@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useSettings } from './SettingsContext';
+import { apiFetch } from '../utils/api';
 
 interface User {
   id: string;
@@ -31,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (settingsLoading) return;
     if (appMode === 'local' && !user) {
-      fetch('/api/auth/local-token', { method: 'POST', credentials: 'include' })
+      apiFetch('/api/auth/local-token', { method: 'POST' })
         .then((res) => res.json())
         .then((data) => setUser(data.user))
         .catch(() => {});
@@ -43,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (settingsLoading) return;
     if (appMode === 'local') return;
 
-    fetch('/api/auth/me', { credentials: 'include' })
+    apiFetch('/api/auth/me')
       .then((res) => {
         if (!res.ok) throw new Error('Invalid session');
         return res.json();
@@ -57,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
-    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+    apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');

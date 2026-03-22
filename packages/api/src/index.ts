@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { config } from './config';
 import { adminAuth } from './middleware/auth';
+import { csrfProtection } from './middleware/csrf';
 import sitesRouter from './routes/sites';
 import productsRouter from './routes/products';
 import authRouter from './routes/auth';
@@ -16,6 +17,7 @@ import bulkRouter from './routes/bulk';
 import templatesRouter from './routes/templates';
 import syncRouter from './routes/sync';
 import projectsRouter from './routes/projects';
+import monitoringRouter from './routes/monitoring';
 import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cleanup.service';
 import { startScheduleProcessor } from './services/schedule.service';
 import { closeDb, getDb } from './utils/db';
@@ -28,13 +30,28 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      fontSrc: ["'self'"],
+      connectSrc: ["'self'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
+}));
 app.use(cors({
   origin: config.corsOrigins,
   credentials: true,
 }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
+app.use(csrfProtection);
 
 // Rate limiting for auth endpoints
 // Strict limiter for auth write ops (login, register, verify, set-password)
@@ -99,9 +116,14 @@ app.get('/api/version', (_req, res) => {
   res.json({ version: info.version });
 });
 
-// Serve uploaded branding assets (logos, etc.)
+// Serve uploaded branding assets (logos, etc.) with restrictive headers
 const uploadsDir = path.resolve(config.dataDir, 'uploads');
-app.use('/api/uploads', express.static(uploadsDir, { maxAge: '1h', fallthrough: true }));
+app.use('/api/uploads', (_req, res, next) => {
+  // Neutralize script execution in any uploaded file (defense-in-depth for XSS via uploaded content)
+  res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+}, express.static(uploadsDir, { maxAge: '1h', fallthrough: true }));
 
 // Public UI settings (includes feature flags + branding)
 app.get('/api/settings', (_req, res) => {
@@ -145,13 +167,14 @@ if (config.isLocalMode) {
       path: '/api',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-    res.json({ token, user: { id: 'local-user', email: 'local@localhost', role: 'admin' } });
+    res.json({ user: { id: 'local-user', email: 'local@localhost', role: 'admin' } });
   });
 
   // Admin routes (JWT-protected in local mode, no rate limiting needed)
   app.use('/api/admin', adminRouter);
   app.use('/api/admin/analytics', analyticsRouter);
   app.use('/api/admin/bulk', bulkRouter);
+  app.use('/api/admin/monitoring', monitoringRouter);
 } else {
   // Agency mode: auth routes with split rate limiting
   // Write ops (login, register, verify, set-password) get strict limits
@@ -196,6 +219,9 @@ if (config.isLocalMode) {
   // Analytics routes (under admin, API key protected)
   // Note: adminLimiter already applied via /api/admin prefix on line above
   app.use('/api/admin/analytics', analyticsRouter);
+
+  // Monitoring routes (server monitoring, Docker containers, disk usage)
+  app.use('/api/admin/monitoring', monitoringRouter);
 
   // Bulk provisioning routes (under admin, API key protected)
   app.use('/api/admin/bulk', bulkRouter);
@@ -435,9 +461,10 @@ app.post('/api/admin/branding/logo', ...brandingAuth, (req: any, res: any) => {
   req.on('data', (chunk: Buffer) => chunks.push(chunk));
   req.on('end', () => {
     const contentType = req.headers['content-type'] || '';
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp', 'image/gif'];
+    // SVG uploads are rejected — SVGs can contain embedded scripts (XSS risk)
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
     if (!allowedTypes.some((t: string) => contentType.startsWith(t))) {
-      res.status(400).json({ error: 'Invalid file type. Allowed: PNG, JPEG, SVG, WebP, GIF' });
+      res.status(400).json({ error: 'Invalid file type. Allowed: PNG, JPEG, WebP, GIF' });
       return;
     }
     const body = Buffer.concat(chunks);
@@ -447,7 +474,6 @@ app.post('/api/admin/branding/logo', ...brandingAuth, (req: any, res: any) => {
     }
     const ext = contentType.includes('png') ? '.png'
       : contentType.includes('jpeg') ? '.jpg'
-      : contentType.includes('svg') ? '.svg'
       : contentType.includes('webp') ? '.webp'
       : '.gif';
     const filename = `logo${ext}`;
@@ -494,9 +520,13 @@ app.use('/api/templates', (req, res, next) => {
   return adminAuth(req as any, res, next);
 }, templatesRouter);
 
-// Serve product-assets images (card images, icons, etc.)
+// Serve product-assets images (card images, icons, etc.) with restrictive headers
 const productAssetsDir = path.resolve(config.templateConfigsDir, '..', 'product-assets');
-app.use('/api/assets', express.static(productAssetsDir, {
+app.use('/api/assets', (_req, res, next) => {
+  res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+}, express.static(productAssetsDir, {
   maxAge: '1h',
   fallthrough: true,
 }));

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSettings, useFeatures } from '../context/SettingsContext';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import CountdownTimer from '../components/CountdownTimer';
+import { apiFetch } from '../utils/api';
 
 interface Product {
   id: string;
@@ -68,10 +69,9 @@ export default function LaunchPage() {
     setScheduleMsg('');
     try {
       const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
-      const res = await fetch('/api/sites/schedule', {
+      const res = await apiFetch('/api/sites/schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ productId, scheduledAt }),
       });
       if (res.ok) {
@@ -132,7 +132,7 @@ export default function LaunchPage() {
   useEffect(() => {
     if (settingsLoading) return;
     setFetchError('');
-    fetch(isLocal ? '/api/templates' : '/api/products', { credentials: 'include' })
+    apiFetch(isLocal ? '/api/templates' : '/api/products')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setProducts(data);
@@ -147,10 +147,9 @@ export default function LaunchPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await apiFetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ email }),
       });
       const data = await res.json();
@@ -167,10 +166,9 @@ export default function LaunchPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/auth/verify', {
+      const res = await apiFetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ token: verifyToken }),
       });
       const data = await res.json();
@@ -191,10 +189,9 @@ export default function LaunchPage() {
     setResult(null);
     setSiteReady(true);
     try {
-      const res = await fetch('/api/sites', {
+      const res = await apiFetch('/api/sites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ productId, ...(expiresIn ? { expiresIn } : {}) }),
       });
       if (!res.ok) {
@@ -224,9 +221,7 @@ export default function LaunchPage() {
         : 80 + Math.min(15, (i - expectedAttempts) * 0.7);
       setProvisionProgress(Math.round(pct));
       try {
-        const res = await fetch(`/api/sites/${siteId}/ready`, {
-          credentials: 'include',
-        });
+        const res = await apiFetch(`/api/sites/${siteId}/ready`);
         const data = await res.json();
         if (data.ready) {
           setProvisionProgress(100);
@@ -347,7 +342,7 @@ export default function LaunchPage() {
             className="btn btn-primary btn-lg"
             onClick={async () => {
               try {
-                const res = await fetch(`/api/sites/${result.id}/autologin`, { method: 'POST', credentials: 'include' });
+                const res = await apiFetch(`/api/sites/${result.id}/autologin`, { method: 'POST' });
                 if (res.ok) {
                   const data = await res.json();
                   window.open(data.autoLoginUrl, '_blank');

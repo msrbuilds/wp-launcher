@@ -6,6 +6,7 @@ import { getDb } from '../utils/db';
 import { config } from '../config';
 import { createSnapshot as dockerCreateSnapshot, restoreSnapshot as dockerRestoreSnapshot } from './docker.service';
 import { NotFoundError, ForbiddenError, ValidationError } from '../utils/errors';
+import { validateRemoteUrl, safeFetch } from '../utils/ssrf';
 
 // ── Connection CRUD ──
 // Each connection represents a remote WordPress site with the WP Launcher Connector plugin installed.
@@ -15,33 +16,51 @@ export interface RemoteConnection {
   name: string;
   url: string;       // WordPress site URL (e.g. https://example.com)
   api_key: string;    // Connector plugin API key
+  user_id: string | null;
   instance_mode: string | null; // 'wordpress' — always a WP site
   last_tested_at: string | null;
   status: string;
   created_at: string;
 }
 
-export function listConnections(): RemoteConnection[] {
+export function listConnections(userId: string, isAdmin: boolean): RemoteConnection[] {
   const db = getDb();
-  return db.prepare('SELECT * FROM remote_connections ORDER BY created_at DESC').all() as RemoteConnection[];
+  if (isAdmin) {
+    return db.prepare('SELECT * FROM remote_connections ORDER BY created_at DESC').all() as RemoteConnection[];
+  }
+  return db.prepare('SELECT * FROM remote_connections WHERE user_id = ? ORDER BY created_at DESC').all(userId) as RemoteConnection[];
 }
 
-export function addConnection(name: string, url: string, apiKey: string): RemoteConnection {
+export async function addConnection(name: string, url: string, apiKey: string, userId: string): Promise<RemoteConnection> {
   if (!name || !url || !apiKey) throw new ValidationError('Name, URL, and API key are required');
   const normalizedUrl = url.replace(/\/+$/, '');
   try { new URL(normalizedUrl); } catch { throw new ValidationError('Invalid URL'); }
 
+  // SSRF validation — block private/reserved IPs
+  const ssrfResult = await validateRemoteUrl(normalizedUrl);
+  if (!ssrfResult.valid) {
+    throw new ValidationError(`Blocked: ${ssrfResult.error}`);
+  }
+
   const id = uuidv4();
   const db = getDb();
   db.prepare(`
-    INSERT INTO remote_connections (id, name, url, api_key)
-    VALUES (?, ?, ?, ?)
-  `).run(id, name.trim(), normalizedUrl, apiKey);
+    INSERT INTO remote_connections (id, name, url, api_key, user_id)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, name.trim(), normalizedUrl, apiKey, userId);
 
   return db.prepare('SELECT * FROM remote_connections WHERE id = ?').get(id) as RemoteConnection;
 }
 
-export async function testConnection(connectionId: string): Promise<{
+function getOwnedConnection(connectionId: string, userId: string, isAdmin: boolean): RemoteConnection {
+  const db = getDb();
+  const conn = db.prepare('SELECT * FROM remote_connections WHERE id = ?').get(connectionId) as RemoteConnection | undefined;
+  if (!conn) throw new NotFoundError('Connection not found');
+  if (!isAdmin && conn.user_id !== userId) throw new ForbiddenError('You do not own this connection');
+  return conn;
+}
+
+export async function testConnection(connectionId: string, userId: string, isAdmin: boolean): Promise<{
   status: string;
   siteName?: string;
   wpVersion?: string;
@@ -49,13 +68,12 @@ export async function testConnection(connectionId: string): Promise<{
   siteUrl?: string;
   error?: string;
 }> {
+  const conn = getOwnedConnection(connectionId, userId, isAdmin);
   const db = getDb();
-  const conn = db.prepare('SELECT * FROM remote_connections WHERE id = ?').get(connectionId) as RemoteConnection | undefined;
-  if (!conn) throw new NotFoundError('Connection not found');
 
   try {
     // Call the connector plugin's status endpoint
-    const res = await fetch(`${conn.url}/wp-json/wpl-connector/v1/status`, {
+    const res = await safeFetch(`${conn.url}/wp-json/wpl-connector/v1/status`, {
       headers: { 'X-WPL-Key': conn.api_key },
       signal: AbortSignal.timeout(15000),
     });
@@ -98,10 +116,9 @@ export async function testConnection(connectionId: string): Promise<{
   }
 }
 
-export function removeConnection(connectionId: string): void {
+export function removeConnection(connectionId: string, userId: string, isAdmin: boolean): void {
+  getOwnedConnection(connectionId, userId, isAdmin); // throws if not owned
   const db = getDb();
-  const conn = db.prepare('SELECT id FROM remote_connections WHERE id = ?').get(connectionId);
-  if (!conn) throw new NotFoundError('Connection not found');
   db.prepare('DELETE FROM remote_connections WHERE id = ?').run(connectionId);
 }
 
@@ -112,10 +129,10 @@ export async function pushToRemote(
   localSiteId: string,
   connectionId: string,
   userId?: string,
+  isAdmin: boolean = false,
 ): Promise<{ syncId: string; status: string }> {
   const db = getDb();
-  const conn = db.prepare('SELECT * FROM remote_connections WHERE id = ?').get(connectionId) as RemoteConnection | undefined;
-  if (!conn) throw new NotFoundError('Connection not found');
+  const conn = getOwnedConnection(connectionId, userId || 'admin', isAdmin);
 
   const site = db.prepare('SELECT * FROM sites WHERE id = ? AND status = ?').get(localSiteId, 'running') as any;
   if (!site) throw new NotFoundError('Local site not found or not running');
@@ -124,9 +141,9 @@ export async function pushToRemote(
 
   const syncId = uuidv4();
   db.prepare(`
-    INSERT INTO sync_history (id, site_id, remote_connection_id, direction, status)
-    VALUES (?, ?, ?, 'push', 'snapshotting')
-  `).run(syncId, localSiteId, connectionId);
+    INSERT INTO sync_history (id, site_id, remote_connection_id, direction, status, user_id)
+    VALUES (?, ?, ?, 'push', 'snapshotting', ?)
+  `).run(syncId, localSiteId, connectionId, userId || 'admin');
 
   // Run push async
   doPush(syncId, site, conn).catch(err => {
@@ -156,7 +173,7 @@ async function doPush(syncId: string, site: any, conn: RemoteConnection) {
   // Pass the local site URL as query param so the plugin knows exactly what to search-replace
   const sourceSiteUrl = site.site_url || `http://${site.subdomain}.${config.baseDomain}`;
   const importUrl = `${conn.url}/wp-json/wpl-connector/v1/import?source_url=${encodeURIComponent(sourceSiteUrl)}`;
-  const uploadRes = await fetch(importUrl, {
+  const uploadRes = await safeFetch(importUrl, {
     method: 'POST',
     headers: {
       'X-WPL-Key': conn.api_key,
@@ -192,10 +209,10 @@ export async function pullFromRemote(
   localSiteId: string,
   connectionId: string,
   userId?: string,
+  isAdmin: boolean = false,
 ): Promise<{ syncId: string; status: string }> {
   const db = getDb();
-  const conn = db.prepare('SELECT * FROM remote_connections WHERE id = ?').get(connectionId) as RemoteConnection | undefined;
-  if (!conn) throw new NotFoundError('Connection not found');
+  const conn = getOwnedConnection(connectionId, userId || 'admin', isAdmin);
 
   const site = db.prepare('SELECT * FROM sites WHERE id = ? AND status = ?').get(localSiteId, 'running') as any;
   if (!site) throw new NotFoundError('Local site not found or not running');
@@ -204,9 +221,9 @@ export async function pullFromRemote(
 
   const syncId = uuidv4();
   db.prepare(`
-    INSERT INTO sync_history (id, site_id, remote_connection_id, direction, status)
-    VALUES (?, ?, ?, 'pull', 'preparing')
-  `).run(syncId, localSiteId, connectionId);
+    INSERT INTO sync_history (id, site_id, remote_connection_id, direction, status, user_id)
+    VALUES (?, ?, ?, 'pull', 'preparing', ?)
+  `).run(syncId, localSiteId, connectionId, userId || 'admin');
 
   // Run pull async
   doPull(syncId, site, conn).catch(err => {
@@ -222,7 +239,7 @@ async function doPull(syncId: string, site: any, conn: RemoteConnection) {
   const db = getDb();
 
   // 1. Ask remote connector plugin to create an export
-  const exportRes = await fetch(`${conn.url}/wp-json/wpl-connector/v1/export`, {
+  const exportRes = await safeFetch(`${conn.url}/wp-json/wpl-connector/v1/export`, {
     method: 'POST',
     headers: { 'X-WPL-Key': conn.api_key },
     signal: AbortSignal.timeout(120000),
@@ -237,7 +254,7 @@ async function doPull(syncId: string, site: any, conn: RemoteConnection) {
     .run(exportData.sizeBytes, exportData.siteUrl, syncId);
 
   // 2. Download the ZIP from the remote
-  const downloadRes = await fetch(`${conn.url}/wp-json/wpl-connector/v1/export/${exportData.exportId}`, {
+  const downloadRes = await safeFetch(`${conn.url}/wp-json/wpl-connector/v1/export/${exportData.exportId}`, {
     headers: { 'X-WPL-Key': conn.api_key },
     signal: AbortSignal.timeout(300000),
   });
@@ -348,15 +365,24 @@ export interface SyncHistoryRecord {
   completed_at: string | null;
 }
 
-export function getSyncHistory(siteId?: string): SyncHistoryRecord[] {
+export function getSyncHistory(siteId: string | undefined, userId: string, isAdmin: boolean): SyncHistoryRecord[] {
   const db = getDb();
-  if (siteId) {
-    return db.prepare('SELECT * FROM sync_history WHERE site_id = ? ORDER BY started_at DESC LIMIT 50').all(siteId) as SyncHistoryRecord[];
+  if (isAdmin) {
+    if (siteId) {
+      return db.prepare('SELECT * FROM sync_history WHERE site_id = ? ORDER BY started_at DESC LIMIT 50').all(siteId) as SyncHistoryRecord[];
+    }
+    return db.prepare('SELECT * FROM sync_history ORDER BY started_at DESC LIMIT 50').all() as SyncHistoryRecord[];
   }
-  return db.prepare('SELECT * FROM sync_history ORDER BY started_at DESC LIMIT 50').all() as SyncHistoryRecord[];
+  if (siteId) {
+    return db.prepare('SELECT * FROM sync_history WHERE site_id = ? AND user_id = ? ORDER BY started_at DESC LIMIT 50').all(siteId, userId) as SyncHistoryRecord[];
+  }
+  return db.prepare('SELECT * FROM sync_history WHERE user_id = ? ORDER BY started_at DESC LIMIT 50').all(userId) as SyncHistoryRecord[];
 }
 
-export function getSyncStatus(syncId: string): SyncHistoryRecord | null {
+export function getSyncStatus(syncId: string, userId: string, isAdmin: boolean): SyncHistoryRecord | null {
   const db = getDb();
-  return (db.prepare('SELECT * FROM sync_history WHERE id = ?').get(syncId) as SyncHistoryRecord) || null;
+  if (isAdmin) {
+    return (db.prepare('SELECT * FROM sync_history WHERE id = ?').get(syncId) as SyncHistoryRecord) || null;
+  }
+  return (db.prepare('SELECT * FROM sync_history WHERE id = ? AND user_id = ?').get(syncId, userId) as SyncHistoryRecord) || null;
 }

@@ -30,6 +30,8 @@ services:
       EXEC: 1
       POST: 1
       BUILD: 1
+      INFO: 1
+      SYSTEM: 1
     networks:
       - provisioner-internal
 
@@ -54,6 +56,7 @@ services:
       - ${PRODUCT_ASSETS_PATH:-./product-assets}:/product-assets
       - ./data/snapshots:/app/data/snapshots
       - custom-domains:/etc/traefik/dynamic/custom-domains
+      - /proc:/host/proc:ro
     networks:
       - provisioner-internal
       - wp-launcher-network

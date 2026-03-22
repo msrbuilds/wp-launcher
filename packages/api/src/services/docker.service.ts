@@ -193,3 +193,78 @@ export async function getDbCredentials(containerId: string): Promise<{ dbEngine:
 export function getExportDownloadUrl(exportId: string): string {
   return `${PROVISIONER_URL}/exports/${exportId}/download`;
 }
+
+// ─── Monitoring ────────────────────────────────────────────────────────────
+
+export interface MonitoringContainer {
+  id: string;
+  idFull: string;
+  name: string;
+  image: string;
+  state: string;
+  status: string;
+  created: number;
+  labels: Record<string, string>;
+  cpuPercent: number | null;
+  memUsage: number | null;
+  memLimit: number | null;
+}
+
+export interface MonitoringSystem {
+  docker: {
+    version: string;
+    containersRunning: number;
+    containersPaused: number;
+    containersStopped: number;
+    containersTotal: number;
+    images: number;
+  };
+  host: {
+    cpuModel: string;
+    cpuCores: number;
+    cpuPhysicalCores: number;
+    loadAvg: number[];
+    memTotal: number;
+    memUsed: number;
+    memFree: number;
+    memPercent: number;
+    disk: { fs: string; mount: string; size: number; used: number; available: number; usePercent: number }[];
+  };
+}
+
+export interface MonitoringDisk {
+  images: {
+    count: number;
+    totalSize: number;
+    items: { id: string; repoTags: string[]; size: number; created: number }[];
+  };
+  volumes: {
+    count: number;
+    items: { name: string; driver: string }[];
+  };
+}
+
+export async function getMonitoringContainers(): Promise<MonitoringContainer[]> {
+  const res = await provisionerFetch('/monitoring/containers');
+  return await res.json() as MonitoringContainer[];
+}
+
+export async function getMonitoringSystem(): Promise<MonitoringSystem> {
+  const res = await provisionerFetch('/monitoring/system');
+  return await res.json() as MonitoringSystem;
+}
+
+export async function getMonitoringDisk(): Promise<MonitoringDisk> {
+  const res = await provisionerFetch('/monitoring/disk');
+  return await res.json() as MonitoringDisk;
+}
+
+export async function pruneVolumes(): Promise<{ pruned: number; spaceReclaimed: number }> {
+  const res = await provisionerFetch('/system/prune-volumes', { method: 'POST' });
+  return await res.json() as { pruned: number; spaceReclaimed: number };
+}
+
+export async function pruneBuildCache(): Promise<{ spaceReclaimed: number }> {
+  const res = await provisionerFetch('/system/prune-buildcache', { method: 'POST' });
+  return await res.json() as { spaceReclaimed: number };
+}

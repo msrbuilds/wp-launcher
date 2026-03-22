@@ -2,6 +2,35 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [2.0.0] - 2026-03-23
+
+### Security
+- **CSRF protection** — New middleware (`csrf.ts`) enforces Origin validation + `X-Requested-With: XMLHttpRequest` custom header on all state-changing requests. Blocks same-site CSRF from demo sites on sibling subdomains. All dashboard fetch calls migrated to `apiFetch()` wrapper.
+- **Sync tenant isolation** — `remote_connections` and `sync_history` tables now include `user_id` column. All sync operations (connections, push/pull, history, previews, status) are scoped to the authenticated user. Admins retain global access.
+- **SSRF protection** — New utility (`ssrf.ts`) validates remote sync URLs: protocol allowlist (HTTPS-only in production), DNS resolution with private IP blocking (loopback, RFC1918, link-local, cloud metadata), hostname blocklist, DNS rebinding defense, and redirect blocking. Applied to all outbound sync fetches via `safeFetch()`.
+- **JWT removed from auth responses** — Login, verify, and set-password endpoints no longer return JWT tokens in JSON response bodies. Auth relies solely on `HttpOnly` cookies, eliminating JS-accessible token exposure.
+- **SVG upload rejection** — Branding logo uploads no longer accept SVG files (XSS risk via embedded scripts). Allowed formats: PNG, JPEG, WebP, GIF only.
+- **Upload file serving hardened** — `/api/uploads` and `/api/assets` now serve files with restrictive `Content-Security-Policy: default-src 'none'` header, neutralizing script execution in any uploaded content.
+- **Upload filename sanitization** — Product/template image extensions validated against allowlist instead of trusting `file.originalname`. Plugin/theme filenames sanitized (non-alphanumeric stripped, extension validated).
+- **Content Security Policy** — CSP headers added via Helmet (API), Traefik middleware, and nginx (dashboard): `default-src 'self'`, `script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `frame-ancestors 'none'`, `form-action 'self'`.
+
+### Added
+- `packages/api/src/middleware/csrf.ts` — CSRF protection middleware
+- `packages/api/src/utils/ssrf.ts` — SSRF validation and safe fetch utilities
+- `packages/dashboard/src/utils/api.ts` — Frontend fetch wrapper with automatic CSRF headers
+- `tests/test_security_fixes.py` — Runtime security test suite (22 tests covering all 6 fixes)
+- `reports/security_fixes_implementation_report.md` — Detailed implementation report
+
+### Changed
+- **Database migration** — `remote_connections` and `sync_history` tables gain `user_id` column with index (auto-migrated, existing rows backfilled as admin-owned)
+- **Sync service API** — All sync functions now require `userId` and `isAdmin` parameters for tenant isolation
+- **`addConnection()` is now async** — performs SSRF validation with DNS resolution before storing
+
+### Breaking Changes
+- **Auth responses no longer include `token` field** — Frontend code relying on `data.token` from login/verify/set-password must use cookie-based auth instead. The `HttpOnly` cookie (`wpl_token`) is still set.
+- **All state-changing API requests require CSRF headers** — Requests must include both `Origin` header (matching the dashboard origin) and `X-Requested-With: XMLHttpRequest`. API key auth (`X-Api-Key` header) is exempt. This affects custom scripts making cookie-authenticated requests.
+- **SVG logo uploads no longer accepted** — Use PNG, JPEG, WebP, or GIF instead.
+
 ## [1.9.0] - 2026-03-22
 
 ### Added

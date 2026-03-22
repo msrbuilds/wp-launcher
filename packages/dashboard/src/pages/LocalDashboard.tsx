@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAdminHeaders } from './admin/AdminLayout';
 import { useFeatures } from '../context/SettingsContext';
 import { Stats, AdminSite, SiteLog } from './admin/shared';
+import { apiFetch } from '../utils/api';
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -68,9 +69,9 @@ export default function LocalDashboard() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/admin/stats', { headers, credentials: 'include' }).then((r) => r.json()),
-      fetch('/api/admin/sites?limit=5&offset=0', { headers, credentials: 'include' }).then((r) => r.json()),
-      fetch('/api/admin/logs?limit=10&offset=0', { headers, credentials: 'include' }).then((r) => r.json()),
+      apiFetch('/api/admin/stats', { headers }).then((r) => r.json()),
+      apiFetch('/api/admin/sites?limit=5&offset=0', { headers }).then((r) => r.json()),
+      apiFetch('/api/admin/logs?limit=10&offset=0', { headers }).then((r) => r.json()),
     ])
       .then(([statsData, sitesData, logsData]) => {
         setStats(statsData);
@@ -84,9 +85,9 @@ export default function LocalDashboard() {
   useEffect(() => {
     if (!features.projects) return;
     Promise.all([
-      fetch('/api/projects/clients?limit=1&offset=0', { headers, credentials: 'include' }).then(r => r.json()),
-      fetch('/api/projects/list?limit=1&offset=0', { headers, credentials: 'include' }).then(r => r.json()),
-      fetch('/api/projects/invoices?limit=1&offset=0', { headers, credentials: 'include' }).then(r => r.json()),
+      apiFetch('/api/projects/clients?limit=1&offset=0', { headers }).then(r => r.json()),
+      apiFetch('/api/projects/list?limit=1&offset=0', { headers }).then(r => r.json()),
+      apiFetch('/api/projects/invoices?limit=1&offset=0', { headers }).then(r => r.json()),
     ])
       .then(([c, p, i]) => setProjectStats({ clients: c.total || 0, projects: p.total || 0, invoices: i.total || 0 }))
       .catch(() => {});

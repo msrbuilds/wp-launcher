@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFeatures } from '../context/SettingsContext';
+import { apiFetch } from '../utils/api';
 
 interface Connection {
   id: string;
@@ -60,18 +61,18 @@ export default function SyncPage() {
   }
 
   const fetchConnections = useCallback(() => {
-    fetch('/api/sync/connections', { credentials: 'include' }).then(r => r.json()).then(data => { if (Array.isArray(data)) setConnections(data); }).catch(() => {});
+    apiFetch('/api/sync/connections').then(r => r.json()).then(data => { if (Array.isArray(data)) setConnections(data); }).catch(() => {});
   }, []);
 
   const fetchLocalSites = useCallback(() => {
-    fetch('/api/sites', { credentials: 'include' }).then(r => r.json()).then(data => {
+    apiFetch('/api/sites').then(r => r.json()).then(data => {
       const sites = (data.sites || data || []).filter((s: any) => s.status === 'running');
       setLocalSites(sites.map((s: any) => ({ id: s.id, subdomain: s.subdomain, url: s.siteUrl || s.site_url || s.url, status: s.status })));
     }).catch(() => {});
   }, []);
 
   const fetchHistory = useCallback(() => {
-    fetch('/api/sync/history', { credentials: 'include' }).then(r => r.json()).then(data => { if (Array.isArray(data)) setHistory(data); }).catch(() => {});
+    apiFetch('/api/sync/history').then(r => r.json()).then(data => { if (Array.isArray(data)) setHistory(data); }).catch(() => {});
   }, []);
 
   useEffect(() => { fetchConnections(); fetchLocalSites(); fetchHistory(); }, []);
@@ -79,7 +80,7 @@ export default function SyncPage() {
   useEffect(() => {
     if (!activeSyncId) return;
     const interval = setInterval(() => {
-      fetch(`/api/sync/status/${activeSyncId}`, { credentials: 'include' }).then(r => r.json()).then(data => {
+      apiFetch(`/api/sync/status/${activeSyncId}`).then(r => r.json()).then(data => {
         setSyncStatus({ status: data.status, direction: data.direction, error: data.error });
         if (data.status === 'completed' || data.status === 'error') {
           setSyncing(false); setActiveSyncId(''); fetchHistory();
@@ -92,7 +93,7 @@ export default function SyncPage() {
   async function handleAddConnection() {
     setAddLoading(true); setConnMsg('');
     try {
-      const res = await fetch('/api/sync/connections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ name: addName, url: addUrl, apiKey: addKey }) });
+      const res = await apiFetch('/api/sync/connections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: addName, url: addUrl, apiKey: addKey }) });
       if (res.ok) {
         const conn = await res.json();
         setAddName(''); setAddUrl(''); setAddKey(''); setShowAddForm(false);
@@ -104,7 +105,7 @@ export default function SyncPage() {
   async function handleTestConnection(id: string) {
     setTestResults(prev => ({ ...prev, [id]: { status: 'testing' } }));
     try {
-      const res = await fetch(`/api/sync/connections/${id}/test`, { method: 'POST', credentials: 'include' });
+      const res = await apiFetch(`/api/sync/connections/${id}/test`, { method: 'POST' });
       const data = await res.json();
       setTestResults(prev => ({ ...prev, [id]: data })); fetchConnections();
     } catch { setTestResults(prev => ({ ...prev, [id]: { status: 'error', error: 'Test failed' } })); }
@@ -112,7 +113,7 @@ export default function SyncPage() {
 
   async function handleDeleteConnection(id: string) {
     if (!confirm('Remove this connection?')) return;
-    await fetch(`/api/sync/connections/${id}`, { method: 'DELETE', credentials: 'include' });
+    await apiFetch(`/api/sync/connections/${id}`, { method: 'DELETE' });
     if (selectedConn === id) setSelectedConn('');
     fetchConnections();
   }
@@ -122,8 +123,8 @@ export default function SyncPage() {
     setSyncing(true);
     setSyncStatus({ status: direction === 'push' ? 'snapshotting' : 'preparing', direction });
     try {
-      const res = await fetch(`/api/sync/${direction}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      const res = await apiFetch(`/api/sync/${direction}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ siteId: selectedLocal, connectionId: selectedConn }),
       });
       const data = await res.json();

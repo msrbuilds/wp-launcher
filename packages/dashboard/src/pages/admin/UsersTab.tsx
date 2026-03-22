@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { User, PaginatedResponse, PAGE_SIZE } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
+import { apiFetch } from '../../utils/api';
 
 export default function UsersTab() {
   const headers = useAdminHeaders();
@@ -13,7 +14,7 @@ export default function UsersTab() {
 
   const fetchUsers = useCallback(() => {
     setLoading(true);
-    fetch(`/api/admin/users?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`, { headers, credentials: 'include' })
+    apiFetch(`/api/admin/users?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`, { headers })
       .then((r) => r.json())
       .then((data: PaginatedResponse<User>) => { setUsers(data.data || []); setTotal(data.total || 0); })
       .catch(() => {})
@@ -24,7 +25,7 @@ export default function UsersTab() {
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this user?')) return;
-    await fetch(`/api/admin/users/${id}`, { method: 'DELETE', headers, credentials: 'include' });
+    await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE', headers });
     fetchUsers();
   }
 
@@ -34,10 +35,9 @@ export default function UsersTab() {
 
     setRoleUpdating(id);
     try {
-      const res = await fetch(`/api/admin/users/${id}/role`, {
+      const res = await apiFetch(`/api/admin/users/${id}/role`, {
         method: 'PATCH',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ role: newRole }),
       });
       if (!res.ok) {

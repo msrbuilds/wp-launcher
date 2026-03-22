@@ -4,6 +4,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useAdminHeaders } from './AdminLayout';
+import { apiFetch } from '../../utils/api';
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -32,10 +33,10 @@ export default function AnalyticsTab() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      fetch(`/api/admin/analytics/launches?days=${range}`, { headers, credentials: 'include' }).then((r) => r.json()),
-      fetch('/api/admin/analytics/products', { headers, credentials: 'include' }).then((r) => r.json()),
-      fetch(`/api/admin/analytics/registrations?days=${range}`, { headers, credentials: 'include' }).then((r) => r.json()),
-      fetch('/api/admin/analytics/summary', { headers, credentials: 'include' }).then((r) => r.json()),
+      apiFetch(`/api/admin/analytics/launches?days=${range}`, { headers }).then((r) => r.json()),
+      apiFetch('/api/admin/analytics/products', { headers }).then((r) => r.json()),
+      apiFetch(`/api/admin/analytics/registrations?days=${range}`, { headers }).then((r) => r.json()),
+      apiFetch('/api/admin/analytics/summary', { headers }).then((r) => r.json()),
     ])
       .then(([launchData, prodData, regData, summaryData]) => {
         setLaunches(launchData.data || []);

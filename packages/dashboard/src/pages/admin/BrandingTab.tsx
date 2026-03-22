@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSettings, ColorPalette } from '../../context/SettingsContext';
 import { useAdminHeaders } from './AdminLayout';
+import { apiFetch } from '../../utils/api';
 
 const DEFAULT_COLORS: ColorPalette = {
   primaryDark: '#14213d',
@@ -88,7 +89,7 @@ export default function BrandingTab() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch('/api/admin/branding', { headers, credentials: 'include' })
+    apiFetch('/api/admin/branding', { headers })
       .then((r) => r.json())
       .then((data) => {
         setSiteTitle(data.siteTitle || 'WP Launcher');
@@ -104,10 +105,9 @@ export default function BrandingTab() {
     setSaving(true);
     setMsg('');
     try {
-      const res = await fetch('/api/admin/branding', {
+      const res = await apiFetch('/api/admin/branding', {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ siteTitle, cardLayout, colors }),
       });
       if (res.ok) {
@@ -134,10 +134,9 @@ export default function BrandingTab() {
     setUploading(true);
     setMsg('');
     try {
-      const res = await fetch('/api/admin/branding/logo', {
+      const res = await apiFetch('/api/admin/branding/logo', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': file.type },
-        credentials: 'include',
         body: file,
       });
       if (res.ok) {
@@ -161,10 +160,9 @@ export default function BrandingTab() {
   async function handleRemoveLogo() {
     setUploading(true);
     try {
-      const res = await fetch('/api/admin/branding/logo', {
+      const res = await apiFetch('/api/admin/branding/logo', {
         method: 'DELETE',
         headers,
-        credentials: 'include',
       });
       if (res.ok) {
         setLogoUrl('');
@@ -232,9 +230,9 @@ export default function BrandingTab() {
                     <button className="btn btn-danger-outline btn-sm" onClick={handleRemoveLogo} disabled={uploading}>Remove</button>
                   )}
                 </div>
-                <span className="br-logo-hint">PNG, JPG, SVG, or WebP. Max 2MB. Square, at least 128x128px.</span>
+                <span className="br-logo-hint">PNG, JPG, WebP, or GIF. Max 2MB. Square, at least 128x128px.</span>
               </div>
-              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" onChange={handleLogoUpload} className="br-hidden" />
+              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleLogoUpload} className="br-hidden" />
             </div>
           </div>
 

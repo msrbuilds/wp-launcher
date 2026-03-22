@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Stats, AdminSite, SiteLog, FEATURE_META } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { useIsLocalMode } from '../../context/SettingsContext';
+import { apiFetch } from '../../utils/api';
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -23,10 +24,10 @@ export default function OverviewTab() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/admin/stats', { headers, credentials: 'include' }).then((r) => r.json()),
-      fetch('/api/admin/sites?limit=5&offset=0', { headers, credentials: 'include' }).then((r) => r.json()),
-      fetch('/api/admin/logs?limit=20&offset=0', { headers, credentials: 'include' }).then((r) => r.json()),
-      fetch('/api/admin/features', { headers, credentials: 'include' }).then((r) => r.json()),
+      apiFetch('/api/admin/stats', { headers }).then((r) => r.json()),
+      apiFetch('/api/admin/sites?limit=5&offset=0', { headers }).then((r) => r.json()),
+      apiFetch('/api/admin/logs?limit=20&offset=0', { headers }).then((r) => r.json()),
+      apiFetch('/api/admin/features', { headers }).then((r) => r.json()),
     ])
       .then(([statsData, sitesData, logsData, featData]) => {
         setStats(statsData);

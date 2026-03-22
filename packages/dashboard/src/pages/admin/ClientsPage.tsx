@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Client } from './shared';
+import { apiFetch } from '../../utils/api';
 
 export default function ClientsPage() {
   const headers = useAdminHeaders();
@@ -20,7 +21,7 @@ export default function ClientsPage() {
     setLoading(true);
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(page * PAGE_SIZE) });
     if (search) params.set('search', search);
-    fetch(`/api/projects/clients?${params}`, { headers, credentials: 'include' })
+    apiFetch(`/api/projects/clients?${params}`, { headers })
       .then(r => r.json())
       .then(data => { setClients(data.data || []); setTotal(data.total || 0); })
       .catch(() => {})
@@ -50,7 +51,7 @@ export default function ClientsPage() {
     try {
       const url = editing ? `/api/projects/clients/${editing.id}` : '/api/projects/clients';
       const method = editing ? 'PUT' : 'POST';
-      const res = await fetch(url, { method, headers: { ...headers, 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(form) });
+      const res = await apiFetch(url, { method, headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to save'); return; }
       setShowModal(false);
@@ -61,7 +62,7 @@ export default function ClientsPage() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this client?')) return;
     try {
-      const res = await fetch(`/api/projects/clients/${id}`, { method: 'DELETE', headers, credentials: 'include' });
+      const res = await apiFetch(`/api/projects/clients/${id}`, { method: 'DELETE', headers });
       const data = await res.json();
       if (!res.ok) { alert(data.error || 'Failed to delete'); return; }
       fetchClients();

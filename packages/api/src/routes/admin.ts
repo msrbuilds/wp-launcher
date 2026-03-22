@@ -79,11 +79,24 @@ router.get('/sites', (req: AuthRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
+    const status = req.query.status as string || '';
     const db = getDb();
     let sites, total: number;
+
+    const validStatuses = ['running', 'creating', 'expired', 'error'];
+    const statusFilter = validStatuses.includes(status) ? status : '';
+
     if (config.isLocalMode) {
-      sites = db.prepare("SELECT * FROM sites WHERE user_id = 'local-user' ORDER BY created_at DESC LIMIT ? OFFSET ?").all(limit, offset) as any[];
-      total = (db.prepare("SELECT COUNT(*) as count FROM sites WHERE user_id = 'local-user'").get() as { count: number }).count;
+      const where = statusFilter
+        ? `WHERE user_id = 'local-user' AND status = ?`
+        : `WHERE user_id = 'local-user'`;
+      const params = statusFilter ? [statusFilter, limit, offset] : [limit, offset];
+      const countParams = statusFilter ? [statusFilter] : [];
+      sites = db.prepare(`SELECT * FROM sites ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params) as any[];
+      total = (db.prepare(`SELECT COUNT(*) as count FROM sites ${where}`).get(...countParams) as { count: number }).count;
+    } else if (statusFilter) {
+      sites = db.prepare('SELECT * FROM sites WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(statusFilter, limit, offset) as any[];
+      total = (db.prepare('SELECT COUNT(*) as count FROM sites WHERE status = ?').get(statusFilter) as { count: number }).count;
     } else {
       sites = listAllSites(limit, offset);
       total = getAllSitesCount();

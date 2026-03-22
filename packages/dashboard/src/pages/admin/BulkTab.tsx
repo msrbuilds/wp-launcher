@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { useIsLocalMode } from '../../context/SettingsContext';
+import { apiFetch } from '../../utils/api';
 
 interface BulkJob {
   id: string;
@@ -28,13 +29,13 @@ export default function BulkTab() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    fetch(isLocal ? '/api/templates' : '/api/products', { credentials: 'include' }).then((r) => r.json()).then((data) => {
+    apiFetch(isLocal ? '/api/templates' : '/api/products').then((r) => r.json()).then((data) => {
       if (Array.isArray(data)) {
         setProducts(data);
         if (data.length > 0 && !productId) setProductId(data[0].id);
       }
     }).catch(() => {});
-    fetch('/api/admin/bulk', { headers, credentials: 'include' }).then((r) => r.json()).then((data) => {
+    apiFetch('/api/admin/bulk', { headers }).then((r) => r.json()).then((data) => {
       setJobs(data.data || []);
     }).catch(() => {});
   }, []);
@@ -42,7 +43,7 @@ export default function BulkTab() {
   useEffect(() => {
     if (!activeJob || activeJob.status === 'completed' || activeJob.status === 'cancelled' || activeJob.status === 'failed') return;
     const interval = setInterval(() => {
-      fetch(`/api/admin/bulk/${activeJob.id}`, { headers, credentials: 'include' })
+      apiFetch(`/api/admin/bulk/${activeJob.id}`, { headers })
         .then((r) => r.json())
         .then((job: BulkJob) => {
           setActiveJob(job);
@@ -57,15 +58,14 @@ export default function BulkTab() {
     e.preventDefault();
     setStarting(true);
     try {
-      const res = await fetch('/api/admin/bulk', {
+      const res = await apiFetch('/api/admin/bulk', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ productId, count, expiresIn, subdomainPrefix: prefix || undefined }),
       });
       const data = await res.json();
       if (data.jobId) {
-        const jobRes = await fetch(`/api/admin/bulk/${data.jobId}`, { headers, credentials: 'include' });
+        const jobRes = await apiFetch(`/api/admin/bulk/${data.jobId}`, { headers });
         setActiveJob(await jobRes.json());
       }
     } catch {
@@ -77,7 +77,7 @@ export default function BulkTab() {
 
   async function handleCancel() {
     if (!activeJob) return;
-    await fetch(`/api/admin/bulk/${activeJob.id}`, { method: 'DELETE', headers, credentials: 'include' });
+    await apiFetch(`/api/admin/bulk/${activeJob.id}`, { method: 'DELETE', headers });
   }
 
   const progress = activeJob ? Math.round((activeJob.completed / activeJob.total) * 100) : 0;
@@ -202,7 +202,7 @@ export default function BulkTab() {
                     <td className="bk-recent-td">{new Date(j.created_at).toLocaleString()}</td>
                     <td className="bk-recent-td">
                       <button className="btn btn-sm btn-secondary" onClick={() => {
-                        fetch(`/api/admin/bulk/${j.id}`, { headers, credentials: 'include' }).then((r) => r.json()).then(setActiveJob).catch(() => {});
+                        apiFetch(`/api/admin/bulk/${j.id}`, { headers }).then((r) => r.json()).then(setActiveJob).catch(() => {});
                       }}>View</button>
                     </td>
                   </tr>

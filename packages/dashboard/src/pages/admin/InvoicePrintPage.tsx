@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAdminHeaders } from './AdminLayout';
 import { useIsLocalMode, useBranding } from '../../context/SettingsContext';
 import { Invoice, InvoiceLineItem } from './shared';
+import { apiFetch } from '../../utils/api';
 
 export default function InvoicePrintPage() {
   const { id } = useParams<{ id: string }>();
@@ -14,7 +15,7 @@ export default function InvoicePrintPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/projects/invoices/${id}`, { headers, credentials: 'include' })
+    apiFetch(`/api/projects/invoices/${id}`, { headers })
       .then(r => r.json())
       .then(data => {
         if (data.error) { setInvoice(null); return; }
@@ -22,7 +23,7 @@ export default function InvoicePrintPage() {
         setInvoice({ ...data, items });
         // Also fetch client details for the print view
         if (data.client_id) {
-          fetch(`/api/projects/clients/${data.client_id}`, { headers, credentials: 'include' })
+          apiFetch(`/api/projects/clients/${data.client_id}`, { headers })
             .then(r => r.json())
             .then(client => {
               if (!client.error) {

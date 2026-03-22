@@ -3,6 +3,7 @@ import type { PluginEntry, ThemeEntry } from '../types/product';
 import PluginRepeater from '../components/PluginRepeater';
 import ThemeRepeater from '../components/ThemeRepeater';
 import ImageUpload from '../components/ImageUpload';
+import { apiFetch } from '../utils/api';
 
 const DB_OPTIONS = [
   { label: 'SQLite (fastest)', value: 'sqlite' },
@@ -116,9 +117,8 @@ export default function CreateTemplatePage() {
       if (cardImageFile) formData.append('card_image', cardImageFile);
       if (cardIconFile) formData.append('card_icon', cardIconFile);
 
-      const res = await fetch('/api/templates', {
+      const res = await apiFetch('/api/templates', {
         method: 'POST',
-        credentials: 'include',
         body: formData,
       });
 

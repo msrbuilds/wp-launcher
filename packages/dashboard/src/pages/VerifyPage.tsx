@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../utils/api';
 
 export default function VerifyPage() {
   const [searchParams] = useSearchParams();
@@ -21,9 +22,8 @@ export default function VerifyPage() {
       return;
     }
 
-    fetch('/api/auth/verify', {
+    apiFetch('/api/auth/verify', {
       method: 'POST',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token }),
     })
@@ -60,9 +60,8 @@ export default function VerifyPage() {
     setError('');
 
     try {
-      const res = await fetch('/api/auth/set-password', {
+      const res = await apiFetch('/api/auth/set-password', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ passwordSetToken, password }),
       });

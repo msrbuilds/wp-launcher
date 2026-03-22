@@ -90,9 +90,13 @@ router.post('/', upload.fields([
 
     // Process uploaded plugin files
     const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const ALLOWED_UPLOAD_EXTS = ['.zip', '.tar', '.gz', '.php'];
     if (files?.plugin_files) {
       for (const file of files.plugin_files) {
-        const destPath = path.join(pluginsDir, path.basename(file.originalname));
+        const basename = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const ext = path.extname(basename).toLowerCase();
+        const safeName = ALLOWED_UPLOAD_EXTS.includes(ext) ? basename : basename + '.zip';
+        const destPath = path.join(pluginsDir, safeName);
         moveFile(file.path, destPath);
       }
     }
@@ -100,7 +104,10 @@ router.post('/', upload.fields([
     // Process uploaded theme files
     if (files?.theme_files) {
       for (const file of files.theme_files) {
-        const destPath = path.join(themesDir, path.basename(file.originalname));
+        const basename = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const ext = path.extname(basename).toLowerCase();
+        const safeName = ALLOWED_UPLOAD_EXTS.includes(ext) ? basename : basename + '.zip';
+        const destPath = path.join(themesDir, safeName);
         moveFile(file.path, destPath);
       }
     }
@@ -109,9 +116,11 @@ router.post('/', upload.fields([
     const imagesDir = path.join(assetsDir, 'images');
     fs.mkdirSync(imagesDir, { recursive: true });
 
+    const ALLOWED_IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
     if (files?.card_image?.[0]) {
       const file = files.card_image[0];
-      const ext = path.extname(file.originalname) || '.png';
+      const rawExt = path.extname(file.originalname).toLowerCase();
+      const ext = ALLOWED_IMAGE_EXTS.includes(rawExt) ? rawExt : '.png';
       const destPath = path.join(imagesDir, `card-image${ext}`);
       moveFile(file.path, destPath);
       if (!productConfig.branding) productConfig.branding = {} as any;
@@ -120,7 +129,8 @@ router.post('/', upload.fields([
 
     if (files?.card_icon?.[0]) {
       const file = files.card_icon[0];
-      const ext = path.extname(file.originalname) || '.png';
+      const rawExt = path.extname(file.originalname).toLowerCase();
+      const ext = ALLOWED_IMAGE_EXTS.includes(rawExt) ? rawExt : '.png';
       const destPath = path.join(imagesDir, `card-icon${ext}`);
       moveFile(file.path, destPath);
       if (!productConfig.branding) productConfig.branding = {} as any;

@@ -63,7 +63,6 @@ router.post('/verify', asyncHandler(async (req: Request, res: Response) => {
     setAuthCookie(res, jwtToken);
     res.json({
       needsPassword: false,
-      token: jwtToken,
       user: {
         id: user.id,
         email: user.email,
@@ -90,7 +89,6 @@ router.post('/set-password', asyncHandler(async (req: Request, res: Response) =>
   setAuthCookie(res, jwtToken);
 
   res.json({
-    token: jwtToken,
     user: {
       id: user.id,
       email: user.email,
@@ -112,7 +110,6 @@ router.post('/login', asyncHandler(async (req: Request, res: Response) => {
   setAuthCookie(res, token);
 
   res.json({
-    token,
     user: {
       id: user.id,
       email: user.email,

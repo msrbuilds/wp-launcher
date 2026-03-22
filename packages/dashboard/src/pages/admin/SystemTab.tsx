@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAdminHeaders } from './AdminLayout';
 import { useIsLocalMode } from '../../context/SettingsContext';
+import { apiFetch } from '../../utils/api';
 
 interface SystemInfo {
   version: string;
@@ -42,7 +43,7 @@ export default function SystemTab() {
   const [checking, setChecking] = useState(false);
 
   useEffect(() => {
-    fetch('/api/admin/system/info', { headers, credentials: 'include' })
+    apiFetch('/api/admin/system/info', { headers })
       .then((r) => r.json())
       .then(setInfo)
       .catch(() => {})
@@ -61,7 +62,7 @@ export default function SystemTab() {
 
   function checkForUpdates() {
     setChecking(true);
-    fetch('/api/admin/system/update-check', { headers, credentials: 'include' })
+    apiFetch('/api/admin/system/update-check', { headers })
       .then((r) => r.json())
       .then(setUpdate)
       .catch(() => {})
@@ -73,7 +74,7 @@ export default function SystemTab() {
     setTriggering(true);
     setShowLog(true);
     setUpdateLog('Triggering update...\n');
-    fetch('/api/admin/system/update', { method: 'POST', headers, credentials: 'include' })
+    apiFetch('/api/admin/system/update', { method: 'POST', headers })
       .then(r => r.json())
       .then(data => {
         if (data.error) {
@@ -94,7 +95,7 @@ export default function SystemTab() {
     if (pollRef.current) return;
     pollRef.current = window.setInterval(() => {
       // Poll status
-      fetch('/api/admin/system/update-status', { headers, credentials: 'include' })
+      apiFetch('/api/admin/system/update-status', { headers })
         .then(r => r.json())
         .then(status => {
           setUpdateStatus(status);
@@ -105,7 +106,7 @@ export default function SystemTab() {
         })
         .catch(() => {});
       // Poll log
-      fetch('/api/admin/system/update-log', { headers, credentials: 'include' })
+      apiFetch('/api/admin/system/update-log', { headers })
         .then(r => r.text())
         .then(log => {
           setUpdateLog(log);
@@ -126,7 +127,7 @@ export default function SystemTab() {
 
   // Check if there's an in-progress update on mount
   useEffect(() => {
-    fetch('/api/admin/system/update-status', { headers, credentials: 'include' })
+    apiFetch('/api/admin/system/update-status', { headers })
       .then(r => r.json())
       .then(status => {
         setUpdateStatus(status);

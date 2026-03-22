@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { FEATURE_META } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { useIsLocalMode } from '../../context/SettingsContext';
+import { apiFetch } from '../../utils/api';
 
 interface Webhook {
   id: string;
@@ -32,7 +33,7 @@ export default function FeaturesTab() {
   const [webhookMsg, setWebhookMsg] = useState('');
 
   useEffect(() => {
-    fetch('/api/admin/features', { headers, credentials: 'include' })
+    apiFetch('/api/admin/features', { headers })
       .then((r) => r.json())
       .then((data) => setFeatures(data.features || {}))
       .catch(() => {})
@@ -41,7 +42,7 @@ export default function FeaturesTab() {
 
   const fetchWebhooks = useCallback(() => {
     setWebhooksLoading(true);
-    fetch('/api/admin/webhooks', { headers, credentials: 'include' })
+    apiFetch('/api/admin/webhooks', { headers })
       .then((r) => r.json())
       .then((data) => setWebhooks(data.webhooks || []))
       .catch(() => {})
@@ -56,10 +57,9 @@ export default function FeaturesTab() {
     setSaving(true);
     setMsg('');
     try {
-      const res = await fetch('/api/admin/features', {
+      const res = await apiFetch('/api/admin/features', {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ features }),
       });
       if (res.ok) {
@@ -80,10 +80,9 @@ export default function FeaturesTab() {
     setAddingWebhook(true);
     setWebhookMsg('');
     try {
-      const res = await fetch('/api/admin/webhooks', {
+      const res = await apiFetch('/api/admin/webhooks', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ url: newUrl, events: newEvents, secret: newSecret || undefined }),
       });
       if (res.ok) {
@@ -106,15 +105,14 @@ export default function FeaturesTab() {
 
   async function handleDeleteWebhook(id: string) {
     if (!confirm('Delete this webhook?')) return;
-    await fetch(`/api/admin/webhooks/${id}`, { method: 'DELETE', headers, credentials: 'include' });
+    await apiFetch(`/api/admin/webhooks/${id}`, { method: 'DELETE', headers });
     fetchWebhooks();
   }
 
   async function handleToggleWebhook(id: string, active: boolean) {
-    await fetch(`/api/admin/webhooks/${id}`, {
+    await apiFetch(`/api/admin/webhooks/${id}`, {
       method: 'PATCH',
       headers: { ...headers, 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({ active }),
     });
     fetchWebhooks();

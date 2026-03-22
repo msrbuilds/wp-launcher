@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import si from 'systeminformation';
 
 const app = express();
 app.use(express.json());
@@ -1807,6 +1808,203 @@ app.post('/images/prune', async (_req: Request, res: Response) => {
     res.json({ pruned: count, spaceReclaimed: space });
   } catch (err: any) {
     console.error('[provisioner] image prune error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Monitoring Endpoints (systeminformation) ─────────────────────────────
+
+// List all managed containers with stats
+app.get('/monitoring/containers', async (_req: Request, res: Response) => {
+  try {
+    const containers = await docker.listContainers({
+      all: true,
+      filters: { label: ['wp-launcher.managed=true'] },
+    });
+
+    // Gather stats for running containers in parallel (max 5 concurrent)
+    const statsMap = new Map<string, any>();
+    const running = containers.filter(c => c.State === 'running');
+    const chunks: typeof running[] = [];
+    for (let i = 0; i < running.length; i += 5) {
+      chunks.push(running.slice(i, i + 5));
+    }
+    for (const chunk of chunks) {
+      const results = await Promise.allSettled(
+        chunk.map(async (c) => {
+          const container = docker.getContainer(c.Id);
+          const stats = await container.stats({ stream: false });
+          const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
+          const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
+          const numCpus = stats.cpu_stats.online_cpus || stats.cpu_stats.cpu_usage.percpu_usage?.length || 1;
+          const cpuPercent = systemDelta > 0 ? (cpuDelta / systemDelta) * numCpus * 100 : 0;
+          const memUsage = (stats.memory_stats.usage || 0) - (stats.memory_stats.stats?.cache || 0);
+          const memLimit = stats.memory_stats.limit || 0;
+          return { id: c.Id, cpuPercent: Math.round(cpuPercent * 100) / 100, memUsage, memLimit };
+        })
+      );
+      for (const r of results) {
+        if (r.status === 'fulfilled') statsMap.set(r.value.id, r.value);
+      }
+    }
+
+    const result = containers.map(c => {
+      const stats = statsMap.get(c.Id);
+      return {
+        id: c.Id.substring(0, 12),
+        idFull: c.Id,
+        name: c.Names?.[0]?.replace(/^\//, '') || '',
+        image: c.Image,
+        state: c.State,
+        status: c.Status,
+        created: c.Created,
+        labels: Object.fromEntries(
+          Object.entries(c.Labels || {}).filter(([k]) => k.startsWith('wp-launcher.'))
+        ),
+        cpuPercent: stats?.cpuPercent ?? null,
+        memUsage: stats?.memUsage ?? null,
+        memLimit: stats?.memLimit ?? null,
+      };
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error('[provisioner] monitoring containers error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// System info: Docker engine + host resources
+app.get('/monitoring/system', async (_req: Request, res: Response) => {
+  try {
+    const [dockerInfo, dockerVer, load, cpu, disks] = await Promise.all([
+      docker.info(),
+      docker.version(),
+      si.currentLoad(),
+      si.cpu(),
+      si.fsSize(),
+    ]);
+
+    // Read host memory from mounted /host/proc/meminfo for accurate values
+    let memTotal = 0, memFree = 0, memAvailable = 0, memBuffers = 0, memCached = 0;
+    try {
+      const meminfo = fs.readFileSync('/host/proc/meminfo', 'utf8');
+      for (const line of meminfo.split('\n')) {
+        const [key, val] = line.split(':').map(s => s.trim());
+        const kb = parseInt(val) || 0;
+        if (key === 'MemTotal') memTotal = kb * 1024;
+        else if (key === 'MemFree') memFree = kb * 1024;
+        else if (key === 'MemAvailable') memAvailable = kb * 1024;
+        else if (key === 'Buffers') memBuffers = kb * 1024;
+        else if (key === 'Cached') memCached = kb * 1024;
+      }
+    } catch {
+      // Fallback to Docker info
+      memTotal = (dockerInfo as any).MemTotal || 0;
+    }
+    const memUsed = memTotal - memAvailable;
+
+    res.json({
+      docker: {
+        version: dockerVer.Version || '',
+        containersRunning: dockerInfo.ContainersRunning ?? 0,
+        containersPaused: dockerInfo.ContainersPaused ?? 0,
+        containersStopped: dockerInfo.ContainersStopped ?? 0,
+        containersTotal: dockerInfo.Containers ?? 0,
+        images: dockerInfo.Images ?? 0,
+      },
+      host: {
+        cpuModel: `${cpu.manufacturer} ${cpu.brand}`,
+        cpuCores: cpu.cores,
+        cpuPhysicalCores: cpu.physicalCores,
+        loadAvg: [
+          Math.round(load.currentLoad * 100) / 100,
+          Math.round(load.currentLoadUser * 100) / 100,
+          Math.round(load.currentLoadSystem * 100) / 100,
+        ],
+        memTotal,
+        memUsed,
+        memFree: memAvailable || memFree,
+        memPercent: memTotal > 0 ? Math.round((memUsed / memTotal) * 10000) / 100 : 0,
+        disk: disks.map(d => ({
+          fs: d.fs,
+          mount: d.mount,
+          size: d.size,
+          used: d.used,
+          available: d.available,
+          usePercent: d.use,
+        })),
+      },
+    });
+  } catch (err: any) {
+    console.error('[provisioner] monitoring system error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Docker disk usage: images, volumes
+app.get('/monitoring/disk', async (_req: Request, res: Response) => {
+  try {
+    const [imageList, volumeList] = await Promise.all([
+      docker.listImages(),
+      docker.listVolumes(),
+    ]);
+
+    // Filter out untagged/intermediate images (show only named ones)
+    const images = (imageList || []).filter(img => img.RepoTags && img.RepoTags.length > 0 && img.RepoTags[0] !== '<none>:<none>');
+    const volumes = (volumeList?.Volumes) || [];
+    const totalImageSize = images.reduce((sum, img) => sum + (img.Size || 0), 0);
+
+    res.json({
+      images: {
+        count: images.length,
+        totalSize: totalImageSize,
+        items: images.map(img => ({
+          id: (img.Id || '').replace('sha256:', '').substring(0, 12),
+          repoTags: img.RepoTags || [],
+          size: img.Size || 0,
+          created: img.Created || 0,
+        })),
+      },
+      volumes: {
+        count: volumes.length,
+        items: volumes.map((vol: any) => ({
+          name: vol.Name || '',
+          driver: vol.Driver || '',
+        })),
+      },
+    });
+  } catch (err: any) {
+    console.error('[provisioner] monitoring disk error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Prune unused volumes
+app.post('/system/prune-volumes', async (_req: Request, res: Response) => {
+  try {
+    const result = await docker.pruneVolumes();
+    const count = result.VolumesDeleted?.length || 0;
+    const space = result.SpaceReclaimed || 0;
+    if (count > 0) {
+      console.log(`[provisioner] Pruned ${count} volume(s), reclaimed ${(space / 1024 / 1024).toFixed(1)}MB`);
+    }
+    res.json({ pruned: count, spaceReclaimed: space });
+  } catch (err: any) {
+    console.error('[provisioner] volume prune error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Prune build cache
+app.post('/system/prune-buildcache', async (_req: Request, res: Response) => {
+  try {
+    const result = await docker.pruneBuilder();
+    const space = (result as any).SpaceReclaimed || 0;
+    console.log(`[provisioner] Pruned build cache, reclaimed ${(space / 1024 / 1024).toFixed(1)}MB`);
+    res.json({ spaceReclaimed: space });
+  } catch (err: any) {
+    console.error('[provisioner] build cache prune error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

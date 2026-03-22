@@ -3,6 +3,7 @@ import { SiteLog, PaginatedResponse, PAGE_SIZE } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { useIsLocalMode } from '../../context/SettingsContext';
 import Pagination from './Pagination';
+import { apiFetch } from '../../utils/api';
 
 export default function LogsTab() {
   const headers = useAdminHeaders();
@@ -14,7 +15,7 @@ export default function LogsTab() {
 
   const fetchLogs = useCallback(() => {
     setLoading(true);
-    fetch(`/api/admin/logs?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`, { headers, credentials: 'include' })
+    apiFetch(`/api/admin/logs?limit=${PAGE_SIZE}&offset=${page * PAGE_SIZE}`, { headers })
       .then((r) => r.json())
       .then((data: PaginatedResponse<SiteLog>) => { setLogs(data.data || []); setTotal(data.total || 0); })
       .catch(() => {})

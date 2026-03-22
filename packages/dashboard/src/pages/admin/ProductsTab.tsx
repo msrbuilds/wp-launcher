@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { useIsLocalMode } from '../../context/SettingsContext';
+import { apiFetch } from '../../utils/api';
 
 export default function ProductsTab() {
   const headers = useAdminHeaders();
@@ -18,7 +19,7 @@ export default function ProductsTab() {
 
   const fetchProducts = useCallback(() => {
     setLoading(true);
-    fetch(apiBase, { credentials: 'include' })
+    apiFetch(apiBase)
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setProducts(data); })
       .catch(() => {})
@@ -31,7 +32,7 @@ export default function ProductsTab() {
     if (!confirm(`Delete ${noun} "${name}"? This cannot be undone.`)) return;
     setDeleting(id);
     try {
-      const res = await fetch(`${apiBase}/${id}`, { method: 'DELETE', headers, credentials: 'include' });
+      const res = await apiFetch(`${apiBase}/${id}`, { method: 'DELETE', headers });
       if (!res.ok) { const data = await res.json(); alert(data.error || `Failed to delete ${noun}`); }
     } catch { alert(`Failed to delete ${noun}`); }
     finally { setDeleting(null); fetchProducts(); }

@@ -16,6 +16,7 @@ import VerifyPage from './pages/VerifyPage';
 import AdminLayout, { useAdminAuth } from './pages/admin/AdminLayout';
 import OverviewTab from './pages/admin/OverviewTab';
 import AnalyticsTab from './pages/admin/AnalyticsTab';
+import MonitoringPage from './pages/admin/MonitoringPage';
 import BulkTab from './pages/admin/BulkTab';
 import ProductsTab from './pages/admin/ProductsTab';
 import UsersTab from './pages/admin/UsersTab';
@@ -97,6 +98,7 @@ function AgencyRoutes() {
         <Route path="admin" element={<AdminLayout />}>
           <Route index element={<OverviewTab />} />
           <Route path="analytics" element={<AnalyticsTab />} />
+          <Route path="monitoring" element={<MonitoringPage />} />
           <Route path="bulk" element={<BulkTab />} />
           <Route path="products" element={<ProductsTab />} />
           <Route path="users" element={<UsersTab />} />

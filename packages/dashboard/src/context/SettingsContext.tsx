@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { apiFetch } from '../utils/api';
 
 export interface FeatureFlags {
   cloning: boolean;
@@ -111,8 +112,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const fetchSettings = useCallback(() => {
     Promise.all([
-      fetch('/api/settings', { credentials: 'include' }).then((r) => r.json()),
-      fetch('/api/version', { credentials: 'include' }).then((r) => r.json()).catch(() => ({ version: '' })),
+      apiFetch('/api/settings').then((r) => r.json()),
+      apiFetch('/api/version').then((r) => r.json()).catch(() => ({ version: '' })),
     ])
       .then(([data, versionData]) => {
         const branding = {

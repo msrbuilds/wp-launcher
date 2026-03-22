@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSettings } from '../context/SettingsContext';
+import { apiFetch } from '../utils/api';
 
 interface Template {
   id: string;
@@ -78,7 +79,7 @@ export default function LocalLaunchPage() {
 
   useEffect(() => {
     if (settingsLoading) return;
-    fetch('/api/templates', { credentials: 'include' })
+    apiFetch('/api/templates')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -104,9 +105,8 @@ export default function LocalLaunchPage() {
     setError('');
     setResult(null);
     try {
-      const res = await fetch('/api/sites', {
+      const res = await apiFetch('/api/sites', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productId: selectedTemplate,
@@ -155,9 +155,7 @@ export default function LocalLaunchPage() {
         : 80 + Math.min(15, (i - expectedAttempts) * 2);
       setProvisionProgress(Math.round(pct));
       try {
-        const res = await fetch(`/api/sites/${siteId}/ready`, {
-          credentials: 'include',
-        });
+        const res = await apiFetch(`/api/sites/${siteId}/ready`);
         const data = await res.json();
         if (data.ready) {
           setProvisionProgress(100);
@@ -256,9 +254,8 @@ export default function LocalLaunchPage() {
             className="btn btn-primary btn-lg"
             onClick={async () => {
               try {
-                const res = await fetch(`/api/sites/${result.id}/autologin`, {
+                const res = await apiFetch(`/api/sites/${result.id}/autologin`, {
                   method: 'POST',
-                  credentials: 'include',
                 });
                 if (res.ok) {
                   const data = await res.json();

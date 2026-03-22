@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { useIsLocalMode, useBranding, useSettings } from './context/SettingsContext';
+import { apiFetch } from './utils/api';
 
 export default function App() {
   const { isAuthenticated, isAdmin, logout } = useAuth();
@@ -21,7 +22,7 @@ export default function App() {
   // Check for updates (admins only, agency mode)
   useEffect(() => {
     if (!isAdmin || isLocal) return;
-    fetch('/api/admin/system/update-check', { credentials: 'include' })
+    apiFetch('/api/admin/system/update-check')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.updateAvailable) {
