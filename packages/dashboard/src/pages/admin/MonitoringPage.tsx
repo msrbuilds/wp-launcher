@@ -101,13 +101,13 @@ export default function MonitoringPage() {
         apiFetch('/api/admin/monitoring/system', { headers }),
         apiFetch('/api/admin/monitoring/disk', { headers }),
       ]);
-      const cData = await cRes.json();
-      const sData = await sRes.json();
-      const dData = await dRes.json();
+      const cData = cRes.ok ? await cRes.json() : { containers: [], counts: null };
+      const sData = sRes.ok ? await sRes.json() : null;
+      const dData = dRes.ok ? await dRes.json() : null;
       setContainers(cData.containers || []);
       setCounts(cData.counts || { normal: 0, stale: 0, orphaned: 0, leftover: 0 });
-      setSystem(sData);
-      setDisk(dData);
+      if (sData?.host) setSystem(sData);
+      if (dData?.images) setDisk(dData);
       return sData as SystemInfo;
     } catch {
       return null;
@@ -368,16 +368,18 @@ export default function MonitoringPage() {
         {/* Docker Disk */}
         <div className="card">
           <h3 className="mn-section-title">Docker Disk Usage</h3>
-          {disk && (
+          {disk?.images && (
             <div className="mn-disk-list">
               <div className="mn-disk-item">
                 <span className="mn-disk-label">Images ({disk.images.count})</span>
                 <span className="mn-disk-value">{formatBytes(disk.images.totalSize)}</span>
               </div>
-              <div className="mn-disk-item">
-                <span className="mn-disk-label">Volumes ({disk.volumes.count})</span>
-              </div>
-              {disk.images.items.length > 0 && (
+              {disk.volumes && (
+                <div className="mn-disk-item">
+                  <span className="mn-disk-label">Volumes ({disk.volumes.count})</span>
+                </div>
+              )}
+              {disk.images.items?.length > 0 && (
                 <details className="mn-details">
                   <summary>Image details</summary>
                   <div className="mn-image-list">
