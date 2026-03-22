@@ -119,16 +119,18 @@ export default function MonitoringPage() {
   const fetchSystemForChart = useCallback(async () => {
     try {
       const res = await apiFetch('/api/admin/monitoring/system', { headers });
+      if (!res.ok) return;
       const data = await res.json() as SystemInfo;
+      if (!data?.host) return;
       const mainDisk = data.host.disk?.find((d: any) => d.mount === '/' || d.mount === 'C:');
       const now = Date.now();
       const point: ChartPoint = {
         time: formatTime(now),
         ts: now,
-        cpuUser: data.host.loadAvg[1] ?? 0,
-        cpuSystem: data.host.loadAvg[2] ?? 0,
-        memPercent: data.host.memPercent,
-        memUsedGB: Math.round((data.host.memUsed / (1024 * 1024 * 1024)) * 100) / 100,
+        cpuUser: data.host.loadAvg?.[1] ?? 0,
+        cpuSystem: data.host.loadAvg?.[2] ?? 0,
+        memPercent: data.host.memPercent ?? 0,
+        memUsedGB: Math.round(((data.host.memUsed || 0) / (1024 * 1024 * 1024)) * 100) / 100,
         diskPercent: mainDisk?.usePercent ?? 0,
       };
       setChartData(prev => [...prev.slice(-(MAX_POINTS - 1)), point]);
@@ -138,16 +140,16 @@ export default function MonitoringPage() {
 
   useEffect(() => {
     fetchAll().then(sData => {
-      if (sData) {
+      if (sData?.host) {
         const mainDisk = sData.host.disk?.find(d => d.mount === '/' || d.mount === 'C:');
         const now = Date.now();
         setChartData([{
           time: formatTime(now),
           ts: now,
-          cpuUser: sData.host.loadAvg[1] ?? 0,
-          cpuSystem: sData.host.loadAvg[2] ?? 0,
-          memPercent: sData.host.memPercent,
-          memUsedGB: Math.round((sData.host.memUsed / (1024 * 1024 * 1024)) * 100) / 100,
+          cpuUser: sData.host.loadAvg?.[1] ?? 0,
+          cpuSystem: sData.host.loadAvg?.[2] ?? 0,
+          memPercent: sData.host.memPercent ?? 0,
+          memUsedGB: Math.round(((sData.host.memUsed || 0) / (1024 * 1024 * 1024)) * 100) / 100,
           diskPercent: mainDisk?.usePercent ?? 0,
         }]);
       }
@@ -190,7 +192,7 @@ export default function MonitoringPage() {
 
   if (loading) return <div className="card"><span className="spinner spinner-dark" /> Loading monitoring data...</div>;
 
-  const mainDisk = system?.host.disk?.find(d => d.mount === '/' || d.mount === 'C:');
+  const mainDisk = system?.host?.disk?.find(d => d.mount === '/' || d.mount === 'C:');
 
   return (
     <div>
@@ -206,18 +208,18 @@ export default function MonitoringPage() {
       {actionMsg && <div className="alert-success mn-alert">{actionMsg}</div>}
 
       {/* System Resources Cards */}
-      {system && (
+      {system?.host && (
         <div className="mn-stats-grid">
           <div className="card mn-stat-card">
             <div className="mn-stat-label">CPU Load</div>
-            <div className="mn-stat-value">{system.host.loadAvg[0]}%</div>
+            <div className="mn-stat-value">{system.host.loadAvg?.[0] ?? 0}%</div>
             <div className="mn-stat-sub">{system.host.cpuCores} cores &middot; {system.host.cpuModel}</div>
           </div>
           <div className="card mn-stat-card">
             <div className="mn-stat-label">Memory</div>
-            <div className="mn-stat-value">{system.host.memPercent}%</div>
-            <div className="mn-stat-sub">{formatBytes(system.host.memUsed)} / {formatBytes(system.host.memTotal)}</div>
-            <div className="mn-bar"><div className="mn-bar-fill" style={{ width: `${Math.min(system.host.memPercent, 100)}%`, background: system.host.memPercent > 85 ? '#ef4444' : 'var(--orange)' }} /></div>
+            <div className="mn-stat-value">{system.host.memPercent ?? 0}%</div>
+            <div className="mn-stat-sub">{formatBytes(system.host.memUsed || 0)} / {formatBytes(system.host.memTotal || 0)}</div>
+            <div className="mn-bar"><div className="mn-bar-fill" style={{ width: `${Math.min(system.host.memPercent ?? 0, 100)}%`, background: (system.host.memPercent ?? 0) > 85 ? '#ef4444' : 'var(--orange)' }} /></div>
           </div>
           <div className="card mn-stat-card">
             <div className="mn-stat-label">Docker Engine</div>
