@@ -92,6 +92,7 @@ export default function MonitoringPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [chartData, setChartData] = useState<ChartPoint[]>([]);
+  const [systemError, setSystemError] = useState(false);
   const chartPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchAll = useCallback(async () => {
@@ -106,7 +107,8 @@ export default function MonitoringPage() {
       const dData = dRes.ok ? await dRes.json() : null;
       setContainers(cData.containers || []);
       setCounts(cData.counts || { normal: 0, stale: 0, orphaned: 0, leftover: 0 });
-      if (sData?.host) setSystem(sData);
+      if (sData?.host) { setSystem(sData); setSystemError(false); }
+      else setSystemError(true);
       if (dData?.images) setDisk(dData);
       return sData as SystemInfo;
     } catch {
@@ -206,6 +208,15 @@ export default function MonitoringPage() {
       </div>
 
       {actionMsg && <div className="alert-success mn-alert">{actionMsg}</div>}
+
+      {systemError && !system && (
+        <div className="alert-error mn-alert">
+          System monitoring data unavailable. The provisioner may need to be rebuilt:
+          <code style={{ display: 'block', marginTop: '0.5rem', fontSize: '0.85em' }}>
+            docker compose build provisioner && docker compose up -d provisioner
+          </code>
+        </div>
+      )}
 
       {/* System Resources Cards */}
       {system?.host && (
