@@ -100,20 +100,33 @@ NEW_VERSION=$(read_version)
 NEW_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 info "New version: v${NEW_VERSION} (${NEW_COMMIT})"
 
+# Patch docker-compose.override.yml if missing /host/proc mount
+OVERRIDE="docker-compose.override.yml"
+if [ -f "$OVERRIDE" ] && ! grep -q '/host/proc' "$OVERRIDE"; then
+  info "Adding host /proc mount for monitoring..."
+  cat >> "$OVERRIDE" <<'YAML'
+
+  provisioner:
+    volumes:
+      - /proc:/host/proc:ro
+YAML
+  ok "Override patched with /host/proc mount"
+fi
+
 # Generate version.json
 info "Generating version info..."
 bash scripts/generate-version.sh || { rollback; }
 
 # Rebuild containers
 info "Rebuilding containers..."
-if ! docker compose build api dashboard; then
+if ! docker compose build api dashboard provisioner; then
   err "Build failed!"
   rollback
 fi
 
 # Restart services
 info "Restarting services..."
-if ! docker compose up -d api dashboard; then
+if ! docker compose up -d api dashboard provisioner; then
   err "Failed to start services!"
   rollback
 fi

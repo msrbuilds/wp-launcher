@@ -607,6 +607,14 @@ services:
 YAML
 fi
 
+# Add host /proc mount for provisioner monitoring (accurate host memory/disk stats)
+cat >> "$OVERRIDE" <<'YAML'
+
+  provisioner:
+    volumes:
+      - /proc:/host/proc:ro
+YAML
+
 # Disable mailpit in production when using external SMTP
 if [ "$USE_MAILPIT" = "false" ]; then
   cat >> "$OVERRIDE" <<'YAML'
