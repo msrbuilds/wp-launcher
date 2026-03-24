@@ -43,6 +43,7 @@ traefik/                    # traefik.yml, dynamic/middleware.yml, dynamic/tls.y
 scripts/                    # build-wp-image.sh, create-product.sh, setup.sh
 guides/                     # Documentation (getting-started, creating-products, vps-deployment)
 data/                       # Runtime SQLite DB (wp-launcher.db)
+sites/                      # Site wp-content bind mounts (when SITES_HOST_PATH is set)
 ```
 
 ## Tech Stack
@@ -81,7 +82,7 @@ bash install.sh            # One-click VPS installer
 **Core:** `APP_MODE` (local|agency), `NODE_ENV`, `BASE_DOMAIN` (e.g. demo.example.com), `PUBLIC_URL`
 **Secrets:** `API_KEY`, `JWT_SECRET`, `PROVISIONER_INTERNAL_KEY`, `JWT_EXPIRES_IN`
 **SMTP:** `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
-**WordPress:** `WP_IMAGE`, `MAX_TOTAL_SITES` (50), `MAX_SITES_PER_USER` (3), `CONTAINER_MEMORY` (268MB), `CONTAINER_CPU` (0.5), `PRODUCT_ASSETS_PATH` (host path to product-assets/)
+**WordPress:** `WP_IMAGE`, `MAX_TOTAL_SITES` (50), `MAX_SITES_PER_USER` (3), `CONTAINER_MEMORY` (268MB), `CONTAINER_CPU` (0.5), `PRODUCT_ASSETS_PATH` (host path to product-assets/), `SITES_HOST_PATH` (host path to sites/ — enables direct file access to wp-content)
 **UI:** `CARD_LAYOUT` (full|compact)
 **SSL:** `ACME_EMAIL`, `CF_API_EMAIL`, `CF_DNS_API_TOKEN`
 **CORS:** `CORS_ALLOWED_ORIGINS`
@@ -250,7 +251,7 @@ Each demo site gets:
 - Entrypoint handles: DB config, WP install, plugin activation, demo content import
 - PHP config: `99-wp-launcher.ini` written at startup from PHP_* env vars, live-updatable via docker exec
 - Optional extensions pre-installed but disabled: redis, xdebug, sockets, calendar, pcntl, ldap, gettext
-- Local mode: named volume `wp-site-{subdomain}` for `/var/www/html/wp-content`, no resource limits
+- Local mode: if `SITES_HOST_PATH` is set, bind-mounts `{SITES_HOST_PATH}/{subdomain}/wp-content` for direct file access; otherwise falls back to named volume `wp-site-{subdomain}`. No resource limits
 
 ## Security
 

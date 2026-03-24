@@ -1,6 +1,6 @@
 import { ValidationError } from './errors.js';
 
-const MEMORY_REGEX = /^\d+[MmGgKk]$/;
+const MEMORY_REGEX = /^(-1|0|\d+[MmGgKk])$/;
 const NUMERIC_REGEX = /^\d+$/;
 const DISPLAY_ERRORS_REGEX = /^(On|Off|0|1)$/i;
 const XDEBUG_MODE_REGEX = /^(off|develop|debug|profile|trace|coverage)(,(off|develop|debug|profile|trace|coverage))*$/;

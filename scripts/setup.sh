@@ -47,6 +47,9 @@ if [ ! -f "$PROJECT_DIR/.env" ]; then
     # Set PRODUCT_ASSETS_PATH to the project's product-assets directory
     "${SED_I[@]}" "s|^PRODUCT_ASSETS_PATH=.*|PRODUCT_ASSETS_PATH=${PROJECT_DIR}/product-assets|" "$PROJECT_DIR/.env"
 
+    # Set SITES_HOST_PATH for direct file access to site wp-content
+    "${SED_I[@]}" "s|^SITES_HOST_PATH=.*|SITES_HOST_PATH=${PROJECT_DIR}/sites|" "$PROJECT_DIR/.env"
+
     echo "[setup] Created .env with generated secrets and local dev defaults"
     echo "[setup] API Key: ${API_KEY}"
 else
@@ -58,6 +61,7 @@ mkdir -p "$PROJECT_DIR/data"
 mkdir -p "$PROJECT_DIR/templates"
 mkdir -p "$PROJECT_DIR/products"
 mkdir -p "$PROJECT_DIR/product-assets"
+mkdir -p "$PROJECT_DIR/sites"
 echo "[setup] Directories ready."
 
 # Build WordPress image

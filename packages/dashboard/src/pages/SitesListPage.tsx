@@ -17,6 +17,7 @@ interface Site {
   status: string;
   createdAt: string;
   expiresAt: string;
+  hostPath?: string;
 }
 
 interface PhpConfig {
@@ -873,7 +874,7 @@ export default function SitesListPage() {
                       <button
                         className="btn btn-secondary btn-xs"
                         onClick={() => {
-                          navigator.clipboard.writeText(`docker exec wp-demo-${site.subdomain} wp --allow-root `);
+                          navigator.clipboard.writeText(`docker exec wp-site-${site.subdomain} wp --allow-root `);
                           const btn = document.activeElement as HTMLButtonElement;
                           const orig = btn.innerHTML;
                           btn.textContent = 'Copied!';
@@ -884,6 +885,23 @@ export default function SitesListPage() {
                         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
                         WP-CLI
                       </button>
+                      {site.hostPath && (
+                      <button
+                        className="btn btn-secondary btn-xs"
+                        onClick={() => {
+                          navigator.clipboard.writeText(site.hostPath!).then(() => {
+                          const btn = document.activeElement as HTMLButtonElement;
+                          const orig = btn.innerHTML;
+                          btn.textContent = 'Path copied!';
+                          setTimeout(() => { btn.innerHTML = orig; }, 2000);
+                        });
+                        }}
+                        title={`Copy wp-content path: ${site.hostPath}`}
+                      >
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" /></svg>
+                        Files
+                      </button>
+                      )}
                       {/* Tools dropdown for feature actions */}
                       {(canClone || canTemplate || canSnapshot || canPhp || canHealth || canPassword || canExport || canAdminer || canTunnel) && site.status === 'running' && (
                         <div className="sl-dropdown-wrapper">
@@ -1108,6 +1126,7 @@ export default function SitesListPage() {
                               <option value="256M">256 MB</option>
                               <option value="512M">512 MB</option>
                               <option value="1G">1 GB</option>
+                              <option value="2G">2 GB</option>
                               <option value="-1">Unlimited</option>
                             </select>
                           </div>
@@ -1120,6 +1139,9 @@ export default function SitesListPage() {
                               <option value="128M">128 MB</option>
                               <option value="256M">256 MB</option>
                               <option value="512M">512 MB</option>
+                              <option value="1G">1 GB</option>
+                              <option value="2G">2 GB</option>
+                              <option value="0">Unlimited</option>
                             </select>
                           </div>
                           <div className="form-group sl-php-field">
@@ -1131,6 +1153,9 @@ export default function SitesListPage() {
                               <option value="128M">128 MB</option>
                               <option value="256M">256 MB</option>
                               <option value="512M">512 MB</option>
+                              <option value="1G">1 GB</option>
+                              <option value="2G">2 GB</option>
+                              <option value="0">Unlimited</option>
                             </select>
                           </div>
                           <div className="form-group sl-php-field">
@@ -2073,6 +2098,23 @@ export default function SitesListPage() {
                 </svg>
                 Visit Site
               </a>
+              {site.hostPath && (
+              <button
+                className="btn btn-secondary btn-site-action"
+                onClick={() => {
+                  navigator.clipboard.writeText(site.hostPath!).then(() => {
+                          const btn = document.activeElement as HTMLButtonElement;
+                          const orig = btn.innerHTML;
+                          btn.textContent = 'Path copied!';
+                          setTimeout(() => { btn.innerHTML = orig; }, 2000);
+                        });
+                }}
+                title={`Copy wp-content path: ${site.hostPath}`}
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" /></svg>
+                Open Files
+              </button>
+              )}
               {canExtend && site.status === 'running' && (
                 <div className="sl-dropdown-wrapper">
                   <button

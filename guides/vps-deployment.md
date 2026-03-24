@@ -454,7 +454,7 @@ cp -r ./data ./data-backup-$(date +%Y%m%d)
 - Ensure the wildcard DNS record exists (`*.demos.yourdomain.com`)
 - Check that port 80 and 443 are open: `sudo ufw status`
 - Verify containers are running: `docker ps --filter "label=wp-launcher.managed=true"`
-- Check demo container logs: `docker logs wp-demo-<subdomain> --tail=50`
+- Check demo container logs: `docker logs wp-site-<subdomain> --tail=50`
 
 ### Email verification not working
 - Check SMTP credentials in `.env`

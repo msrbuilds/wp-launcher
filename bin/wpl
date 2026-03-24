@@ -185,11 +185,11 @@ case "$CMD" in
       echo "Usage: wpl shell <subdomain>"
       echo ""
       echo "Running WordPress containers:"
-      docker ps --filter "label=wp-launcher.managed=true" --format "  {{.Names}}" | sed 's/wp-demo-//'
+      docker ps --filter "label=wp-launcher.managed=true" --format "  {{.Names}}" | sed 's/wp-site-//'
       exit 1
     fi
-    echo "Opening shell in wp-demo-${CONTAINER}..."
-    docker exec -it "wp-demo-${CONTAINER}" bash
+    echo "Opening shell in wp-site-${CONTAINER}..."
+    docker exec -it "wp-site-${CONTAINER}" bash
     ;;
 
   wp)
@@ -201,11 +201,11 @@ case "$CMD" in
       echo "Example: wpl wp coral-sunset-7x3k plugin list"
       echo ""
       echo "Running WordPress containers:"
-      docker ps --filter "label=wp-launcher.managed=true" --format "  {{.Names}}" | sed 's/wp-demo-//'
+      docker ps --filter "label=wp-launcher.managed=true" --format "  {{.Names}}" | sed 's/wp-site-//'
       exit 1
     fi
     shift
-    docker exec -it "wp-demo-${CONTAINER}" wp --allow-root "$@"
+    docker exec -it "wp-site-${CONTAINER}" wp --allow-root "$@"
     ;;
 
   open)
@@ -271,6 +271,61 @@ case "$CMD" in
     fi
     ;;
 
+  code)
+    # Open a site's wp-content directory in VS Code
+    SUBDOMAIN="${1:-}"
+    if [ -z "$SUBDOMAIN" ]; then
+      echo "Usage: wpl code <subdomain>"
+      echo "Opens the site's wp-content folder in VS Code for direct editing."
+      echo ""
+      echo "Running WordPress containers:"
+      docker ps --filter "label=wp-launcher.managed=true" --format "  {{.Names}}" | sed 's/wp-site-//'
+      exit 1
+    fi
+    SITES_PATH=$(grep -E '^SITES_HOST_PATH=' "$PROJECT_DIR/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'")
+    if [ -z "$SITES_PATH" ]; then
+      echo "Error: SITES_HOST_PATH is not set in .env"
+      echo "Set it to enable direct file access (e.g., SITES_HOST_PATH=/path/to/wp-launcher/sites)"
+      exit 1
+    fi
+    TARGET="$SITES_PATH/$SUBDOMAIN"
+    if [ ! -d "$TARGET" ]; then
+      echo "Error: Site directory not found: $TARGET"
+      echo "The site may not exist or may not have been created with SITES_HOST_PATH enabled."
+      exit 1
+    fi
+    echo "Opening in VS Code: $TARGET"
+    code "$TARGET"
+    ;;
+
+  browse)
+    # Open a site's wp-content directory in the system file manager
+    SUBDOMAIN="${1:-}"
+    if [ -z "$SUBDOMAIN" ]; then
+      echo "Usage: wpl browse <subdomain>"
+      echo "Opens the site's wp-content folder in the system file manager."
+      echo ""
+      echo "Running WordPress containers:"
+      docker ps --filter "label=wp-launcher.managed=true" --format "  {{.Names}}" | sed 's/wp-site-//'
+      exit 1
+    fi
+    SITES_PATH=$(grep -E '^SITES_HOST_PATH=' "$PROJECT_DIR/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'")
+    if [ -z "$SITES_PATH" ]; then
+      echo "Error: SITES_HOST_PATH is not set in .env"
+      exit 1
+    fi
+    TARGET="$SITES_PATH/$SUBDOMAIN"
+    if [ ! -d "$TARGET" ]; then
+      echo "Error: Site directory not found: $TARGET"
+      exit 1
+    fi
+    echo "Opening: $TARGET"
+    if command -v explorer.exe &>/dev/null; then explorer.exe "$(wslpath -w "$TARGET" 2>/dev/null || echo "$TARGET")" 2>/dev/null &
+    elif command -v xdg-open &>/dev/null; then xdg-open "$TARGET" 2>/dev/null &
+    elif command -v open &>/dev/null; then open "$TARGET" 2>/dev/null &
+    else echo "  $TARGET"; fi
+    ;;
+
   dir)
     echo "$PROJECT_DIR"
     ;;
@@ -293,6 +348,8 @@ case "$CMD" in
     echo "  open [target]      Open in browser (dashboard, mail, or subdomain)"
     echo "  shell <subdomain>  Open bash shell in a site container"
     echo "  wp <subdomain> ... Run WP-CLI command in a site container"
+    echo "  code <subdomain>   Open site's wp-content in VS Code"
+    echo "  browse <subdomain> Open site's wp-content in file manager"
     echo "  build:wp           Rebuild WordPress images (all PHP versions)"
     echo "  admin:promote <email>  Promote a user to admin"
     echo "  admin:demote <email>   Demote an admin to user"
@@ -303,6 +360,7 @@ case "$CMD" in
     echo "  wpl start                          # Start WP Launcher"
     echo "  wpl logs api                       # Tail API logs"
     echo "  wpl open coral-sunset-7x3k         # Open site in browser"
+    echo "  wpl code coral-sunset-7x3k         # Edit wp-content in VS Code"
     echo "  wpl wp coral-sunset-7x3k plugin list   # List plugins via WP-CLI"
     echo "  wpl shell coral-sunset-7x3k        # SSH into site container"
     ;;

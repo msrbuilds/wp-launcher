@@ -52,6 +52,7 @@ services:
       - ENABLE_TLS=${ENABLE_TLS:-false}
       - CERT_RESOLVER=${CERT_RESOLVER:-letsencrypt}
       - PRODUCT_ASSETS_PATH=${PRODUCT_ASSETS_PATH:-}
+      - SITES_HOST_PATH=${SITES_HOST_PATH:-}
     volumes:
       - ${PRODUCT_ASSETS_PATH:-./product-assets}:/product-assets
       - ./data/snapshots:/app/data/snapshots
@@ -98,8 +99,11 @@ services:
       - ./product-assets:/app/product-assets
       - ./wordpress:/app/wordpress:ro
       - ./version.json:/app/version.json:ro
+      - ${SITES_HOST_PATH:-./sites}:/app/sites
     environment:
       - APP_MODE=${APP_MODE:-agency}
+      - SITES_HOST_PATH=${SITES_HOST_PATH:-}
+      - SITES_DIR=/app/sites
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=3737
       - API_KEY=${API_KEY:?Set API_KEY in .env}

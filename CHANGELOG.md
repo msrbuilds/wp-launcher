@@ -2,6 +2,36 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [2.2.0] - 2026-03-25
+
+### Added
+- **Direct File Access** — Site plugins and themes are now bind-mounted to a configurable host directory (`SITES_HOST_PATH`), allowing direct editing from VS Code, file managers, or any editor without Docker commands
+  - Dashboard "Files" button copies the site's host path to clipboard
+  - `wpl code <subdomain>` opens the site in VS Code
+  - `wpl browse <subdomain>` opens in the system file manager
+  - Hybrid storage: named Docker volumes for wp-content (fast runtime), host bind mounts only for `plugins/` and `themes/` (direct access without performance penalty)
+  - Auto-configured by `install-local.sh` and `scripts/setup.sh`
+- **Working with WordPress Files** guide (`guides/working-with-wordpress-files.md`)
+- PHP config dropdowns now include 1 GB, 2 GB, and Unlimited options for memory, upload, and post max size
+- Google Fonts (Poppins, Open Sans) now allowed in Content Security Policy
+
+### Changed
+- Container naming: `wp-demo-{subdomain}` renamed to `wp-site-{subdomain}` across all services, CLI, and docs
+- Dashboard nginx now uses Docker DNS resolver (`127.0.0.11`) to re-resolve the API hostname dynamically — eliminates stale IP issues after API container recreation
+- Subdomain reuse: deleted/expired/error site subdomains are freed immediately for reuse (renamed with `--deleted-{timestamp}` suffix)
+- Auto-generated subdomains now retry on collision (up to 10 attempts)
+
+### Performance
+- **PHP OPcache tuning** — increased memory to 256 MB, max files to 20,000, enabled file override
+- **JIT compilation** — allocated 128 MB JIT buffer (was 0/disabled), mode set to 1255 (function+tracing)
+- **Realpath cache** — increased to 8 MB with 600s TTL, reducing filesystem stat calls
+- Bind mount optimization: only `plugins/` and `themes/` are host-mounted (not full wp-content), avoiding Docker Desktop's slow file sharing for database, uploads, and cache files
+
+### Fixed
+- Sites failing to create due to UNIQUE constraint on subdomain colliding with expired/error records
+- PHP config validation now accepts `0` (unlimited) and `-1` (unlimited memory) values
+- Volume cleanup on site deletion now works correctly with hybrid bind mount + named volume setup
+
 ## [2.1.0] - 2026-03-24
 
 ### Added

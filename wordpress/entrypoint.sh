@@ -79,11 +79,12 @@ fi
 docker-entrypoint.sh apache2-foreground &
 WP_PID=$!
 
-# Wait for WordPress files to be ready
+# Wait for WordPress core files to be fully copied by docker-entrypoint.sh
 echo "[wp-launcher] Waiting for WordPress to be ready..."
-until [ -f /var/www/html/wp-includes/version.php ]; do
+until [ -f /var/www/html/wp-load.php ] && [ -f /var/www/html/wp-includes/version.php ] && [ -f /var/www/html/index.php ]; do
     sleep 1
 done
+echo "[wp-launcher] WordPress core files ready."
 
 DB_ENGINE="${DB_ENGINE:-sqlite}"
 

@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { getDb } from '../utils/db';
 import { removeSiteContainer, listManagedContainers, pruneImages } from './docker.service';
+import { cleanupSiteDir } from './site.service';
 import { removeTunnel } from './tunnel.service';
 import { fireWebhookEvent } from './webhook.service';
 
@@ -47,7 +48,11 @@ async function cleanupExpiredSites(): Promise<void> {
         console.log(`[cleanup] Removed container for site: ${site.subdomain}`);
       }
 
-      db.prepare("UPDATE sites SET status = 'expired', deleted_at = datetime('now') WHERE id = ?").run(site.id);
+      cleanupSiteDir(site.subdomain);
+
+      // Free up subdomain for reuse by appending a suffix to expired records
+      const freedSubdomain = `${site.subdomain}--deleted-${Date.now()}`;
+      db.prepare("UPDATE sites SET status = 'expired', deleted_at = datetime('now'), subdomain = ? WHERE id = ?").run(freedSubdomain, site.id);
       console.log(`[cleanup] Marked site as expired: ${site.subdomain}`);
 
       fireWebhookEvent('site.expired', {
@@ -88,7 +93,8 @@ export async function cleanupOrphanedContainers(): Promise<void> {
           console.log(`[watchdog] Removed orphaned/expired container: ${siteId}`);
 
           if (site && site.status !== 'expired') {
-            db.prepare("UPDATE sites SET status = 'expired', deleted_at = datetime('now') WHERE id = ?").run(site.id);
+            const freedSub = `${siteId}--deleted-${Date.now()}`;
+            db.prepare("UPDATE sites SET status = 'expired', deleted_at = datetime('now'), subdomain = ? WHERE id = ?").run(freedSub, site.id);
           }
         } catch (err) {
           console.error(`[watchdog] Failed to remove container ${siteId}:`, err);

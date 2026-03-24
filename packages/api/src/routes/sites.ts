@@ -117,6 +117,9 @@ router.get('/', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Respon
     status: s.status,
     createdAt: s.created_at,
     expiresAt: s.expires_at,
+    hostPath: config.isLocalMode && config.sitesHostPath
+      ? `${config.sitesHostPath}\\${s.subdomain}`.replace(/[/\\]+/g, config.sitesHostPath.includes('\\') ? '\\' : '/')
+      : undefined,
   }));
 
   if (req.userId) {
@@ -245,7 +248,7 @@ router.get('/:id/ready', siteReadLimiter, asyncHandler(async (req: AuthRequest, 
 
   // Probe the ready marker file written by entrypoint.sh after ALL setup completes
   // (plugins, themes, demo content — not just WP core install)
-  const markerUrl = `http://wp-demo-${site.subdomain}/.wp-launcher-ready`;
+  const markerUrl = `http://wp-site-${site.subdomain}/.wp-launcher-ready`;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);

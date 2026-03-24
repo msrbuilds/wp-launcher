@@ -106,7 +106,7 @@ async function main() {
         } catch { /* ignore */ }
         process.exit(1);
       }
-      const child = spawn('docker', ['exec', '-it', `wp-demo-${subdomain}`, 'bash'], {
+      const child = spawn('docker', ['exec', '-it', `wp-site-${subdomain}`, 'bash'], {
         stdio: 'inherit',
         shell: true,
       });
@@ -128,7 +128,7 @@ async function main() {
         process.exit(1);
       }
       const wpArgs = args.slice(1);
-      const child = spawn('docker', ['exec', '-it', `wp-demo-${subdomain}`, 'wp', '--allow-root', ...wpArgs], {
+      const child = spawn('docker', ['exec', '-it', `wp-site-${subdomain}`, 'wp', '--allow-root', ...wpArgs], {
         stdio: 'inherit',
         shell: true,
       });

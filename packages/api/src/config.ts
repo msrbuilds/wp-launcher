@@ -22,6 +22,8 @@ export const config = {
   baseDomain: process.env.BASE_DOMAIN || 'localhost',
   wpImage: process.env.WP_IMAGE || 'wp-launcher/wordpress:latest',
   dataDir: process.env.DATA_DIR || './data',
+  sitesDir: process.env.SITES_DIR || '',  // Container-internal path to sites directory (for cleanup)
+  sitesHostPath: process.env.SITES_HOST_PATH || '',  // Host path to sites directory (exposed to dashboard)
   productConfigsDir: process.env.PRODUCT_CONFIGS_DIR || './products',
   templateConfigsDir: process.env.TEMPLATE_CONFIGS_DIR || './templates',
 

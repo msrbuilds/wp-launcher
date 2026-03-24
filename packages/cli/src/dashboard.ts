@@ -284,7 +284,7 @@ function renderSitesTab(state: DashboardState, lines: string[], W: number, maxRo
 
   const visibleSites = state.sites.slice(state.siteScroll, state.siteScroll + maxRows - 2);
   for (const site of visibleSites) {
-    const stat = getStatForContainer(state.stats, `wp-demo-${site.subdomain}`);
+    const stat = getStatForContainer(state.stats, `wp-site-${site.subdomain}`);
     const statusColor = site.status === 'running' ? ansi.fg.green : site.status === 'expired' ? ansi.fg.red : ansi.fg.yellow;
     const cpuStr = stat?.cpu || '-';
     const memStr = stat?.memUsage?.split('/')[0]?.trim() || '-';

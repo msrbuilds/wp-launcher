@@ -1,5 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { getDb } from '../utils/db';
 import { generateSubdomain, isValidSubdomain } from '../utils/nameGenerator';
 import { config, parseExpiration } from '../config';
@@ -76,7 +78,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const productConfig = getProductConfig(req.productId);
 
   // Validate subdomain early (before transaction) if custom
-  let subdomain: string;
+  let subdomain = '';
   if (req.subdomain) {
     const cleaned = req.subdomain.toLowerCase().trim();
     if (!isValidSubdomain(cleaned)) {
@@ -84,7 +86,13 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
     }
     subdomain = cleaned;
   } else {
-    subdomain = generateSubdomain();
+    // Generate a unique subdomain, retrying on collision with active records
+    for (let attempt = 0; attempt < 10; attempt++) {
+      subdomain = generateSubdomain();
+      const exists = db.prepare("SELECT 1 FROM sites WHERE subdomain = ? AND status NOT IN ('expired', 'error')").get(subdomain);
+      if (!exists) break;
+      if (attempt === 9) throw new ConflictError('Failed to generate a unique subdomain. Please try again.');
+    }
   }
 
   const expiresIn = req.expiresIn || productConfig?.demo?.default_expiration || config.defaults.expiration;
@@ -136,7 +144,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
     // Check subdomain uniqueness
     if (req.subdomain) {
-      const existing = db.prepare("SELECT id FROM sites WHERE subdomain = ? AND status != 'expired'").get(subdomain);
+      const existing = db.prepare("SELECT id FROM sites WHERE subdomain = ? AND status NOT IN ('expired', 'error')").get(subdomain);
       if (existing) {
         throw new ConflictError(`Subdomain "${subdomain}" is already in use. Please choose a different one.`);
       }
@@ -230,8 +238,9 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
     // Clear password from DB now that it's been sent to the container — it's only needed at provision time
     db.prepare("UPDATE sites SET container_id = ?, status = 'running', admin_password = NULL WHERE id = ?").run(containerId, id);
   } catch (err) {
-    // Clear password even on error
-    db.prepare("UPDATE sites SET status = 'error', admin_password = NULL WHERE id = ?").run(id);
+    // Clear password and free subdomain on error so it can be reused
+    const errorSubdomain = `${subdomain}--error-${Date.now()}`;
+    db.prepare("UPDATE sites SET status = 'error', admin_password = NULL, subdomain = ? WHERE id = ?").run(errorSubdomain, id);
     throw err;
   }
 
@@ -290,8 +299,13 @@ export async function deleteSite(id: string, userId?: string, userEmail?: string
     await removeSiteContainer(site.container_id);
   }
 
+  // Clean up host bind-mount directory if using SITES_HOST_PATH
+  cleanupSiteDir(site.subdomain);
+
   const deleteTxn = db.transaction(() => {
-    db.prepare("UPDATE sites SET status = 'expired', deleted_at = datetime('now') WHERE id = ?").run(id);
+    // Free up the subdomain for reuse by appending a unique suffix to the expired record
+    const freedSubdomain = `${site.subdomain}--deleted-${Date.now()}`;
+    db.prepare("UPDATE sites SET status = 'expired', deleted_at = datetime('now'), subdomain = ? WHERE id = ?").run(freedSubdomain, id);
     logSiteAction(site, 'deleted', userEmail);
   });
   deleteTxn();
@@ -300,6 +314,20 @@ export async function deleteSite(id: string, userId?: string, userEmail?: string
     siteId: site.id, subdomain: site.subdomain, productId: site.product_id,
     siteUrl: site.site_url, userEmail,
   }).catch(() => {});
+}
+
+/** Remove the host-side site directory (sites/{subdomain}/) if SITES_DIR is configured */
+export function cleanupSiteDir(subdomain: string): void {
+  if (!config.sitesDir) return;
+  const siteDir = path.join(config.sitesDir, subdomain);
+  try {
+    if (fs.existsSync(siteDir)) {
+      fs.rmSync(siteDir, { recursive: true, force: true });
+      console.log(`[site] Removed site directory: ${siteDir}`);
+    }
+  } catch (err: any) {
+    console.error(`[site] Failed to remove site directory ${siteDir}:`, err.message);
+  }
 }
 
 export function extendSite(id: string, duration: string, userId?: string, userEmail?: string): { expiresAt: string } {

@@ -131,7 +131,7 @@ export async function cloneSite(siteId: string, userId?: string, opts?: { subdom
   // Wait for the new site's entrypoint to finish before restoring
   if (newSite.container_id) {
     const subdomain = newSite.subdomain;
-    const readyUrl = `http://wp-demo-${subdomain}/.wp-launcher-ready`;
+    const readyUrl = `http://wp-site-${subdomain}/.wp-launcher-ready`;
     for (let i = 0; i < 60; i++) {
       try {
         const res = await fetch(readyUrl, { signal: AbortSignal.timeout(2000) });

@@ -16,6 +16,9 @@ packages/api/dist/
 
 # Database
 data/
+
+# Site wp-content bind mounts
+sites/
 *.db
 *.db-shm
 *.db-wal

@@ -1,6 +1,6 @@
 # WP Launcher
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue)](https://github.com/msrbuilds/wp-launcher/releases)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue)](https://github.com/msrbuilds/wp-launcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
@@ -89,14 +89,18 @@ wp-launcher/
 ├── product-assets/             # Local plugins/themes per product
 │   └── my-product/
 │       └── plugins/
-├── traefik/                    # Traefik reverse proxy config
+├── traefik/                    # Reverse proxy config
 ├── scripts/
 │   ├── setup.sh                # Initial setup script
 │   └── build-wp-image.sh       # Builds product Docker images
 └── guides/                     # Documentation
-    ├── vps-deployment.md       # Full VPS deployment guide
     ├── getting-started.md
-    └── adding-product-images.md
+    ├── creating-products.md
+    ├── working-with-wordpress-files.md  # Edit themes/plugins in Docker
+    ├── adding-product-images.md
+    ├── vps-deployment.md
+    ├── cloudflare-dns-setup.md
+    └── upgrading.md
 ```
 
 ## Installation
@@ -237,6 +241,7 @@ Visit **http://localhost** — the dashboard is ready.
 | `CONTAINER_MEMORY` | Per-container memory limit in bytes | `268435456` (256MB) |
 | `CONTAINER_CPU` | Per-container CPU limit | `0.5` |
 | `PRODUCT_ASSETS_PATH` | Absolute host path to `product-assets/` dir (required for local plugins) | — |
+| `SITES_HOST_PATH` | Absolute host path to `sites/` dir — enables direct file access to wp-content | — |
 | `PROVISIONER_INTERNAL_KEY` | Shared secret for API ↔ provisioner communication | (required) |
 | `JWT_EXPIRES_IN` | JWT token expiry duration | `7d` |
 | `CARD_LAYOUT` | Dashboard card layout: `full` or `compact` | `full` |
@@ -335,6 +340,47 @@ bash scripts/build-wp-image.sh my-product && docker compose restart api
 
 The new product appears on the dashboard immediately.
 
+## Working with WordPress Files
+
+In **local mode**, each site's `wp-content` directory is bind-mounted to your host at `sites/{subdomain}/wp-content/`. Edit plugins, themes, and files directly — no Docker commands needed.
+
+### Open in VS Code
+
+```bash
+# From the CLI
+wpl code <subdomain>
+
+# Or open manually
+code sites/coral-sunset-7x3k/wp-content/plugins/my-plugin
+```
+
+The dashboard also has **VS Code** and **Copy Path** buttons on each site card.
+
+### Open in File Manager
+
+```bash
+wpl browse <subdomain>
+```
+
+### Setup
+
+The `install-local.sh` installer configures this automatically. For existing installations, add to `.env`:
+
+```
+SITES_HOST_PATH=/absolute/path/to/wp-launcher/sites
+```
+
+Then rebuild: `docker compose up -d --build api provisioner`
+
+### wp-cli & Shell Access
+
+```bash
+wpl wp <subdomain> plugin list      # Run WP-CLI
+wpl shell <subdomain>               # Bash into container
+```
+
+For more methods and tips, see [Working with WordPress Files Guide](guides/working-with-wordpress-files.md).
+
 ## Development
 
 ### Run the dashboard with hot reload
@@ -397,6 +443,8 @@ wpl open mail                        # Open Mailpit in browser
 wpl open <subdomain>                 # Open a site in browser
 wpl shell <subdomain>                # Bash into a site container
 wpl wp <subdomain> plugin list       # Run WP-CLI in a site container
+wpl code <subdomain>                 # Open site's wp-content in VS Code
+wpl browse <subdomain>               # Open site's wp-content in file manager
 wpl build:wp                         # Rebuild WordPress images (all PHP versions)
 wpl dir                              # Print project directory path
 wpl help                             # Show all commands

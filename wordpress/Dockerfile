@@ -41,6 +41,26 @@ COPY mu-plugins/ /usr/src/wordpress/wp-content/mu-plugins/
 # Copy custom wp-config
 COPY wp-config-docker.php /usr/src/wordpress/wp-config-docker.php
 
+# PHP performance tuning (OPcache, JIT, realpath cache)
+RUN { \
+    echo '; OPcache — aggressive caching for WordPress'; \
+    echo 'opcache.memory_consumption=256'; \
+    echo 'opcache.interned_strings_buffer=16'; \
+    echo 'opcache.max_accelerated_files=20000'; \
+    echo 'opcache.revalidate_freq=0'; \
+    echo 'opcache.validate_timestamps=1'; \
+    echo 'opcache.enable_file_override=1'; \
+    echo 'opcache.save_comments=1'; \
+    echo ''; \
+    echo '; JIT compilation (PHP 8.x) — significant speed boost'; \
+    echo 'opcache.jit=1255'; \
+    echo 'opcache.jit_buffer_size=128M'; \
+    echo ''; \
+    echo '; Realpath cache — reduces filesystem stat calls'; \
+    echo 'realpath_cache_size=8M'; \
+    echo 'realpath_cache_ttl=600'; \
+    } > /usr/local/etc/php/conf.d/90-wp-launcher-performance.ini
+
 # Copy custom entrypoint
 COPY entrypoint.sh /usr/local/bin/wp-launcher-entrypoint.sh
 RUN chmod +x /usr/local/bin/wp-launcher-entrypoint.sh

@@ -154,6 +154,7 @@ app.get('/api/settings', (_req, res) => {
       cardLayout: branding.cardLayout || config.ui.cardLayout,
     },
     colors,
+    sitesHostPath: config.isLocalMode ? config.sitesHostPath : '',
   });
 });
 

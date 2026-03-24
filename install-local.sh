@@ -129,6 +129,9 @@ WP_IMAGE=wp-launcher/wordpress:latest
 # Product assets path (host path for bind-mounting local plugins/themes into containers)
 PRODUCT_ASSETS_PATH=${DOCKER_PROJECT_DIR}/product-assets
 
+# Sites directory (wp-content bind-mounted here for direct file access from host)
+SITES_HOST_PATH=${DOCKER_PROJECT_DIR}/sites
+
 # SMTP (Mailpit — catches all emails locally)
 SMTP_HOST=mailpit
 SMTP_PORT=1025
@@ -143,7 +146,8 @@ fi
 # ─── 3. Create data & templates directories ──────────────────────────────────
 mkdir -p "$PROJECT_DIR/data"
 mkdir -p "$PROJECT_DIR/templates"
-ok "Data and templates directories ready"
+mkdir -p "$PROJECT_DIR/sites"
+ok "Data, templates, and sites directories ready"
 
 # ─── 4. Build WordPress images ───────────────────────────────────────────────
 banner "Building WordPress Images"

@@ -25,6 +25,7 @@ const WP_UPLOAD_LIMIT = process.env.WP_UPLOAD_LIMIT || String(2 * 1024 * 1024); 
 const WP_DISK_QUOTA = process.env.WP_DISK_QUOTA || String(100 * 1024 * 1024); // 100MB total uploads
 // PRODUCT_ASSETS_PATH is passed through env for reference but the provisioner
 // reads from its own /product-assets mount (set in docker-compose.yml)
+const SITES_HOST_PATH = process.env.SITES_HOST_PATH || '';
 
 // Connect to Docker — via DOCKER_HOST (socket proxy) or local socket
 const docker = process.env.DOCKER_HOST
@@ -162,7 +163,7 @@ app.post('/containers', async (req: Request, res: Response) => {
       return;
     }
 
-    const containerName = `wp-demo-${opts.subdomain}`;
+    const containerName = `wp-site-${opts.subdomain}`;
     const useExternalDb = opts.dbEngine === 'mysql' || opts.dbEngine === 'mariadb';
     let dbContainerId: string | undefined;
     const dbContainerName = `wp-db-${opts.subdomain}`;
@@ -289,8 +290,17 @@ app.post('/containers', async (req: Request, res: Response) => {
     const needsAssets = allRefs.includes('/product-assets/');
 
     if (useLocalMode) {
-      // Named volume for wp-content persistence
+      // Persist wp-content with named volume for performance, plus host bind mounts
+      // for plugins/ and themes/ (the parts users actually edit) for direct file access
       hostConfig.Binds = [`wp-site-${opts.subdomain}:/var/www/html/wp-content`];
+      if (SITES_HOST_PATH) {
+        const basePath = `${SITES_HOST_PATH}/${opts.subdomain}`;
+        hostConfig.Binds.push(
+          `${basePath}/plugins:/var/www/html/wp-content/plugins`,
+          `${basePath}/themes:/var/www/html/wp-content/themes`,
+        );
+        console.log(`[provisioner] Host bind mounts for plugins/themes: ${basePath}`);
+      }
     } else {
       // Agency mode: enforce resource limits
       hostConfig.Memory = CONTAINER_MEMORY;
@@ -395,7 +405,7 @@ app.delete('/containers/:id', async (req: Request, res: Response) => {
       }
       await container.remove({ v: true });
 
-      // Clean up named volume (wp-site-{subdomain}) if it exists
+      // Clean up named volume (wp-site-{subdomain})
       if (siteId) {
         const volumeName = `wp-site-${siteId}`;
         try {
@@ -1246,7 +1256,7 @@ ${tlsConfig}
     ${subdomain}:
       loadBalancer:
         servers:
-          - url: "http://wp-demo-${subdomain}:80"
+          - url: "http://wp-site-${subdomain}:80"
 `;
 
     const filePath = path.join(CUSTOM_DOMAINS_DIR, `${subdomain}.yml`);
@@ -1625,7 +1635,7 @@ app.post('/shares', async (req: Request, res: Response) => {
     }
 
     // Check site container exists
-    const siteContainerName = `wp-demo-${subdomain}`;
+    const siteContainerName = `wp-site-${subdomain}`;
     try {
       const siteInfo = await docker.getContainer(siteContainerName).inspect();
       if (!siteInfo.State.Running) {
