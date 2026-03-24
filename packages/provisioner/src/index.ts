@@ -251,6 +251,8 @@ app.post('/containers', async (req: Request, res: Response) => {
     if (opts.landingPage) env.push(`WP_DEMO_LANDING_PAGE=${opts.landingPage}`);
     // autoLoginToken is no longer injected as env var — tokens are written on-demand via putArchive
     if (opts.localMode) env.push('WP_LOCAL_MODE=true');
+    env.push(`WP_LAUNCHER_API_URL=http://api:3737`);
+    env.push(`WP_SUBDOMAIN=${opts.subdomain}`);
 
     // Generate unique WordPress salts per container
     const wpSaltKeys = [

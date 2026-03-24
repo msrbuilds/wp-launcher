@@ -71,6 +71,7 @@ export const FEATURE_META: { key: string; label: string; description: string; ag
   { key: 'publicSharing', label: 'Public Sharing (Tunnels)', description: 'Share sites publicly via LAN, Cloudflare Tunnel, or ngrok' },
   { key: 'siteSync', label: 'Site Sync', description: 'Push/pull site content between local and remote instances', localOnly: true },
   { key: 'projects', label: 'Projects & Invoices', description: 'Manage clients, projects, and generate invoices' },
+  { key: 'productivityMonitor', label: 'Productivity Monitor', description: 'Track coding time and WordPress site activity with daily goals and breakdowns', localOnly: true },
 ];
 
 export interface Client {

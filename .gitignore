@@ -60,6 +60,9 @@ reports/
 # Docker
 docker-compose.override.yml
 
+# Extensions (private, published separately)
+extensions/
+
 # Generated
 version.json
 packages/api/version.json

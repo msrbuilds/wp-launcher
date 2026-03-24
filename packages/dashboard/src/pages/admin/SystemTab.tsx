@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAdminHeaders } from './AdminLayout';
-import { useIsLocalMode } from '../../context/SettingsContext';
 import { apiFetch } from '../../utils/api';
 
 interface SystemInfo {
@@ -36,7 +35,6 @@ interface UpdateCheck {
 
 export default function SystemTab() {
   const headers = useAdminHeaders();
-  const isLocal = useIsLocalMode();
   const [info, setInfo] = useState<SystemInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [update, setUpdate] = useState<UpdateCheck | null>(null);
@@ -169,8 +167,8 @@ export default function SystemTab() {
         </div>
       </div>
 
-      {/* Update Notification (agency mode only) */}
-      {!isLocal && update?.updateAvailable && (
+      {/* Update Notification */}
+      {update?.updateAvailable && (
         <div className="sys-update-banner">
           <div className="sys-update-info">
             <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#b45309" strokeWidth="2">
@@ -206,7 +204,7 @@ export default function SystemTab() {
         </div>
       )}
 
-      {!isLocal && update && !update.updateAvailable && !update.error && (
+      {update && !update.updateAvailable && !update.error && (
         <div className="sys-uptodate-banner">
           <div className="sys-uptodate-info">
             <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#16a34a" strokeWidth="2">
@@ -242,8 +240,8 @@ export default function SystemTab() {
         </div>
       </div>
 
-      {/* Update Progress / Log Viewer (agency mode only) */}
-      {!isLocal && showLog && (
+      {/* Update Progress / Log Viewer */}
+      {showLog && (
         <div className="card sys-card-spaced">
           <div className="sys-log-header">
             <h4 className="sys-section-heading--no-margin">
@@ -295,8 +293,8 @@ export default function SystemTab() {
         </div>
       )}
 
-      {/* Manual Update Instructions (agency mode only) */}
-      {!isLocal && <div className="card">
+      {/* Manual Update Instructions */}
+      {<div className="card">
         <h4 className="sys-section-heading">
           Manual Update (SSH)
         </h4>

@@ -2,6 +2,30 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [2.1.0] - 2026-03-24
+
+### Added
+- **Productivity Monitor** — WakaTime-like productivity tracking system for local mode
+  - **WordPress MU-Plugin** — Auto-installed on every launched site, tracks all wp-admin activity (editing, customizer, media, plugins, themes, settings, WooCommerce) via `navigator.sendBeacon()`
+  - **VS Code Extension** — Published to marketplace as `msrbuilds.wpl-productivity`, tracks coding time per language, project, and git branch with status bar display
+  - **Dashboard Page** — WakaTime-style stats with 5 stat cards (today, goal, daily avg, best day, streak), daily activity chart, hourly activity, weekday averages, and 4 breakdown panels (projects, categories, editors, WP screens)
+  - **Cloud Sync** — Heartbeats stored locally in SQLite, synced to cloud every 6 hours (or manual trigger). API key verification on connect. Reduces cloud load from real-time writes to batch syncs
+  - **Integrations Panel** — Grid of 30 editor/tool cards with icons, showing available extensions (VS Code), built-in (WordPress), and coming soon integrations
+  - **Feature Flag** — `productivityMonitor` (local mode only), toggleable in Features tab
+- **Local Mode Update System** — Update check and one-click update UI now available in local mode (previously agency-only). System tab shows version check, update notification, log viewer, and manual SSH instructions
+- New API endpoints: `/api/productivity/*` — heartbeat ingestion, stats (today, daily, hourly, weekday, screens, summary), goals, cloud config, sync
+- New env vars injected into WordPress containers: `WP_LAUNCHER_API_URL`, `WP_SUBDOMAIN`
+
+### Changed
+- CSRF middleware now exempts `/api/productivity/heartbeats` (cross-origin from WP sites)
+- Heartbeat endpoint sets `Cross-Origin-Resource-Policy: cross-origin` to override Helmet defaults
+- Heartbeat endpoint accepts `text/plain` content type (for `sendBeacon` CORS compatibility)
+- API port documented correctly as `3737` in CLAUDE.md
+
+### Security
+- Heartbeat ingestion requires cloud account to be linked (no anonymous tracking)
+- Cloud API key verified against sync endpoint before saving connection config
+
 ## [2.0.0] - 2026-03-23
 
 ### Security

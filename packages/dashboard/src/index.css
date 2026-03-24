@@ -6676,3 +6676,648 @@ body:has(.admin-layout) .header .container {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Productivity Monitor (pd-) ── */
+
+.pd-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.pd-loading {
+  display: flex;
+  justify-content: center;
+  padding: 4rem 0;
+}
+
+.pd-notice {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  color: #92400e;
+}
+
+.pd-notice-icon {
+  flex-shrink: 0;
+  color: #f59e0b;
+}
+
+.pd-notice-content {
+  flex: 1;
+}
+
+.pd-notice-content strong {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 0.15rem;
+}
+
+.pd-notice-content p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #a16207;
+}
+
+.pd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.pd-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.pd-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.pd-cloud-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.pd-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: mn-pulse 2s ease-in-out infinite;
+}
+
+.pd-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pd-source-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.pd-toggle-btn {
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.pd-toggle-btn:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+.pd-toggle-btn.active {
+  background: var(--prussian-blue);
+  color: #fff;
+}
+
+.pd-days-select {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+/* Stats Grid */
+.pd-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.pd-stat-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.pd-stat-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pd-stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--prussian-blue);
+  line-height: 1.2;
+}
+
+.pd-stat-sub {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 0.25rem;
+}
+
+.pd-bar {
+  height: 6px;
+  background: var(--bg-surface);
+  border-radius: 3px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+}
+
+.pd-bar-sm {
+  height: 4px;
+  margin-top: 0;
+}
+
+.pd-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.pd-goal-edit-btn {
+  font-size: 0.7rem;
+  color: var(--orange);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.pd-goal-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.pd-goal-input {
+  width: 60px;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+/* Time Split */
+.pd-split-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+
+.pd-split-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.pd-split-segment {
+  transition: width 0.6s ease;
+}
+
+.pd-split-editor {
+  background: #3b82f6;
+}
+
+.pd-split-wordpress {
+  background: #f59e0b;
+}
+
+.pd-split-labels {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.pd-split-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pd-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Charts */
+.pd-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.pd-chart-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.pd-chart-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+}
+
+.pd-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-light);
+  font-size: 0.85rem;
+}
+
+/* Sections */
+.pd-section {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.pd-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.pd-section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Tables */
+.pd-table-wrap {
+  overflow-x: auto;
+}
+
+.pd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.pd-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pd-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--bg-surface);
+}
+
+.pd-table-sm th,
+.pd-table-sm td {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+.pd-error-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-light);
+}
+
+/* Cloud Panel */
+.pd-cloud-panel {
+  margin-top: 0.75rem;
+}
+
+.pd-cloud-connected {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pd-cloud-info p {
+  margin: 0.25rem 0;
+  font-size: 0.82rem;
+}
+
+.pd-cloud-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pd-cloud-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 400px;
+}
+
+.pd-sync-msg {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.pd-sync-success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.pd-sync-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
+}
+
+.pd-sync-log h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0.5rem 0;
+}
+
+/* Breakdown Grid (WakaTime-style panels) */
+.pd-breakdown-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.pd-breakdown-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  min-height: 120px;
+}
+
+.pd-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.pd-breakdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.pd-breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.pd-breakdown-name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--prussian-blue);
+  font-weight: 500;
+}
+
+.pd-breakdown-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.pd-breakdown-time {
+  font-weight: 600;
+  color: var(--prussian-blue);
+  white-space: nowrap;
+}
+
+.pd-breakdown-pct {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Summary Row */
+.pd-summary-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.pd-summary-item {
+  flex: 1;
+  min-width: 120px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.pd-summary-num {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--prussian-blue);
+}
+
+.pd-summary-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Integrations Panel */
+.pd-integrations-panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  padding: 1.5rem;
+}
+
+.pd-integrations-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.pd-integrations-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0.25rem 0 0 0;
+  max-width: 600px;
+}
+
+.pd-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.pd-close-btn:hover {
+  color: var(--prussian-blue);
+}
+
+.pd-integrations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.pd-integration-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  padding: 1.25rem 1rem 1rem;
+  border: 1px solid var(--border);
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.pd-integration-card:hover {
+  border-color: var(--text-muted);
+}
+
+.pd-integration-card.coming-soon {
+  opacity: 0.5;
+}
+
+.pd-integration-card.coming-soon .pd-integration-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-light);
+  background: var(--bg-surface);
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+}
+
+.pd-integration-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--prussian-blue);
+  font-family: monospace;
+}
+
+.pd-integration-icon img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.pd-integration-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pd-integration-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--prussian-blue);
+}
+
+.pd-integration-desc {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.pd-integration-action {
+  margin-top: 0.25rem;
+}
+
+/* Remove border-radius from all pd- cards */
+.pd-notice,
+.pd-stat-card,
+.pd-split-card,
+.pd-chart-card,
+.pd-section,
+.pd-breakdown-card,
+.pd-summary-item,
+.pd-integrations-panel,
+.pd-integration-card,
+.pd-integration-icon {
+  border-radius: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .pd-stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .pd-charts-grid {
+    grid-template-columns: 1fr;
+  }
+  .pd-breakdown-grid {
+    grid-template-columns: 1fr;
+  }
+  .pd-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .pd-summary-row {
+    flex-direction: column;
+  }
+}

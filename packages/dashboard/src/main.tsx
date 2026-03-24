@@ -33,6 +33,7 @@ import ProjectsPage from './pages/admin/ProjectsPage';
 import ProjectDetailPage from './pages/admin/ProjectDetailPage';
 import InvoicesPage from './pages/admin/InvoicesPage';
 import InvoicePrintPage from './pages/admin/InvoicePrintPage';
+import ProductivityPage from './pages/ProductivityPage';
 import './index.css';
 
 function LaunchRedirect() {
@@ -57,6 +58,7 @@ function LocalRoutes() {
         <Route path="create" element={<LocalLaunchPage />} />
         <Route path="create-template" element={<CreateTemplatePage />} />
         <Route path="sync" element={<SyncPage />} />
+        <Route path="productivity" element={<ProductivityPage />} />
         <Route path="clients" element={<ClientsPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/:id" element={<ProjectDetailPage />} />

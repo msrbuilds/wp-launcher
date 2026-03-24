@@ -8,7 +8,7 @@ Microservices running via Docker Compose:
 
 | Service | Tech | Port | Purpose |
 |---------|------|------|---------|
-| **API** | Node.js + Express + TypeScript | 3000 | Core business logic, auth, site orchestration |
+| **API** | Node.js + Express + TypeScript | 3737 | Core business logic, auth, site orchestration |
 | **Provisioner** | Node.js + Express + Dockerode | 4000 (internal) | Low-level Docker container/image management |
 | **Dashboard** | React + Vite + TypeScript | 80 | User-facing SPA |
 | **Traefik** | v3.6 | 80, 443 | Reverse proxy, auto-discovery, Let's Encrypt SSL |
@@ -105,6 +105,10 @@ Tables in `data/wp-launcher.db`:
 - **projects** — id, user_id, client_id, name, description, status (active/completed/on-hold/archived), created_at, updated_at
 - **project_sites** — id, project_id, site_id, created_at (link table)
 - **invoices** — id, invoice_number (INV-0001), user_id, client_id, project_id, items (JSON line items), subtotal, tax_rate, tax_amount, total, currency, status (draft/sent/paid/overdue/cancelled), issue_date, due_date, notes, created_at, updated_at
+- **productivity_heartbeats** — id, source (editor|wordpress), entity, entity_type, project, language, category, editor, site_id, machine_id, branch, is_write, created_at, synced
+- **productivity_goals** — id, daily_goal_seconds, updated_at
+- **productivity_cloud_config** — key, value (cloud_url, cloud_api_key, device_name, last_synced_at)
+- **productivity_sync_log** — id, heartbeats_count, status, error, started_at, completed_at
 
 ## API Endpoints
 
@@ -160,6 +164,20 @@ Tables in `data/wp-launcher.db`:
 - `GET|PUT|DELETE /invoices/:id` — get / update (draft only) / delete (draft only)
 - `PATCH /invoices/:id/status` — change status (draft→sent→paid, any→cancelled)
 
+### Productivity (`/api/productivity/*`) — feature-gated (`productivityMonitor`)
+- `POST /heartbeats` — batch heartbeat ingestion (no auth, requires cloud linked, CSRF exempt)
+- `GET /stats/today` — today's stats + breakdowns by source/project/language/category/editor
+- `GET /stats/daily?days=14` — daily totals with editor/wordpress split
+- `GET /stats/hourly?date=` — activity by hour of day
+- `GET /stats/weekdays?days=30` — average time per weekday
+- `GET /stats/screens` — WordPress screen breakdown
+- `GET /stats/summary?days=14` — summary with best day, write count
+- `GET|PUT /goals` — daily goal (seconds)
+- `GET|PUT|DELETE /cloud/config` — cloud connection (URL, API key, device name)
+- `GET /cloud/status` — check if cloud linked (no auth, CSRF exempt)
+- `POST /cloud/sync` — trigger manual sync to cloud
+- `GET /cloud/sync-log` — recent sync history
+
 ### Other
 - `GET /health` — health check
 - `GET /api/settings` — UI settings
@@ -188,6 +206,7 @@ Products defined in `products/[id].json`. Key fields:
 - **wp-launcher-restrictions.php** — Blocks dangerous capabilities (install/edit plugins/themes, update_core, export/import), removes admin menus, blocks direct page access. Skipped entirely when `WP_LOCAL_MODE=true`
 - **wp-launcher-branding.php** — Admin bar countdown timer, auto-redirect on expiry
 - **wp-launcher-autologin.php** — `?autologin={token}` for instant demo access
+- **wp-launcher-productivity.php** — Tracks wp-admin activity (editing, customizer, media, plugins, themes, settings, WooCommerce). Sends heartbeats via `sendBeacon(text/plain)` to WP Launcher API. Uses `WP_SITE_URL` to derive public API URL (strips subdomain, adds `:3737` for localhost)
 
 ## WP Launcher Connector Plugin
 
@@ -250,7 +269,7 @@ Each demo site gets:
 
 Stored in `settings` table as `feature.*` keys. Controlled via Admin > Features tab.
 
-`cloning`, `snapshots`, `templates`, `customDomains`, `phpConfig`, `siteExtend` (agency only), `sitePassword`, `exportZip`, `webhooks`, `healthMonitoring`, `scheduledLaunch`, `collaborativeSites`, `adminer`, `publicSharing`, `siteSync`, `projects`
+`cloning`, `snapshots`, `templates`, `customDomains`, `phpConfig`, `siteExtend` (agency only), `sitePassword`, `exportZip`, `webhooks`, `healthMonitoring`, `scheduledLaunch`, `collaborativeSites`, `adminer`, `publicSharing`, `siteSync`, `projects`, `productivityMonitor` (local only)
 
 ## CSS Architecture
 

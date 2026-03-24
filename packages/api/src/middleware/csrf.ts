@@ -80,6 +80,11 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
     return next();
   }
 
+  // Skip productivity heartbeat endpoint (cross-origin from WP sites, no cookie auth)
+  if (req.path === '/api/productivity/heartbeats' || req.path === '/api/productivity/cloud/status') {
+    return next();
+  }
+
   // Layer 1: Origin / Referer check
   const origin = req.headers['origin'] as string | undefined;
   const derivedOrigin = origin || extractOriginFromReferer(req.headers['referer'] as string | undefined);

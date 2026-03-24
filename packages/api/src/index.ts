@@ -17,9 +17,11 @@ import bulkRouter from './routes/bulk';
 import templatesRouter from './routes/templates';
 import syncRouter from './routes/sync';
 import projectsRouter from './routes/projects';
+import productivityRouter from './routes/productivity';
 import monitoringRouter from './routes/monitoring';
 import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cleanup.service';
 import { startScheduleProcessor } from './services/schedule.service';
+import { startProductivitySync } from './services/productivity-sync.service';
 import { closeDb, getDb } from './utils/db';
 import { AppError } from './utils/errors';
 import { Request, Response, NextFunction } from 'express';
@@ -251,8 +253,8 @@ app.get('/api/admin/system/update-check', adminAuth, async (_req, res) => {
     const info = readVersionInfo();
     const currentVersion = info.version || '0.0.0';
 
-    // In local/development mode, skip update checks — dev is always "latest"
-    if (config.isLocalMode || config.nodeEnv === 'development') {
+    // In development mode (running from source with tsx watch), skip update checks
+    if (config.nodeEnv === 'development' && !config.isLocalMode) {
       res.json({ currentVersion, latestVersion: currentVersion, updateAvailable: false, source: 'local' });
       return;
     }
@@ -400,7 +402,7 @@ app.put('/api/admin/features', adminAuth, (req, res) => {
     res.status(400).json({ error: 'features object is required' });
     return;
   }
-  const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks', 'healthMonitoring', 'scheduledLaunch', 'collaborativeSites', 'adminer', 'publicSharing', 'siteSync', 'projects'];
+  const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks', 'healthMonitoring', 'scheduledLaunch', 'collaborativeSites', 'adminer', 'publicSharing', 'siteSync', 'projects', 'productivityMonitor'];
   const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
   for (const [name, enabled] of Object.entries(features)) {
     if (allowed.includes(name)) {
@@ -509,6 +511,9 @@ app.use('/api/sync', syncRouter);
 // Projects, clients, invoices routes (auth + feature gate handled inside router)
 app.use('/api/projects', projectsRouter);
 
+// Productivity monitor routes (heartbeat ingestion, stats, cloud sync)
+app.use('/api/productivity', productivityRouter);
+
 // Sites routes (rate limiting handled per-route inside the router)
 app.use('/api/sites', sitesRouter);
 
@@ -562,6 +567,9 @@ startCleanupScheduler();
 
 // Start scheduled launch processor
 startScheduleProcessor();
+
+// Start productivity cloud sync scheduler (every 6 hours)
+startProductivitySync();
 
 // Run orphan cleanup every 5 minutes
 setInterval(() => {

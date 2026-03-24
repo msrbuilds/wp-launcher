@@ -254,6 +254,48 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices(user_id);
     CREATE INDEX IF NOT EXISTS idx_invoices_client_id ON invoices(client_id);
     CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+
+    -- Productivity Monitor tables
+    CREATE TABLE IF NOT EXISTS productivity_heartbeats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source TEXT NOT NULL,
+      entity TEXT NOT NULL,
+      entity_type TEXT NOT NULL DEFAULT 'file',
+      project TEXT,
+      language TEXT,
+      category TEXT,
+      editor TEXT,
+      site_id TEXT,
+      machine_id TEXT,
+      branch TEXT,
+      is_write INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      synced INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_ph_created_at ON productivity_heartbeats(created_at);
+    CREATE INDEX IF NOT EXISTS idx_ph_synced ON productivity_heartbeats(synced);
+    CREATE INDEX IF NOT EXISTS idx_ph_source ON productivity_heartbeats(source);
+    CREATE INDEX IF NOT EXISTS idx_ph_project ON productivity_heartbeats(project);
+
+    CREATE TABLE IF NOT EXISTS productivity_goals (
+      id TEXT PRIMARY KEY DEFAULT 'default',
+      daily_goal_seconds INTEGER NOT NULL DEFAULT 21600,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS productivity_cloud_config (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS productivity_sync_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      heartbeats_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL,
+      error TEXT,
+      started_at TEXT NOT NULL DEFAULT (datetime('now')),
+      completed_at TEXT
+    );
   `);
 
   // Seed default feature flags and branding
@@ -274,6 +316,7 @@ function initSchema(db: Database.Database): void {
     'feature.publicSharing': 'true',
     'feature.siteSync': 'false',
     'feature.projects': 'false',
+    'feature.productivityMonitor': 'false',
     'branding.siteTitle': 'WP Launcher',
     'branding.logoUrl': '',
     'branding.cardLayout': '',

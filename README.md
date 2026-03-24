@@ -1,6 +1,6 @@
 # WP Launcher
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/msrbuilds/wp-launcher/releases)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue)](https://github.com/msrbuilds/wp-launcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
@@ -14,7 +14,7 @@
 
 ---
 
-Docker-based WordPress environment with two modes:
+Docker-based WordPress development and publishing platform with two modes:
 
 - **Local Mode** — Full-featured local WordPress development tool (like Local by Flywheel / Laragon) with multi-PHP, multi-DB support, and a `wpl` CLI
 - **Agency Mode** — Demo hosting platform that spins up temporary WordPress sites pre-loaded with your plugins/themes, auto-deleted after expiration
