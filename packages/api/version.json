@@ -1,9 +1,9 @@
 {
-  "version": "1.9.0",
-  "commit": "2152f90",
-  "commitFull": "2152f900d19b43c687f3daa2607bafa75c92cb33",
+  "version": "2.1.0",
+  "commit": "e6e0c88",
+  "commitFull": "e6e0c888eb9ed06172aa5b0776b8f1213749b807",
   "branch": "main",
-  "buildDate": "2026-03-21T21:02:20Z",
-  "commitDate": "2026-03-21 23:35:14 +0500",
-  "commitMessage": "v1.8.1: Sync fixes, CSS consolidation, admin footer, docs update"
+  "buildDate": "2026-03-24T01:37:01Z",
+  "commitDate": "2026-03-24 00:42:34 +0500",
+  "commitMessage": "install scripts update"
 }
