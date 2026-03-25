@@ -1,0 +1,10 @@
+[
+    {
+        "caption": "WP Launcher: Show Today's Stats",
+        "command": "wpl_show_stats"
+    },
+    {
+        "caption": "WP Launcher: Toggle Tracking",
+        "command": "wpl_toggle_tracking"
+    }
+]

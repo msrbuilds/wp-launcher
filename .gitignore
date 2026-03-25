@@ -63,8 +63,10 @@ reports/
 # Docker
 docker-compose.override.yml
 
-# Extensions (private, published separately)
+# Extensions — only track installable/distributable files
 extensions/
+!extensions/dist/
+!extensions/dist/**
 
 # Generated
 version.json

@@ -221,8 +221,8 @@ code {
 .page-header {
   margin-bottom: 2rem;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .page-header h2 {
@@ -4850,9 +4850,15 @@ body:has(.admin-layout) .header .container {
 }
 
 .ov-module-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .ov-module-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ov-module-row {

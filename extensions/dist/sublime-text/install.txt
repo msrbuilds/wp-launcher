@@ -1,0 +1,20 @@
+WP Launcher Productivity — Installed!
+======================================
+
+Track your coding time automatically. Heartbeats are sent to your local
+WP Launcher instance for productivity monitoring.
+
+Getting Started:
+  1. Make sure WP Launcher is running (default: http://localhost:3737)
+  2. Enable the Productivity Monitor feature in WP Launcher Admin > Features
+  3. Link a cloud account in the Productivity dashboard
+  4. Start coding — tracking begins automatically!
+
+Settings:
+  Preferences > Package Settings > WPLProductivity > Settings
+
+Commands (Command Palette):
+  - WP Launcher: Show Today's Stats
+  - WP Launcher: Toggle Tracking
+
+More info: https://wplauncher.msrbuilds.com

@@ -92,6 +92,25 @@ function formatHour(hour: number): string {
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
+
+const EDITOR_COLORS: Record<string, string> = {
+  vscode: '#007ACC',
+  cursor: '#00E5A0',
+  windsurf: '#6C5CE7',
+  antigravity: '#4285F4',
+  sublime: '#FF9800',
+  phpstorm: '#B845FC',
+  webstorm: '#00CDD7',
+  pycharm: '#21D789',
+  intellij: '#FC801D',
+  goland: '#00ACC1',
+  rider: '#DD1265',
+  clion: '#21D789',
+  rubymine: '#FC801D',
+  datagrip: '#22D88F',
+  'android-studio': '#3DDC84',
+  jetbrains: '#FC801D',
+};
 const chartTooltipStyle = {
   backgroundColor: 'rgba(255,255,255,0.95)',
   border: '1px solid #e2e8f0',
@@ -101,17 +120,18 @@ const chartTooltipStyle = {
 
 // ── Breakdown Bar Component (WakaTime-style horizontal bars) ──
 
-function BreakdownList({ items, label }: { items: { name: string; seconds: number }[]; label: string }) {
+function BreakdownList({ items, label, colorMap }: { items: { name: string; seconds: number }[]; label: string; colorMap?: Record<string, string> }) {
   if (items.length === 0) return <div className="pd-empty">No {label.toLowerCase()} data</div>;
   const max = items[0]?.seconds || 1;
   const total = items.reduce((s, i) => s + i.seconds, 0) || 1;
+  const getColor = (name: string, i: number) => colorMap?.[name.toLowerCase()] || COLORS[i % COLORS.length];
   return (
     <div className="pd-breakdown-list">
       {items.map((item, i) => (
         <div key={item.name} className="pd-breakdown-item">
           <div className="pd-breakdown-row">
             <span className="pd-breakdown-name">
-              <span className="pd-breakdown-dot" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+              <span className="pd-breakdown-dot" style={{ backgroundColor: getColor(item.name, i) }} />
               {item.name}
             </span>
             <span className="pd-breakdown-time">{formatDuration(item.seconds)}</span>
@@ -120,7 +140,7 @@ function BreakdownList({ items, label }: { items: { name: string; seconds: numbe
           <div className="pd-bar pd-bar-sm">
             <div
               className="pd-bar-fill"
-              style={{ width: `${Math.round((item.seconds / max) * 100)}%`, backgroundColor: COLORS[i % COLORS.length] }}
+              style={{ width: `${Math.round((item.seconds / max) * 100)}%`, backgroundColor: getColor(item.name, i) }}
             />
           </div>
         </div>
@@ -142,16 +162,17 @@ interface Integration {
 const INTEGRATIONS: Integration[] = [
   { name: 'VS Code', icon: '/int-icons/vs-code-128.png', status: 'available', installUrl: 'https://marketplace.visualstudio.com/items?itemName=msrbuilds.wpl-productivity', description: 'Track coding time in Visual Studio Code' },
   { name: 'WordPress', icon: '/int-icons/wordpress-128.png', status: 'built-in', description: 'Auto-tracks all wp-admin activity on launched sites' },
-  { name: 'Cursor', icon: '/int-icons/cursor-128.png', status: 'coming-soon', description: 'AI-powered code editor' },
-  { name: 'Windsurf', icon: '/int-icons/windsurf-128.png', status: 'coming-soon', description: 'AI-first code editor' },
+  { name: 'Cursor', icon: '/int-icons/cursor-128.png', status: 'available', installUrl: 'https://open-vsx.org/extension/msrbuilds/wpl-productivity-cursor', description: 'AI-powered code editor' },
+  { name: 'Windsurf', icon: '/int-icons/windsurf-128.png', status: 'available', installUrl: 'https://open-vsx.org/extension/msrbuilds/wpl-productivity-windsurf', description: 'AI-first code editor' },
+  { name: 'Antigravity', icon: '/int-icons/antigravity-128.png', status: 'available', installUrl: 'https://open-vsx.org/extension/msrbuilds/wpl-productivity-antigravity', description: 'Google AI-powered IDE' },
   { name: 'Claude Code', icon: '/int-icons/claude-code-128.png', status: 'coming-soon', description: 'AI coding assistant' },
-  { name: 'Sublime Text', icon: '/int-icons/sublime-text-128.png', status: 'coming-soon', description: 'Lightweight code editor' },
-  { name: 'PhpStorm', icon: '/int-icons/phpstorm-128.png', status: 'coming-soon', description: 'PHP IDE by JetBrains' },
-  { name: 'WebStorm', icon: '/int-icons/webstorm-128.png', status: 'coming-soon', description: 'JavaScript IDE by JetBrains' },
-  { name: 'IntelliJ IDEA', icon: '/int-icons/intellij-idea-128.png', status: 'coming-soon', description: 'Java & polyglot IDE' },
-  { name: 'GoLand', icon: '/int-icons/goland-128.png', status: 'coming-soon', description: 'Go IDE by JetBrains' },
-  { name: 'RubyMine', icon: '/int-icons/rubymine-128.png', status: 'coming-soon', description: 'Ruby IDE by JetBrains' },
-  { name: 'RustRover', icon: '/int-icons/rustrover-128.png', status: 'coming-soon', description: 'Rust IDE by JetBrains' },
+  { name: 'Sublime Text', icon: '/int-icons/sublime-text-128.png', status: 'available', installUrl: 'https://github.com/msrbuilds/wp-launcher/tree/main/extensions/dist/sublime-text', description: 'Lightweight code editor' },
+  { name: 'PhpStorm', icon: '/int-icons/phpstorm-128.png', status: 'available', installUrl: 'https://github.com/msrbuilds/wp-launcher/tree/main/extensions/dist', description: 'PHP IDE by JetBrains' },
+  { name: 'WebStorm', icon: '/int-icons/webstorm-128.png', status: 'available', installUrl: 'https://github.com/msrbuilds/wp-launcher/tree/main/extensions/dist', description: 'JavaScript IDE by JetBrains' },
+  { name: 'IntelliJ IDEA', icon: '/int-icons/intellij-idea-128.png', status: 'available', installUrl: 'https://github.com/msrbuilds/wp-launcher/tree/main/extensions/dist', description: 'Java & polyglot IDE' },
+  { name: 'GoLand', icon: '/int-icons/goland-128.png', status: 'available', installUrl: 'https://github.com/msrbuilds/wp-launcher/tree/main/extensions/dist', description: 'Go IDE by JetBrains' },
+  { name: 'RubyMine', icon: '/int-icons/rubymine-128.png', status: 'available', installUrl: 'https://github.com/msrbuilds/wp-launcher/tree/main/extensions/dist', description: 'Ruby IDE by JetBrains' },
+  { name: 'RustRover', icon: '/int-icons/rustrover-128.png', status: 'available', installUrl: 'https://github.com/msrbuilds/wp-launcher/tree/main/extensions/dist', description: 'Rust IDE by JetBrains' },
   { name: 'Neovim', icon: '/int-icons/neovim-128.png', status: 'coming-soon', description: 'Terminal-based editor' },
   { name: 'Vim', icon: '/int-icons/vim-128.png', status: 'coming-soon', description: 'Classic terminal editor' },
   { name: 'Emacs', icon: '/int-icons/emacs-128.png', status: 'coming-soon', description: 'Extensible text editor' },
@@ -568,6 +589,7 @@ export default function ProductivityPage() {
           <h3 className="pd-chart-title">Editors</h3>
           <BreakdownList
             label="editor"
+            colorMap={EDITOR_COLORS}
             items={(todayStats?.byEditor || []).map(e => ({ name: e.editor, seconds: e.totalSeconds }))}
           />
         </div>
