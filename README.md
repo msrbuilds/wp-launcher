@@ -107,6 +107,8 @@ wp-launcher/
 
 ### Local Mode (WordPress Development Environment)
 
+![browser-screens-local](https://github.com/user-attachments/assets/de61627c-c169-4e27-b1c7-84d7974ef52e)
+
 Use WP Launcher as a local WordPress development tool — like Local by Flywheel or Laragon, but Docker-based with multi-PHP support.
 
 ```bash
@@ -132,6 +134,9 @@ That's it. The installer will:
 - Global `wpl` CLI command (see [CLI Reference](#cli-reference) below)
 
 ### Agency Mode (Demo Hosting Platform)
+
+![browser-screens-agencyl](https://github.com/user-attachments/assets/0f509623-7d02-47da-a059-dc6b899de168)
+
 
 Host temporary WordPress demo sites for your products — with auth, site limits, auto-expiration, and admin restrictions.
 
