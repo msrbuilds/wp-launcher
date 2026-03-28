@@ -56,9 +56,10 @@ desktop.ini
 *.log
 npm-debug.log*
 
-# Plans & reports
+# Plans, reports & tests
 plans/
 reports/
+tests/
 
 # Docker
 docker-compose.override.yml
