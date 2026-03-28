@@ -90,6 +90,8 @@ add_action( 'admin_footer', function () {
 
     $entity_str = $screen ? $screen->id : wp_parse_url( $entity, PHP_URL_PATH );
 
+    $heartbeat_secret = getenv( 'WP_HEARTBEAT_SECRET' );
+
     $config = array(
         'apiUrl'    => rtrim( $api_url, '/' ) . '/api/productivity/heartbeats',
         'subdomain' => $subdomain ?: '',
@@ -99,6 +101,7 @@ add_action( 'admin_footer', function () {
         'postId'    => $post_id,
         'isWrite'   => $is_write,
         'siteId'    => $subdomain ?: '',
+        'secret'    => $heartbeat_secret ?: '',
     );
     ?>
     <script>
@@ -127,7 +130,7 @@ add_action( 'admin_footer', function () {
         function flush() {
             if (queue.length === 0) return;
             var batch = queue.splice(0);
-            var body = JSON.stringify({ heartbeats: batch });
+            var body = JSON.stringify({ heartbeats: batch, secret: cfg.secret });
             try {
                 navigator.sendBeacon(cfg.apiUrl, new Blob([body], { type: 'text/plain' }));
             } catch (e) {

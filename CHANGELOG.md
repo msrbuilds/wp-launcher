@@ -2,6 +2,18 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [2.3.0] - 2026-03-28
+
+### Security
+- **SBP-001** — Fixed command injection in selective sync: `contentIds` now validated as positive integers at route boundary with defense-in-depth coercion at the interpolation point
+- **SBP-002** — Fixed path traversal in product/template lookup: strict slug validation (`isSafeSlug`) rejects encoded `../` sequences in all read and delete paths
+- **SBP-003** — Productivity Monitor now enforces local-mode-only access server-side via `requireLocalMode` middleware, preventing cross-user data exposure in agency mode
+- **SBP-004** — Heartbeat ingestion now requires a per-install secret (generated on cloud link, passed to containers via `WP_HEARTBEAT_SECRET` env var). CORS restricted to known local origins, rate limited at 60 req/min
+- **SBP-005** — Cloud sync now uses existing SSRF guards (`validateRemoteUrl` + `safeFetch`) for all outbound requests, blocking private IPs, DNS rebinding, and open redirects
+
+### Changed
+- Removed `localStorage` usage for cloud API key in Productivity page — form fields use React state only
+
 ## [2.2.0] - 2026-03-25
 
 ### Added

@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { listTemplates, getTemplateConfig, ProductConfig, clearTemplateCache } from '../services/product.service';
+import { listTemplates, getTemplateConfig, ProductConfig, clearTemplateCache, isSafeSlug } from '../services/product.service';
 import { config } from '../config';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { productConfigSchema } from '../utils/schemas';
@@ -172,6 +172,8 @@ router.post('/', upload.fields([
 // Delete a template
 router.delete('/:id', (req: Request, res: Response) => {
   const id = req.params.id;
+  // SBP-002: Validate slug before filesystem operations
+  if (!isSafeSlug(id)) throw new NotFoundError('Template not found');
   const templatePath = path.join(config.templateConfigsDir, `${id}.json`);
   if (!fs.existsSync(templatePath)) {
     throw new NotFoundError('Template not found');

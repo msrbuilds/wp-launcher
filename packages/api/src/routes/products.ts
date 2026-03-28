@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { listProducts, getProductConfig, saveProductConfig, ProductConfig, clearConfigCache } from '../services/product.service';
+import { listProducts, getProductConfig, saveProductConfig, ProductConfig, clearConfigCache, isSafeSlug } from '../services/product.service';
 import { config } from '../config';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { productConfigSchema } from '../utils/schemas';
@@ -183,6 +183,8 @@ router.put('/:id', (req: Request, res: Response) => {
 // Delete a product
 router.delete('/:id', (req: Request, res: Response) => {
   const id = req.params.id;
+  // SBP-002: Validate slug before filesystem operations
+  if (!isSafeSlug(id)) throw new NotFoundError('Product not found');
 
   // Check if product exists (DB or file) before deleting
   const productFilePath = path.join(config.productConfigsDir, `${id}.json`);

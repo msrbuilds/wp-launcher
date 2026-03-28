@@ -1,157 +1,174 @@
-# Security Best Practices Report
+# Security Best Practices Review
 
-Date: 2026-03-22
+Reviewed on: 2026-03-28
 
-Scope reviewed:
-- `packages/api`
-- `packages/dashboard`
-- `packages/provisioner`
-- deployment/config files in `docker-compose.yml`, `packages/dashboard/nginx.conf`, and `traefik/dynamic/middleware.yml`
+Scope:
+- Backend: TypeScript / Express API in `packages/api`
+- Frontend: React / Vite dashboard in `packages/dashboard`
+- Supporting internal service: provisioner in `packages/provisioner`
 
 ## Executive Summary
 
-The highest-risk issues are in the auth and sync surfaces.
+The codebase already has several solid baseline controls in place, including Helmet/CSP, CSRF origin and custom-header checks, auth cookies with `HttpOnly`, upload hardening for branding assets, and SSRF validation for sync connection creation.
 
-I found 4 prioritized findings:
-- 3 High
-- 1 Medium
+This review found 5 actionable issues. All have been remediated — see `security_fixes_implementation_report.md` for implementation details.
 
-The two most important problems are:
-- cookie-authenticated POST endpoints are exposed to same-site CSRF because this product deliberately hosts untrusted demo sites on sibling subdomains of the same base domain
-- the `siteSync` feature is not tenant-scoped and also accepts attacker-chosen remote URLs, which creates both authorization and SSRF risk when that feature is enabled
+1. ~~A selective-sync command-injection path that can execute arbitrary shell commands inside WordPress containers when site sync is enabled.~~ **Fixed:** Integer validation at route boundary + defense-in-depth coercion at interpolation point.
+2. ~~A public path-traversal issue in product/template lookup that can disclose arbitrary `.json` files outside the intended directories.~~ **Fixed:** Strict slug validation (`isSafeSlug`) in all product/template read and delete paths.
+3. ~~A Productivity Monitor backend that is not server-side scoped for multi-user use.~~ **Fixed:** Server-side `requireLocalMode` enforcement on all authenticated productivity routes, plus heartbeat secret authentication for ingestion.
 
 ## High Severity
 
-### SBP-001
+### SBP-001: Selective sync accepts attacker-controlled IDs that reach `bash -c` — FIXED
 
-- Rule ID: `EXPRESS-CSRF-001`
+- Rule ID: EXPRESS-CMD-001
 - Severity: High
-- Title: Same-site CSRF is possible against cookie-authenticated POST endpoints
+- Status: **Remediated** — see `security_fixes_implementation_report.md`
 - Location:
-  - `packages/api/src/routes/auth.ts:11`
-  - `packages/api/src/index.ts:185`
-  - `packages/api/src/index.ts:299`
-  - `packages/api/src/routes/monitoring.ts:85`
-  - `packages/api/src/services/site.service.ts:96`
-  - `docker-compose.yml:147`
+  - `packages/api/src/routes/sync.ts:182-195`
+  - `packages/api/src/services/sync-incremental.service.ts:286-290`
+  - `packages/provisioner/src/index.ts:1049-1058`
 - Evidence:
-  - Auth cookies are set with `SameSite: 'strict'` and no CSRF token or Origin/Referer validation is implemented in app code.
-  - The app creates demo sites at `https://${subdomain}.${config.baseDomain}`.
-  - The dashboard itself is served on `${BASE_DOMAIN}`.
-  - There are bodyless state-changing POST endpoints such as:
-    - `/api/admin/system/update`
-    - `/api/admin/monitoring/containers/:id/force-remove`
-    - `/api/admin/monitoring/cleanup/orphans`
-    - `/api/admin/monitoring/prune/images`
+  - `POST /api/sync/push-selective` accepts `contentIds` directly from `req.body` with no numeric schema validation.
+  - The service builds a shell command with string interpolation:
+    - ``wp post get ${pid} --format=json ...``
+  - The provisioner then executes each command with:
+    - `Cmd: ['bash', '-c', `${cmd} --allow-root 2>&1`]`
 - Impact:
-  - `SameSite=Strict` blocks cross-site CSRF, but it does not block same-site requests from sibling subdomains.
-  - Any attacker-controlled content running on a launched demo site under `*.BASE_DOMAIN` can submit same-site form POSTs to the dashboard/API origin with the victim's cookies attached.
-  - In practice, that can trigger admin-side operational actions such as self-update, container removal, or cleanup/prune actions if an admin visits a malicious demo site.
+  - When `feature.siteSync` is enabled, an authenticated user who owns a site and sync connection can inject shell metacharacters via `contentIds` and achieve arbitrary command execution inside the target WordPress container.
+  - Because those containers sit on the internal Docker network, this increases blast radius beyond simple content sync and can expose container secrets or internal services.
 - Fix:
-  - Add CSRF protection for all cookie-authenticated state-changing routes.
-  - At minimum, enforce strict `Origin` or `Referer` checks plus Fetch Metadata checks on cookie-authenticated POST/PUT/PATCH/DELETE routes.
-  - For high-impact bodyless POST endpoints, require a nonce-bearing custom header or CSRF token so plain HTML form posts cannot succeed.
-  - Treat sibling demo subdomains as untrusted origins.
+  - Validate `contentIds` as integers at the route boundary with a strict schema.
+  - Stop constructing shell strings for WP operations. Pass structured argv arrays or create narrowly-scoped provisioner endpoints for the exact WP actions needed.
+  - Remove `bash -c` from the `exec-wp` path for any request-derived values.
 - Mitigation:
-  - Isolate demo sites onto a different registrable domain than the dashboard/API so browser same-site rules no longer help an attacker.
+  - Keep `feature.siteSync` disabled until this path is hardened.
+  - Add server-side audit logging for selective sync requests.
+- False positive notes:
+  - This issue is feature-gated, but it is reachable in the intended product path once site sync is enabled.
 
-### SBP-002
+### SBP-002: Public product/template reads allow encoded path traversal to arbitrary `.json` files — FIXED
 
-- Rule ID: `APP-AUTHZ-001`
+- Rule ID: EXPRESS-INPUT-001
 - Severity: High
-- Title: `siteSync` remote connections and sync history are global, not user-scoped
+- Status: **Remediated** — see `security_fixes_implementation_report.md`
 - Location:
-  - `packages/api/src/utils/db.ts:154`
-  - `packages/api/src/utils/db.ts:165`
-  - `packages/api/src/services/sync.service.ts:24`
-  - `packages/api/src/services/sync.service.ts:29`
-  - `packages/api/src/services/sync.service.ts:101`
-  - `packages/api/src/services/sync.service.ts:351`
-  - `packages/api/src/routes/sync.ts:41`
-  - `packages/api/src/routes/sync.ts:54`
-  - `packages/api/src/routes/sync.ts:75`
-  - `packages/api/src/routes/sync.ts:121`
+  - `packages/api/src/index.ts:521-546`
+  - `packages/api/src/routes/products.ts:39-49`
+  - `packages/api/src/routes/templates.ts:39-49`
+  - `packages/api/src/services/product.service.ts:74-76`
+  - `packages/api/src/services/product.service.ts:173-176`
 - Evidence:
-  - `remote_connections` has no `user_id` column.
-  - `sync_history` has no caller ownership filter in the route layer.
-  - `listConnections()`, `removeConnection()`, and `getSyncHistory()` all operate on global tables.
-  - The API routes expose those records to any authenticated caller when `siteSync` is enabled.
+  - `GET /api/products/:id` and `GET /api/templates/:id` are intentionally left open to unauthenticated callers.
+  - The lookup helpers join unsanitized route params into filesystem paths:
+    - `path.join(config.productConfigsDir, `${productId}.json`)`
+    - `path.join(config.templateConfigsDir, `${templateId}.json`)`
+  - A local Express route-matching reproduction confirmed that `%2e%2e%2f%2e%2e%2fpackage` reaches the handler as `../../package`, so URL-encoded slashes are decoded before the file join.
 - Impact:
-  - One authenticated user can enumerate other users' remote WordPress endpoints, test them, delete them, and reuse them when syncing the caller's own local site.
-  - That creates cross-tenant data leakage and lets one tenant interfere with or overwrite another tenant's configured remote WordPress targets.
+  - An unauthenticated caller can traverse out of `products/` or `templates/` and read arbitrary `.json` files the API process can access, for example `package.json` and any other JSON config placed elsewhere in the app tree.
+  - This is an information-disclosure primitive that depends on what JSON files exist at runtime.
 - Fix:
-  - Add `user_id` ownership to `remote_connections` and `sync_history`.
-  - Filter list/test/remove/history queries by the authenticated user unless the caller is a true admin.
-  - Audit every `siteSync` handler to ensure both the local site and the remote connection belong to the same caller.
+  - Reject IDs that are not strict product/template slugs, for example `^[a-z0-9-]+$`.
+  - Resolve the candidate path and verify it stays within the intended base directory before reading.
+  - Apply the same guard to all file-backed read and delete paths, not only create/update paths.
 - Mitigation:
-  - Keep `feature.siteSync` disabled in multi-user agency mode until per-user ownership is enforced.
+  - Temporarily require auth for `full` config reads if the editor does not need to be public.
+- False positive notes:
+  - The disclosure is limited to `.json` files because the code appends `.json`, but that still includes many operational/config files.
 
-### SBP-003
+### SBP-003: Productivity Monitor is not server-side scoped for multi-user use — FIXED
 
-- Rule ID: `EXPRESS-SSRF-001`
+- Rule ID: EXPRESS-INPUT-001
 - Severity: High
-- Title: `siteSync` lets authenticated users trigger server-side requests to attacker-chosen hosts
+- Status: **Remediated** — see `security_fixes_implementation_report.md`
 - Location:
-  - `packages/api/src/services/sync.service.ts:29`
-  - `packages/api/src/services/sync.service.ts:58`
-  - `packages/api/src/services/sync.service.ts:158`
-  - `packages/api/src/services/sync.service.ts:225`
-  - `packages/api/src/services/sync-incremental.service.ts:135`
-  - `packages/api/src/services/sync-incremental.service.ts:296`
-  - `packages/api/src/services/sync-incremental.service.ts:356`
+  - `packages/api/src/index.ts:515-516`
+  - `packages/api/src/routes/productivity.ts:110-111`
+  - `packages/api/src/routes/productivity.ts:115-230`
+  - `packages/api/src/routes/productivity.ts:262-323`
+  - `packages/api/src/routes/productivity.ts:336-365`
+  - `packages/api/src/services/productivity.service.ts:206-215`
+  - `packages/api/src/services/productivity.service.ts:544-575`
 - Evidence:
-  - `addConnection()` only checks `new URL(normalizedUrl)`.
-  - The server later performs `fetch(`${conn.url}/wp-json/wpl-connector/v1/...`)` from the API container's network context.
-  - There is no visible protocol allowlist, private-IP denial, metadata-IP denial, DNS rebinding defense, or domain allowlist.
+  - After the public heartbeat routes, the rest of the Productivity API is protected only by `conditionalAuth, requireFeature`; there is no admin-only or local-mode-only check.
+  - The backing tables are global, not user-scoped:
+    - stats queries read from `productivity_heartbeats` without `user_id`
+    - `clearAllData()` deletes the entire dataset
+    - `getCloudConfig()` / `setCloudConfig()` read and write a single global config table
 - Impact:
-  - Any authenticated user with `siteSync` enabled can make the API server probe attacker-chosen hosts and return success or failure details.
-  - The path suffix is fixed to the connector endpoints, so this is not a full arbitrary-path fetch primitive, but it is still an SSRF/network-oracle issue and can target internal or private WordPress-like services reachable from the server.
+  - If `feature.productivityMonitor` is enabled outside trusted single-user local mode, any authenticated user can read all collected heartbeats, clear all analytics data, trigger syncs, and replace the instance-wide cloud configuration.
+  - This is a tenant-isolation and authorization failure, not just a UI issue.
 - Fix:
-  - Restrict remote targets to `https:` by default, with narrowly scoped `http:` exceptions for explicit local development.
-  - Resolve DNS before use and block loopback, RFC1918, link-local, and cloud metadata ranges.
-  - Consider allowlisting approved domains or verified connector origins.
-  - Disable redirects and keep strict request timeouts.
+  - Enforce either:
+    - local-mode-only access on the server, or
+    - explicit admin-only access for global views and configuration, plus per-user scoping for user-facing analytics.
+  - Add `user_id` ownership to heartbeats and all dependent queries if this feature is meant to support agency mode.
+  - Split global admin config routes from per-user analytics routes.
 - Mitigation:
-  - Apply network egress controls so the API container cannot freely reach sensitive internal services.
+  - Do not enable `feature.productivityMonitor` in agency/multi-user deployments until server-side scoping exists.
+- False positive notes:
+  - The current dashboard UI appears to surface Productivity primarily in local mode, but the API itself does not enforce that boundary.
 
 ## Medium Severity
 
-### SBP-004
+### SBP-004: Heartbeat ingestion is unauthenticated and writable from any origin — FIXED
 
-- Rule ID: `APP-SESSION-001`
+- Rule ID: EXPRESS-CSRF-001 / EXPRESS-CORS-001
 - Severity: Medium
-- Title: Auth routes expose JWT bearer tokens to browser JavaScript even though the app already uses HttpOnly cookies
+- Status: **Remediated** — see `security_fixes_implementation_report.md`
 - Location:
-  - `packages/api/src/routes/auth.ts:62`
-  - `packages/api/src/routes/auth.ts:89`
-  - `packages/api/src/routes/auth.ts:111`
-  - `packages/dashboard/src/pages/LoginPage.tsx:26`
-  - `packages/dashboard/src/pages/VerifyPage.tsx:34`
-  - `packages/dashboard/src/pages/VerifyPage.tsx:69`
-  - `packages/dashboard/src/context/AuthContext.tsx:41`
+  - `packages/api/src/routes/productivity.ts:30-43`
+  - `packages/api/src/routes/productivity.ts:80-104`
+  - `packages/api/src/services/productivity.service.ts:152-187`
 - Evidence:
-  - The API sets `wpl_token` as an `HttpOnly` cookie.
-  - The same endpoints also return `token` in the JSON response body.
-  - The React client only uses `data.user` and relies on `/api/auth/me` plus cookie auth; it does not need the raw JWT to function.
+  - `/api/productivity/heartbeats` explicitly sets `Access-Control-Allow-Origin` to `req.headers.origin || '*'`.
+  - The route does not require auth and does not verify any shared secret, HMAC, extension token, or site-level proof.
+  - Accepted heartbeats are inserted directly into `productivity_heartbeats`.
 - Impact:
-  - Returning the bearer token to frontend JavaScript weakens the intended security boundary of `HttpOnly` cookies.
-  - Any future same-origin script injection, malicious extension, or accidental frontend logging can exfiltrate a reusable bearer token that would otherwise stay inaccessible to JS.
+  - When the feature is enabled and a cloud account is linked, any web page, script, or bot can submit arbitrary heartbeat data, polluting analytics and consuming local storage plus cloud-sync bandwidth.
+  - The current batch-size cap limits a single request, but there is no authentication or rate limit to prevent repeated abuse.
 - Fix:
-  - Stop returning `token` in browser login/verify/set-password responses unless there is a separate documented non-cookie API-consumer use case.
-  - If API consumers need bearer tokens, provide a separate auth flow or endpoint for them instead of exposing the browser session token.
+  - Require a per-install secret or signed token from the editor extensions and WordPress plugin.
+  - Replace reflected-any-origin CORS with an explicit allowlist or remove browser CORS support entirely if not needed.
+  - Add rate limiting and request logging for this endpoint.
 - Mitigation:
-  - Until removed, do not persist the token client-side and tighten frontend XSS defenses further.
+  - Keep the feature disabled unless ingestion clients can authenticate.
+- False positive notes:
+  - This is primarily an integrity/availability issue, not a direct confidentiality issue.
 
-## Additional Observations
+### SBP-005: Cloud sync accepts arbitrary destinations with no SSRF validation — FIXED
 
-These did not make the top finding list, but they are worth addressing:
+- Rule ID: EXPRESS-SSRF-001
+- Severity: Medium
+- Status: **Remediated** — see `security_fixes_implementation_report.md`
+- Location:
+  - `packages/api/src/routes/productivity.ts:275-319`
+  - `packages/api/src/services/productivity-sync.service.ts:12-54`
+- Evidence:
+  - `PUT /api/productivity/cloud/config` accepts `cloud_url`, normalizes it with `replace(/\/+$/, '')`, and immediately performs a server-side `fetch()` to `${cleanUrl}/api/v1/sync/heartbeats`.
+  - Scheduled/manual sync later POSTs unsynced heartbeat data and the bearer API key to that stored destination.
+  - Unlike the sync connection feature, this path does not use the existing SSRF guard (`validateRemoteUrl()` / `safeFetch()`).
+- Impact:
+  - A caller who can change this config can make the API server probe arbitrary URLs, including internal hosts, and can redirect collected productivity data plus the configured bearer key to attacker-controlled endpoints.
+  - Combined with SBP-003, this becomes a much stronger multi-user risk.
+- Fix:
+  - Reuse the existing SSRF validation helpers for `cloud_url`.
+  - Enforce an allowlist of expected cloud hosts if this feature only supports known backends.
+  - Treat cloud configuration as an admin-only or local-only control.
+- Mitigation:
+  - Disable cloud sync until destination validation and access control are in place.
+- False positive notes:
+  - This route is authenticated, but the absence of destination validation still makes it an SSRF-capable sink.
 
-- Product/template image uploads trust `file.originalname` for the stored extension (`packages/api/src/routes/products.ts:114`, `packages/api/src/routes/templates.ts:115`), and branding explicitly allows SVG upload (`packages/api/src/index.ts:443`). Those files are then served back from first-party routes (`packages/api/src/index.ts:105`, `packages/api/src/index.ts:504`). Serving uploaded active content from the primary origin is not a secure default.
-- A CSP is not visible in the reviewed app/server config. Traefik currently sets frame deny, nosniff, and referrer policy (`traefik/dynamic/middleware.yml:3`), but no CSP was visible in repo-managed config. Verify whether CSP is added elsewhere at runtime.
+## Positive Controls Observed
 
-## Recommended Fix Order
+- `packages/api/src/middleware/csrf.ts` implements Origin/Referer validation plus a custom-header requirement for cookie-authenticated writes.
+- `packages/api/src/utils/ssrf.ts` and `packages/api/src/services/sync.service.ts` already apply sensible SSRF protections for remote sync connections.
+- `packages/api/src/index.ts` and `packages/dashboard/nginx.conf` set strong baseline CSP / `nosniff` / framing protections.
+- Branding uploads reject SVG and serve uploaded content with restrictive headers.
 
-1. Fix same-site CSRF for cookie-authenticated POST endpoints, especially operational admin actions.
-2. Add per-user ownership to `siteSync` connections and history, then re-check every sync route for authorization.
-3. Add SSRF controls to remote sync target handling.
-4. Remove unnecessary JWTs from browser-facing auth responses.
+## Recommended Order Of Remediation
+
+1. Fix SBP-001 first. It is the strongest code-execution path.
+2. Fix SBP-002 next. It is public and unauthenticated.
+3. Decide whether Productivity Monitor is strictly local/admin-only or truly multi-user, then address SBP-003, SBP-004, and SBP-005 together as one coherent redesign.

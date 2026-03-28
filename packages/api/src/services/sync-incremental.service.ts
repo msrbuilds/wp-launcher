@@ -284,8 +284,11 @@ export async function pushSelective(
         // Export each post individually using wp post get (reliable, no escaping issues)
         const posts: any[] = [];
         for (const pid of contentIds) {
+          // SBP-001: Defense-in-depth — coerce to integer even though route already validates
+          const safePid = parseInt(String(pid), 10);
+          if (!Number.isFinite(safePid) || safePid <= 0) continue;
           const cmds = [
-            `wp post get ${pid} --format=json --fields=ID,post_title,post_content,post_excerpt,post_type,post_status,post_name,post_date,post_date_gmt,post_modified,post_modified_gmt,post_parent,menu_order,comment_status,ping_status`,
+            `wp post get ${safePid} --format=json --fields=ID,post_title,post_content,post_excerpt,post_type,post_status,post_name,post_date,post_date_gmt,post_modified,post_modified_gmt,post_parent,menu_order,comment_status,ping_status`,
           ];
           const result = await execWpCommands(site.container_id, cmds);
           let output = result.results[0]?.output?.trim() || '';

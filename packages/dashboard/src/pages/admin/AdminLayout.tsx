@@ -30,8 +30,8 @@ interface NavItem {
 }
 
 function getNavItems(isLocal: boolean, features?: Record<string, boolean>): NavItem[] {
-  const productivityItems: NavItem[] = features?.productivityMonitor ? [
-    { to: isLocal ? '/productivity' : '/admin/productivity', label: 'Productivity', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+  const productivityItems: NavItem[] = isLocal && features?.productivityMonitor ? [
+    { to: '/productivity', label: 'Productivity', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
   ] : [];
 
   const projectItems: NavItem[] = features?.projects ? [

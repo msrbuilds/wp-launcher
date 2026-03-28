@@ -3,6 +3,12 @@ import path from 'path';
 import { config } from '../config';
 import { getDb } from '../utils/db';
 
+// SBP-002: Strict slug validation to prevent path traversal
+const SAFE_SLUG_RE = /^[a-z0-9][a-z0-9._-]*$/i;
+export function isSafeSlug(id: string): boolean {
+  return SAFE_SLUG_RE.test(id) && !id.includes('..');
+}
+
 export interface ProductPluginConfig {
   source: 'wordpress.org' | 'url' | 'local';
   slug?: string;
@@ -65,6 +71,9 @@ export interface ProductConfig {
 const configCache = new Map<string, ProductConfig>();
 
 export function getProductConfig(productId: string): ProductConfig {
+  // SBP-002: Reject path traversal attempts
+  if (!isSafeSlug(productId)) return undefined as any;
+
   // Check cache first
   if (configCache.has(productId)) {
     return configCache.get(productId)!;
@@ -166,6 +175,9 @@ export function clearTemplateCache(): void {
 const templateCache = new Map<string, ProductConfig>();
 
 export function getTemplateConfig(templateId: string): ProductConfig | null {
+  // SBP-002: Reject path traversal attempts
+  if (!isSafeSlug(templateId)) return null;
+
   if (templateCache.has(templateId)) {
     return templateCache.get(templateId)!;
   }

@@ -211,8 +211,8 @@ export default function ProductivityPage() {
   // Cloud state
   const [cloudConfig, setCloudConfig] = useState<CloudConfig>({});
   const [cloudUrl] = useState('https://wplauncher.msrbuilds.com');
-  const [cloudApiKey, setCloudApiKey] = useState(() => localStorage.getItem('pd_cloud_api_key') || '');
-  const [deviceName, setDeviceName] = useState(() => localStorage.getItem('pd_device_name') || '');
+  const [cloudApiKey, setCloudApiKey] = useState('');
+  const [deviceName, setDeviceName] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [showCloud, setShowCloud] = useState(false);
@@ -265,8 +265,6 @@ export default function ProductivityPage() {
   }, [headers, sourceFilter, days]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { localStorage.setItem('pd_cloud_api_key', cloudApiKey); }, [cloudApiKey]);
-  useEffect(() => { localStorage.setItem('pd_device_name', deviceName); }, [deviceName]);
 
   // ── Actions ──
 
@@ -295,8 +293,6 @@ export default function ProductivityPage() {
       if (!res.ok) { setConnectError(data.error || 'Connection failed'); return; }
       setCloudApiKey('');
       setDeviceName('');
-      localStorage.removeItem('pd_cloud_api_key');
-      localStorage.removeItem('pd_device_name');
       fetchData();
     } catch (err: any) {
       setConnectError(err.message || 'Connection failed');

@@ -12,6 +12,7 @@ import {
 } from './docker.service';
 import { fireWebhookEvent } from './webhook.service';
 import { getProductConfig } from './product.service';
+import { getCloudConfig } from './productivity.service';
 import { ConflictError, ValidationError, NotFoundError, ForbiddenError } from '../utils/errors';
 
 export const MAX_SITES_PER_USER = config.isLocalMode ? 0 : parseInt(process.env.MAX_SITES_PER_USER || '3', 10);
@@ -213,6 +214,13 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const dbEngine = req.dbEngine || productConfig?.database || 'sqlite';
 
   try {
+    // SBP-004: Pass heartbeat secret to container so MU-plugin can authenticate
+    let heartbeatSecret: string | undefined;
+    try {
+      const cloudCfg = getCloudConfig();
+      if (cloudCfg.heartbeat_secret) heartbeatSecret = cloudCfg.heartbeat_secret;
+    } catch { /* cloud config may not exist yet */ }
+
     const containerId = await createSiteContainer({
       subdomain,
       image,
@@ -233,6 +241,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       autoLoginToken,
       localMode: config.isLocalMode,
       phpConfig: req.phpConfig,
+      heartbeatSecret,
     });
 
     // Clear password from DB now that it's been sent to the container — it's only needed at provision time

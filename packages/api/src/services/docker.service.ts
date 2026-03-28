@@ -44,6 +44,7 @@ export interface CreateContainerOptions {
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
   autoLoginToken?: string;
   localMode?: boolean;
+  heartbeatSecret?: string;
   phpConfig?: {
     memoryLimit?: string;
     uploadMaxFilesize?: string;

@@ -128,6 +128,7 @@ interface CreateBody {
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
   autoLoginToken?: string;
   localMode?: boolean;
+  heartbeatSecret?: string;
   phpConfig?: {
     memoryLimit?: string;
     uploadMaxFilesize?: string;
@@ -254,6 +255,8 @@ app.post('/containers', async (req: Request, res: Response) => {
     if (opts.localMode) env.push('WP_LOCAL_MODE=true');
     env.push(`WP_LAUNCHER_API_URL=http://api:3737`);
     env.push(`WP_SUBDOMAIN=${opts.subdomain}`);
+    // SBP-004: Pass heartbeat secret for authenticated productivity tracking
+    if (opts.heartbeatSecret) env.push(`WP_HEARTBEAT_SECRET=${opts.heartbeatSecret}`);
 
     // Generate unique WordPress salts per container
     const wpSaltKeys = [

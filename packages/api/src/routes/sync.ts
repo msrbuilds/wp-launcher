@@ -190,8 +190,14 @@ router.post('/push-selective', conditionalAuth, requireSync, async (req: AuthReq
       res.status(400).json({ error: 'Select at least one item to push' });
       return;
     }
+    // SBP-001: Validate contentIds as positive integers to prevent command injection
+    if (contentIds && (!Array.isArray(contentIds) || !contentIds.every((id: any) => Number.isInteger(Number(id)) && Number(id) > 0))) {
+      res.status(400).json({ error: 'contentIds must be positive integers' });
+      return;
+    }
+    const safeContentIds = contentIds ? contentIds.map((id: any) => parseInt(String(id), 10)) : undefined;
     const isAdmin = req.userRole === 'admin';
-    const result = await pushSelective(siteId, connectionId, contentIds, filePaths, req.userId, isAdmin);
+    const result = await pushSelective(siteId, connectionId, safeContentIds, filePaths, req.userId, isAdmin);
     res.json(result);
   } catch (err: any) {
     const status = err.statusCode || 500;
@@ -210,8 +216,14 @@ router.post('/pull-selective', conditionalAuth, requireSync, async (req: AuthReq
       res.status(400).json({ error: 'Select at least one item to pull' });
       return;
     }
+    // SBP-001: Validate contentIds as positive integers to prevent command injection
+    if (contentIds && (!Array.isArray(contentIds) || !contentIds.every((id: any) => Number.isInteger(Number(id)) && Number(id) > 0))) {
+      res.status(400).json({ error: 'contentIds must be positive integers' });
+      return;
+    }
+    const safeContentIds = contentIds ? contentIds.map((id: any) => parseInt(String(id), 10)) : undefined;
     const isAdmin = req.userRole === 'admin';
-    const result = await pullSelective(siteId, connectionId, contentIds, filePaths, req.userId, isAdmin);
+    const result = await pullSelective(siteId, connectionId, safeContentIds, filePaths, req.userId, isAdmin);
     res.json(result);
   } catch (err: any) {
     const status = err.statusCode || 500;

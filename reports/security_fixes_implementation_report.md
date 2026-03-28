@@ -1,215 +1,168 @@
 # Security Fixes Implementation Report
 
-Date: 2026-03-23 (updated after gap review)
+Date: 2026-03-28
+Based on: [security_best_practices_report.md](security_best_practices_report.md)
 
-Based on findings from: `reports/security_best_practices_report.md` (2026-03-22)
-
-## Summary
-
-All 4 findings (3 High, 1 Medium) and 2 additional observations from the security report have been remediated.
-
-| Fix | Finding | Severity | Status |
-|-----|---------|----------|--------|
-| 1 | SBP-001: Same-site CSRF | High | Implemented |
-| 2 | SBP-002: Sync tenant isolation | High | Implemented |
-| 3 | SBP-003: SSRF via sync | High | Implemented |
-| 4 | SBP-004: JWT in response body | Medium | Implemented |
-| 5 | SVG/upload XSS | Observation | Implemented |
-| 6 | Missing CSP headers | Observation | Implemented |
+All 5 findings from the security best practices review have been remediated. TypeScript compilation verified clean after all changes.
 
 ---
 
-## Fix 1: CSRF Protection (SBP-001)
+## SBP-001: Command injection via selective sync contentIds
 
-**Problem:** Demo sites on sibling subdomains (`*.BASE_DOMAIN`) can submit same-site POST requests with the victim's cookies. `SameSite=Strict` does not block sibling subdomain requests. Bodyless admin POST endpoints are trivially exploitable via HTML form CSRF.
+**Severity:** High
+**Status:** Fixed
 
-**Changes:**
+### Changes
 
-### New files
-- `packages/api/src/middleware/csrf.ts` — CSRF protection middleware with two defence layers:
-  1. **Origin/Referer validation** — only the exact dashboard origin is trusted, NOT wildcard `*.baseDomain`
-  2. **Custom header requirement** — requires `X-Requested-With: XMLHttpRequest` on all state-changing requests (plain HTML forms cannot set custom headers)
-  - Skips safe methods (GET, HEAD, OPTIONS)
-  - Skips M2M requests authenticated via `X-Api-Key` header
+**`packages/api/src/routes/sync.ts`** (push-selective and pull-selective routes)
+- Added strict integer validation at the route boundary: rejects any `contentIds` array element that is not a positive integer.
+- Coerces validated values to `parseInt()` before passing to the service layer.
+- Applied identically to both `POST /push-selective` and `POST /pull-selective`.
 
-- `packages/dashboard/src/utils/api.ts` — `apiFetch()` wrapper that automatically adds `credentials: 'include'` and `X-Requested-With: XMLHttpRequest` to all requests
+**`packages/api/src/services/sync-incremental.service.ts`** (pushSelective)
+- Added defense-in-depth integer coercion (`parseInt` + `isFinite` + `> 0` check) at the interpolation point, so even if the route-level guard is bypassed, non-numeric values never reach the shell command string.
 
-### Modified files
-- `packages/api/src/index.ts` — Mounted `csrfProtection` middleware globally after `cookieParser()`
-- **25 dashboard files** migrated from bare `fetch()` to `apiFetch()` (zero bare `fetch('/api/` calls remain):
-  - `context/AuthContext.tsx`, `context/SettingsContext.tsx`
-  - `App.tsx`
-  - `pages/LoginPage.tsx`, `VerifyPage.tsx`, `LaunchPage.tsx`, `SitesListPage.tsx`, `SyncPage.tsx`, `AccountPage.tsx`, `CreateProductPage.tsx`, `CreateTemplatePage.tsx`, `LocalLaunchPage.tsx`, `LocalDashboard.tsx`
-  - `pages/admin/SitesTab.tsx`, `MonitoringPage.tsx`, `FeaturesTab.tsx`, `ProductsTab.tsx`, `UsersTab.tsx`, `SystemTab.tsx`, `BulkTab.tsx`, `InvoicesPage.tsx`, `InvoicePrintPage.tsx`, `ProjectDetailPage.tsx`, `ProjectsPage.tsx`, `ClientsPage.tsx`, `BrandingTab.tsx`, `AnalyticsTab.tsx`, `LogsTab.tsx`, `OverviewTab.tsx`
+### Why not provisioner-level filtering
+The provisioner's `exec-wp` endpoint is an internal API used by multiple services. Some legitimate internal commands (e.g. `wp db import ... 2>/dev/null || true` in sync.service.ts) use shell operators. A blanket metacharacter filter at the provisioner would break those hardcoded paths. The correct boundary is where user input enters the system (route) and where it's interpolated (service).
 
 ---
 
-## Fix 2: Tenant Isolation for Sync (SBP-002)
+## SBP-002: Path traversal in product/template lookup
 
-**Problem:** `remote_connections` table had no `user_id` column. All connections and sync history were globally visible to any authenticated user.
+**Severity:** High
+**Status:** Fixed
 
-**Changes:**
+### Changes
 
-### Database migration (`packages/api/src/utils/db.ts`)
-- Added `user_id TEXT` column to `remote_connections` with index
-- Added `user_id TEXT` column to `sync_history` with index
-- Backfill: existing rows set to `'admin'` ownership
+**`packages/api/src/services/product.service.ts`**
+- Added exported `isSafeSlug()` function: validates IDs against `^[a-z0-9][a-z0-9._-]*$` and rejects `..` sequences.
+- `getProductConfig()` returns `undefined` (treated as not-found by callers) if the ID fails slug validation.
+- `getTemplateConfig()` returns `null` (treated as not-found by callers) if the ID fails slug validation.
+- Validation happens before any cache lookup or filesystem operation.
 
-### Service layer (`packages/api/src/services/sync.service.ts`)
-- `listConnections(userId, isAdmin)` — filters by `user_id` unless admin
-- `addConnection(name, url, apiKey, userId)` — stores `user_id` on creation
-- `testConnection(connectionId, userId, isAdmin)` — ownership check via `getOwnedConnection()`
-- `removeConnection(connectionId, userId, isAdmin)` — ownership check
-- `pushToRemote()` / `pullFromRemote()` — accept `isAdmin` param, verify connection ownership, store `user_id` in sync_history
-- `getSyncHistory(siteId, userId, isAdmin)` — filters by `user_id` unless admin
-- `getSyncStatus(syncId, userId, isAdmin)` — filters by `user_id` unless admin (closes sync-status-by-id gap)
-- New helper: `getOwnedConnection()` — centralized ownership check, throws `ForbiddenError` if not owned
+**`packages/api/src/routes/products.ts`**
+- Imported `isSafeSlug` and added validation in `DELETE /:id` before any `path.join` or `fs` operations.
 
-### Incremental sync (`packages/api/src/services/sync-incremental.service.ts`)
-- `startPreview()`, `pushSelective()`, `pullSelective()` — accept `isAdmin` param, check connection ownership
-- `getPreviewResult()` — accepts `userId, isAdmin`, returns null if not owned (closes preview-by-id gap)
-- `pushSelective()` and `pullSelective()` — now write `user_id` to `sync_history` INSERT statements
-- Preview cache entries now store `userId` for ownership checks on retrieval
-- Updated `RemoteConnection` interface to include `user_id`
+**`packages/api/src/routes/templates.ts`**
+- Imported `isSafeSlug` and added validation in `DELETE /:id` before `path.join` or `fs.unlinkSync`.
 
-### Routes (`packages/api/src/routes/sync.ts`)
-- All handlers now pass `req.userId` and `req.userRole === 'admin'` to service functions
+### Coverage
+The slug check is applied to all code paths that join a user-provided ID into a filesystem path: read (via service), update (via service), and delete (via route + service).
 
 ---
 
-## Fix 3: SSRF Protection (SBP-003)
+## SBP-003: Productivity Monitor not scoped for multi-user use
 
-**Problem:** `addConnection()` only validated URL syntax. No private IP blocking, protocol allowlist, or DNS rebinding defense.
+**Severity:** High
+**Status:** Fixed
 
-**Changes:**
+### Changes
 
-### New file (`packages/api/src/utils/ssrf.ts`)
-- `validateRemoteUrl(url)` — validates before storing:
-  - **Protocol allowlist**: only `https:` in production; `http:` allowed in dev/local mode
-  - **DNS resolution + IP blocking**: resolves hostname and blocks loopback (`127.0.0.0/8`), RFC1918 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), link-local/metadata (`169.254.0.0/16`), IPv6 equivalents
-  - **Hostname blocklist**: `localhost`, `*.local`, `metadata.google.internal`
-- `safeFetch(url, options)` — wraps `fetch()` with:
-  - Re-resolves DNS before each request (DNS rebinding defense)
-  - `redirect: 'error'` (blocks redirect-based SSRF bypass)
-- `isPrivateIp(ip)` — checks IPv4 and IPv6 addresses against blocked ranges
+**`packages/api/src/routes/productivity.ts`**
+- Added `requireLocalMode` middleware that returns 403 if `config.isLocalMode` is false.
+- Applied to the `router.use()` that gates all authenticated productivity routes (stats, goals, cloud config, cloud sync, data management).
+- The public endpoints (`/heartbeats`, `/cloud/status`) remain outside this gate since they already have their own controls (feature flag, cloud-linked check, CORS restriction).
 
-### Integration
-- `addConnection()` in `sync.service.ts` — calls `validateRemoteUrl()` before storing (function is now `async`)
-- All outbound `fetch()` calls in `sync.service.ts` and `sync-incremental.service.ts` replaced with `safeFetch()`:
-  - `testConnection()` — status endpoint
-  - `doPush()` — import endpoint
-  - `doPull()` — export + download endpoints
-  - `fetchRemoteManifest()` — manifest endpoint
-  - `pushSelective()` — import-content endpoint
-  - `pullSelective()` — export-content endpoint
+### Rationale
+Per project design, `productivityMonitor` is documented as a "local only" feature. The underlying tables are global (not user-scoped), so the correct fix is to enforce the local-mode boundary server-side rather than retrofitting user-scoping into the schema. If multi-user productivity tracking is needed in the future, it requires a schema migration to add `user_id` to heartbeats and all dependent queries.
 
 ---
 
-## Fix 4: Remove JWT from Auth Responses (SBP-004)
+## SBP-004: Heartbeat ingestion unauthenticated + open CORS
 
-**Problem:** Auth endpoints returned JWT `token` in JSON response body alongside setting `HttpOnly` cookie. The dashboard never uses the token from the body — it relies on cookies via `credentials: 'include'`.
+**Severity:** Medium
+**Status:** Fixed
 
-**Changes:**
+### Changes — Layer 1: CORS origin allowlist + rate limiting
 
-### `packages/api/src/routes/auth.ts`
-- Removed `token: jwtToken` from `/verify` response (returning user path)
-- Removed `token: jwtToken` from `/set-password` response
-- Removed `token` from `/login` response
-- Cookie-based auth (`setAuthCookie()`) preserved — no behavioral change
+**`packages/api/src/routes/productivity.ts`**
+- Replaced reflected `Access-Control-Allow-Origin: <any origin>` with `isAllowedHeartbeatOrigin()` allowlist function.
+- Allowed origins: `localhost`, `*.localhost`, `BASE_DOMAIN`, `*.BASE_DOMAIN`. All others receive no CORS header (browser blocks the request).
+- Applied the same origin check to the `/cloud/status` CORS handler.
+- Added `express-rate-limit` at 60 requests/minute per IP on the `/heartbeats` path.
 
-### `packages/api/src/index.ts`
-- Removed `token` from `/api/auth/local-token` response
+### Changes — Layer 2: Per-install heartbeat secret
+
+CORS and rate limiting only mitigate browser-based abuse. Non-browser clients (curl, scripts) bypass CORS entirely. To fully close the finding, a per-install shared secret authenticates all heartbeat submitters:
+
+**`packages/api/src/routes/productivity.ts`**
+- `PUT /cloud/config` now auto-generates a `heartbeat_secret` (32 bytes, base64url) and stores it in `productivity_cloud_config`. The secret is returned in the response so the dashboard can display it for extension configuration.
+- `POST /heartbeats` now validates `req.body.secret` against the stored `heartbeat_secret`. Requests with a missing or invalid secret receive 401.
+- `GET /cloud/config` (authenticated, local-mode-only) returns the `heartbeat_secret` so extensions can read it.
+
+**`packages/api/src/services/site.service.ts`**
+- When creating a new site container, reads `heartbeat_secret` from cloud config and passes it as `heartbeatSecret` in `CreateContainerOptions`.
+
+**`packages/api/src/services/docker.service.ts`**
+- Added `heartbeatSecret?: string` to `CreateContainerOptions` interface.
+
+**`packages/provisioner/src/index.ts`**
+- Added `heartbeatSecret?: string` to `CreateBody` interface.
+- Passes `WP_HEARTBEAT_SECRET` env var to WordPress containers when a heartbeat secret is configured.
+
+**`wordpress/mu-plugins/wp-launcher-productivity.php`**
+- Reads `WP_HEARTBEAT_SECRET` from environment and includes it in the JS config object.
+- The `flush()` function now includes `secret: cfg.secret` in the JSON body alongside `heartbeats`.
+
+### Authentication flow
+1. User links cloud account → API generates `heartbeat_secret` and stores it.
+2. New WordPress containers receive the secret via `WP_HEARTBEAT_SECRET` env var.
+3. MU-plugin reads the env var and includes it as `secret` in every heartbeat POST body.
+4. Editor extensions read the secret from the authenticated `GET /cloud/config` endpoint.
+5. API rejects any heartbeat request where `body.secret` does not match the stored value.
+
+### Note on existing containers
+Containers created before the cloud account was linked will not have `WP_HEARTBEAT_SECRET` set. Their heartbeats will be rejected until the container is recreated. This is acceptable because productivity tracking only activates after cloud is linked.
+
+---
+
+## SBP-005: Cloud sync SSRF via unvalidated cloud_url
+
+**Severity:** Medium
+**Status:** Fixed
+
+### Changes
+
+**`packages/api/src/routes/productivity.ts`**
+- Imported `validateRemoteUrl` and `safeFetch` from `../utils/ssrf`.
+- `PUT /cloud/config` now calls `validateRemoteUrl(cleanUrl)` before any outbound request. Returns 400 if the URL fails SSRF checks (private IP, blocked hostname, non-HTTPS in production).
+- Replaced raw `fetch()` with `safeFetch()` for the test connection request, adding DNS rebinding defense and redirect blocking.
+
+**`packages/api/src/services/productivity-sync.service.ts`**
+- Imported `safeFetch` from `../utils/ssrf`.
+- Replaced raw `fetch()` with `safeFetch()` for all cloud sync heartbeat pushes, providing the same SSRF protections on every scheduled or manual sync.
+
+### Protections now active
+- Protocol allowlist (HTTPS required in production, HTTP allowed in dev/local)
+- Hostname blocklist (localhost, metadata.google.internal, *.local)
+- DNS resolution check (rejects private/reserved IPs including RFC1918, loopback, link-local, cloud metadata 169.254.x.x)
+- DNS rebinding defense (re-resolves before each request)
+- Redirect blocking (`redirect: 'error'`)
 
 ---
 
-## Fix 5: SVG/Upload XSS Protection
+## Files Modified
 
-**Problem:** SVG uploads were allowed for branding logos. SVGs can contain `<script>` tags and event handlers. Uploaded files served from primary origin could execute scripts in the app's security context. Product/template image uploads trusted `file.originalname` for extension.
-
-**Changes:**
-
-### `packages/api/src/index.ts`
-- **Rejected SVG uploads** for branding logo — removed `image/svg+xml` from allowed types
-- **Added restrictive headers** to uploaded file serving:
-  - `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'` (neutralizes script execution)
-  - `X-Content-Type-Options: nosniff`
-
-### `packages/api/src/index.ts` (product assets)
-- Added restrictive CSP + nosniff headers to `/api/assets` static serving (matching `/api/uploads` treatment)
-
-### `packages/api/src/routes/products.ts`
-- Image file extension validated against allowlist (`['.png', '.jpg', '.jpeg', '.webp', '.gif']`) instead of trusting `file.originalname`
-- Plugin/theme filenames sanitized: non-alphanumeric characters stripped, extension validated against `['.zip', '.tar', '.gz', '.php']`
-
-### `packages/api/src/routes/templates.ts`
-- Same image extension validation and plugin/theme filename sanitization applied
-
----
-
-## Fix 6: Content Security Policy Headers
-
-**Problem:** No CSP header was configured in the application, Traefik, or nginx. XSS vulnerabilities would be unmitigated.
-
-**Changes:**
-
-### `packages/api/src/index.ts`
-- Configured Helmet CSP directives:
-  - `default-src 'self'`
-  - `script-src 'self'`
-  - `style-src 'self' 'unsafe-inline'` (required for dynamic theme color CSS variables)
-  - `img-src 'self' data: blob:`
-  - `connect-src 'self'`
-  - `frame-ancestors 'none'`
-  - `base-uri 'self'`
-  - `form-action 'self'`
-
-### `traefik/dynamic/middleware.yml`
-- Added `contentSecurityPolicy` to the `security-headers` middleware with matching directives
-
-### `packages/dashboard/nginx.conf`
-- Added CSP header via `add_header` directive
-- Added `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` headers
-
----
+| File | Changes |
+|------|---------|
+| `packages/api/src/routes/sync.ts` | Integer validation on contentIds for push-selective and pull-selective |
+| `packages/api/src/services/sync-incremental.service.ts` | Defense-in-depth integer coercion before shell interpolation |
+| `packages/api/src/services/product.service.ts` | `isSafeSlug()` guard in getProductConfig and getTemplateConfig |
+| `packages/api/src/routes/products.ts` | Slug validation in DELETE handler |
+| `packages/api/src/routes/templates.ts` | Slug validation in DELETE handler |
+| `packages/api/src/routes/productivity.ts` | Local-mode enforcement, CORS origin allowlist, rate limiting, SSRF validation, heartbeat secret auth |
+| `packages/api/src/services/productivity-sync.service.ts` | safeFetch for cloud sync |
+| `packages/api/src/services/docker.service.ts` | Added `heartbeatSecret` to CreateContainerOptions |
+| `packages/api/src/services/site.service.ts` | Pass heartbeat secret to container creation |
+| `packages/provisioner/src/index.ts` | Added `heartbeatSecret` to CreateBody, pass as WP_HEARTBEAT_SECRET env var |
+| `wordpress/mu-plugins/wp-launcher-productivity.php` | Read WP_HEARTBEAT_SECRET, include secret in heartbeat body |
+| `packages/dashboard/src/pages/ProductivityPage.tsx` | Removed localStorage usage for cloud API key (pre-existing fix) |
 
 ## Verification
 
-- API TypeScript compilation: **passed** (`npx tsc --noEmit`)
-- Dashboard TypeScript compilation: **passed** (`npx tsc --noEmit`)
+- `npx tsc --noEmit -p packages/api/tsconfig.json` — clean
+- `npx tsc --noEmit -p packages/provisioner/tsconfig.json` — clean
 
-## Files Changed
+## Relationship to Existing Tests
 
-### New files (3)
-- `packages/api/src/middleware/csrf.ts`
-- `packages/api/src/utils/ssrf.ts`
-- `packages/dashboard/src/utils/api.ts`
-
-### Modified files (24)
-- `packages/api/src/index.ts`
-- `packages/api/src/routes/auth.ts`
-- `packages/api/src/routes/sync.ts`
-- `packages/api/src/routes/products.ts`
-- `packages/api/src/routes/templates.ts`
-- `packages/api/src/services/sync.service.ts`
-- `packages/api/src/services/sync-incremental.service.ts`
-- `packages/api/src/utils/db.ts`
-- `packages/dashboard/nginx.conf`
-- `traefik/dynamic/middleware.yml`
-- `packages/dashboard/src/utils/api.ts`
-- `packages/dashboard/src/context/AuthContext.tsx`
-- `packages/dashboard/src/pages/LoginPage.tsx`
-- `packages/dashboard/src/pages/VerifyPage.tsx`
-- `packages/dashboard/src/pages/LaunchPage.tsx`
-- `packages/dashboard/src/pages/SitesListPage.tsx`
-- `packages/dashboard/src/pages/SyncPage.tsx`
-- `packages/dashboard/src/pages/admin/SitesTab.tsx`
-- `packages/dashboard/src/pages/admin/MonitoringPage.tsx`
-- `packages/dashboard/src/pages/admin/FeaturesTab.tsx`
-- `packages/dashboard/src/pages/admin/ProductsTab.tsx`
-- `packages/dashboard/src/pages/admin/UsersTab.tsx`
-- `packages/dashboard/src/pages/admin/SystemTab.tsx`
-- `packages/dashboard/src/pages/admin/BulkTab.tsx`
-- `packages/dashboard/src/pages/admin/InvoicesPage.tsx`
-- `packages/dashboard/src/pages/admin/ProjectDetailPage.tsx`
-- `packages/dashboard/src/pages/admin/ProjectsPage.tsx`
-- `packages/dashboard/src/pages/admin/ClientsPage.tsx`
+`tests/test_security_fixes.py` covers an earlier set of 6 runtime security fixes (CSRF, tenant isolation, SSRF on sync connections, JWT leak prevention, SVG upload rejection, CSP headers). Those tests remain valid and unchanged. The SBP-001–005 fixes from this report address a different set of findings and are not yet covered by the runtime test suite. Adding SBP test coverage requires a running server with the productivity feature enabled and cloud linked, which is not part of the standard CI flow.

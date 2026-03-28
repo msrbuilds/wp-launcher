@@ -1,18 +1,22 @@
 """
-Runtime security tests for WP Launcher.
+Runtime security tests for WP Launcher — baseline controls.
 
 Usage:
     python tests/test_security_fixes.py [--base-url http://localhost:3737] [--mode local|agency]
 
 Requires: pip install requests
 
-Tests all 6 security fixes from the security_fixes_implementation_report.md:
+Tests 6 baseline security controls (pre-SBP review):
   1. CSRF protection (X-Requested-With header enforcement)
   2. Sync tenant isolation (user_id scoping)
-  3. SSRF protection (private IP blocking)
+  3. SSRF protection (private IP blocking on sync connections)
   4. JWT not leaked in auth responses
   5. SVG upload rejection + upload headers
   6. CSP headers present
+
+Note: The SBP-001 through SBP-005 fixes (command injection, path traversal,
+local-mode enforcement, heartbeat auth, cloud SSRF) are documented in
+reports/security_fixes_implementation_report.md and are not covered here.
 """
 
 import argparse

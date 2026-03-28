@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import { safeFetch } from '../utils/ssrf';
 import {
   getCloudConfig,
   getUnsyncedHeartbeats,
@@ -42,7 +43,8 @@ async function pushHeartbeatsToCloud(): Promise<{ pushed: number; status: string
         total_count: heartbeats.length,
       };
 
-      const response = await fetch(`${cloudUrl}/api/v1/sync/heartbeats`, {
+      // SBP-005: Use safeFetch with SSRF protection instead of raw fetch
+      const response = await safeFetch(`${cloudUrl}/api/v1/sync/heartbeats`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

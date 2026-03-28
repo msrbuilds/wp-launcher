@@ -1,9 +1,9 @@
 {
-  "version": "2.2.0",
-  "commit": "e6e0c88",
-  "commitFull": "e6e0c888eb9ed06172aa5b0776b8f1213749b807",
+  "version": "2.3.0",
+  "commit": "6521380",
+  "commitFull": "652138001deadc3bd159b1cfe2afc2e58fee2c78",
   "branch": "main",
-  "buildDate": "2026-03-24T01:37:01Z",
-  "commitDate": "2026-03-24 00:42:34 +0500",
-  "commitMessage": "install scripts update"
+  "buildDate": "2026-03-28T15:24:40Z",
+  "commitDate": "2026-03-26 02:38:17 +0500",
+  "commitMessage": "Add productivity extension screenshots"
 }

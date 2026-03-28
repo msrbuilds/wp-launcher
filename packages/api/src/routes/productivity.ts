@@ -1,6 +1,9 @@
 import { Router, Response } from 'express';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { conditionalAuth, AuthRequest } from '../middleware/userAuth';
+import { config } from '../config';
+import { validateRemoteUrl, safeFetch } from '../utils/ssrf';
 import { getDb } from '../utils/db';
 import {
   insertHeartbeats, isDuplicate,
@@ -27,10 +30,25 @@ router.use('/heartbeats', express.text({ type: 'text/plain', limit: '1mb' }), (r
   next();
 });
 
-// Allow cross-origin heartbeat requests from any *.localhost / *.BASE_DOMAIN site
-// Override Helmet's restrictive headers for this endpoint
+// SBP-004: Restrict CORS to known local origins instead of reflecting any origin.
+// Only *.localhost and *.BASE_DOMAIN sites should submit heartbeats.
+function isAllowedHeartbeatOrigin(origin: string | undefined): string | null {
+  if (!origin) return null;
+  try {
+    const url = new URL(origin);
+    const host = url.hostname.toLowerCase();
+    const baseDomain = (config as any).baseDomain?.toLowerCase() || '';
+    if (host === 'localhost' || host.endsWith('.localhost')) return origin;
+    if (baseDomain && (host === baseDomain || host.endsWith(`.${baseDomain}`))) return origin;
+    return null;
+  } catch { return null; }
+}
+
 router.use('/heartbeats', (req: any, res: Response, next: () => void) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  const allowed = isAllowedHeartbeatOrigin(req.headers.origin);
+  if (allowed) {
+    res.header('Access-Control-Allow-Origin', allowed);
+  }
   res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type');
   res.header('Cross-Origin-Resource-Policy', 'cross-origin');
@@ -44,7 +62,10 @@ router.use('/heartbeats', (req: any, res: Response, next: () => void) => {
 
 // Also allow CORS for cloud/status (used by MU-plugin to check if tracking is active)
 router.use('/cloud/status', (req: any, res: Response, next: () => void) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  const allowed = isAllowedHeartbeatOrigin(req.headers.origin);
+  if (allowed) {
+    res.header('Access-Control-Allow-Origin', allowed);
+  }
   res.header('Cross-Origin-Resource-Policy', 'cross-origin');
   if (req.method === 'OPTIONS') {
     res.sendStatus(204);
@@ -66,6 +87,10 @@ function requireFeature(_req: AuthRequest, res: Response, next: () => void) {
   next();
 }
 
+// SBP-004: Rate limit heartbeat ingestion — 60 requests per minute per IP
+const heartbeatLimiter = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false });
+router.use('/heartbeats', heartbeatLimiter);
+
 // Cloud status — no auth, used by extensions and MU-plugin to check if tracking is active
 router.get('/cloud/status', requireFeature, (_req: AuthRequest, res: Response) => {
   try {
@@ -77,14 +102,21 @@ router.get('/cloud/status', requireFeature, (_req: AuthRequest, res: Response) =
   }
 });
 
-// Heartbeat endpoint doesn't require auth (extensions need unauthenticated access)
-// but requires feature enabled AND cloud account linked
+// Heartbeat endpoint requires feature enabled, cloud linked, AND a valid heartbeat secret.
+// SBP-004: The secret authenticates non-browser clients (extensions, MU-plugin) that
+// cannot use cookie auth or custom headers via sendBeacon.
 router.post('/heartbeats', requireFeature, (req: AuthRequest, res: Response) => {
   try {
-    // Require cloud account to be linked before recording stats
-    const config = getCloudConfig();
-    if (!config.cloud_url || !config.cloud_api_key) {
+    const cloudCfg = getCloudConfig();
+    if (!cloudCfg.cloud_url || !cloudCfg.cloud_api_key) {
       res.status(403).json({ error: 'Cloud account not linked. Connect your account in the Productivity page to start tracking.' });
+      return;
+    }
+
+    // SBP-004: Validate per-install heartbeat secret
+    const secret = req.body?.secret;
+    if (!cloudCfg.heartbeat_secret || !secret || secret !== cloudCfg.heartbeat_secret) {
+      res.status(401).json({ error: 'Invalid or missing heartbeat secret' });
       return;
     }
 
@@ -107,8 +139,19 @@ router.post('/heartbeats', requireFeature, (req: AuthRequest, res: Response) => 
   }
 });
 
-// All other routes require auth + feature enabled
-router.use(conditionalAuth, requireFeature);
+// SBP-003: Enforce local-mode-only access for stats/config/data routes.
+// Productivity Monitor is a single-user local feature — in agency/multi-user mode,
+// these global (non-user-scoped) endpoints would expose cross-user data.
+function requireLocalMode(_req: AuthRequest, res: Response, next: () => void) {
+  if (!config.isLocalMode) {
+    res.status(403).json({ error: 'Productivity Monitor is only available in local mode' });
+    return;
+  }
+  next();
+}
+
+// All other routes require auth + feature enabled + local mode
+router.use(conditionalAuth, requireFeature, requireLocalMode);
 
 // ── Stats ──
 
@@ -282,9 +325,16 @@ router.put('/cloud/config', async (req: AuthRequest, res: Response) => {
 
     const cleanUrl = cloud_url.replace(/\/+$/, '');
 
+    // SBP-005: Validate cloud URL against SSRF before making any server-side request
+    const urlCheck = await validateRemoteUrl(cleanUrl);
+    if (!urlCheck.valid) {
+      res.status(400).json({ error: urlCheck.error || 'Invalid cloud URL' });
+      return;
+    }
+
     // Verify connection by sending an empty heartbeat batch to the sync endpoint
     try {
-      const testRes = await fetch(`${cleanUrl}/api/v1/sync/heartbeats`, {
+      const testRes = await safeFetch(`${cleanUrl}/api/v1/sync/heartbeats`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${cloud_api_key}`,
@@ -316,7 +366,13 @@ router.put('/cloud/config', async (req: AuthRequest, res: Response) => {
     setCloudConfig('cloud_api_key', cloud_api_key);
     if (device_name) setCloudConfig('device_name', device_name);
     if (machine_id) setCloudConfig('machine_id', machine_id);
-    res.json({ message: 'Cloud account linked successfully', verified: true });
+
+    // SBP-004: Generate a per-install heartbeat secret for authenticating ingestion clients
+    const crypto = await import('crypto');
+    const heartbeatSecret = crypto.randomBytes(32).toString('base64url');
+    setCloudConfig('heartbeat_secret', heartbeatSecret);
+
+    res.json({ message: 'Cloud account linked successfully', verified: true, heartbeat_secret: heartbeatSecret });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
