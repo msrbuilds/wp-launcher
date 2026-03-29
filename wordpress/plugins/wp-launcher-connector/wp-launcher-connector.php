@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Launcher Connector
  * Description: Connects this WordPress site to WP Launcher for push/pull sync. Exposes a REST API for remote content sync operations.
- * Version: 1.1.1
+ * Version: 1.1.2
  * Author: MSR Builds
  * License: GPL-2.0-or-later
  * Requires PHP: 7.4
@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPL_CONNECTOR_VERSION', '1.1.1' );
+define( 'WPL_CONNECTOR_VERSION', '1.1.2' );
 define( 'WPL_CONNECTOR_FILE', __FILE__ );
 define( 'WPL_CONNECTOR_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -268,8 +268,12 @@ function wpl_connector_import( $request, $archive_file = null ) {
 			error_log('[WPL Connector] wp-content contents: ' . implode(', ', array_slice(@scandir($source_wpc), 0, 20)));
 		}
 
-		// CRITICAL: Save current site URL BEFORE any DB changes
+		// CRITICAL: Save remote state BEFORE any DB changes
 		$current_url = get_site_url();
+		// Preserve remote's plugin/theme state so the imported DB doesn't break the remote site
+		$remote_active_plugins = get_option( 'active_plugins', array() );
+		$remote_template        = get_option( 'template' );   // active theme (folder name)
+		$remote_stylesheet      = get_option( 'stylesheet' ); // active theme (child or same)
 		$source_url = null;
 		$db_imported = false;
 
@@ -324,6 +328,16 @@ function wpl_connector_import( $request, $archive_file = null ) {
 			global $wpdb;
 			$wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = 'siteurl'", $current_url));
 			$wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = 'home'", $current_url));
+
+			// Restore remote's active plugins so the imported DB doesn't deactivate plugins
+			// that are installed on the remote but not on the source site
+			$include_plugins_check = ! empty( $_GET['include_plugins'] ) || ! empty( $request->get_param('include_plugins') );
+			if ( ! $include_plugins_check ) {
+				update_option( 'active_plugins', $remote_active_plugins );
+				update_option( 'template',       $remote_template );
+				update_option( 'stylesheet',     $remote_stylesheet );
+				error_log('[WPL Connector] Restored remote active_plugins, template, stylesheet');
+			}
 
 			error_log('[WPL Connector] URLs restored to: ' . $current_url);
 		} else {
