@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Launcher Connector
  * Description: Connects this WordPress site to WP Launcher for push/pull sync. Exposes a REST API for remote content sync operations.
- * Version: 1.1.2
+ * Version: 1.1.3
  * Author: MSR Builds
  * License: GPL-2.0-or-later
  * Requires PHP: 7.4
@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPL_CONNECTOR_VERSION', '1.1.2' );
+define( 'WPL_CONNECTOR_VERSION', '1.1.3' );
 define( 'WPL_CONNECTOR_FILE', __FILE__ );
 define( 'WPL_CONNECTOR_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -324,20 +324,14 @@ function wpl_connector_import( $request, $archive_file = null ) {
 			wpl_import_database($sql_file);
 			$db_imported = true;
 
+			// Read which plugins were active on the SOURCE site (now in imported DB)
+			// We'll use this to activate newly installed plugins later
+			$source_active_plugins = get_option( 'active_plugins', array() );
+
 			// Safety: force correct URLs via direct SQL (belt and suspenders)
 			global $wpdb;
 			$wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = 'siteurl'", $current_url));
 			$wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = 'home'", $current_url));
-
-			// Restore remote's active plugins so the imported DB doesn't deactivate plugins
-			// that are installed on the remote but not on the source site
-			$include_plugins_check = ! empty( $_GET['include_plugins'] ) || ! empty( $request->get_param('include_plugins') );
-			if ( ! $include_plugins_check ) {
-				update_option( 'active_plugins', $remote_active_plugins );
-				update_option( 'template',       $remote_template );
-				update_option( 'stylesheet',     $remote_stylesheet );
-				error_log('[WPL Connector] Restored remote active_plugins, template, stylesheet');
-			}
 
 			error_log('[WPL Connector] URLs restored to: ' . $current_url);
 		} else {
@@ -350,20 +344,78 @@ function wpl_connector_import( $request, $archive_file = null ) {
 			return new WP_Error('no_database', 'No database file found in snapshot. Push aborted to protect site URLs.', array('status' => 400));
 		}
 
-		// By default skip plugins/ to prevent version conflicts on the remote site.
-		// Pass include_plugins=1 as a query param or JSON body param to sync plugins too.
+		// ── Plugin sync strategy ──────────────────────────────────────────────────
+		// include_plugins=1  → force-copy all plugin files (may cause version conflicts)
+		// default            → smart sync: copy plugins that don't exist on remote,
+		//                      keep existing remote plugins at their current version
 		$include_plugins = ! empty( $_GET['include_plugins'] ) || ! empty( $request->get_param('include_plugins') );
 		$skip = array('mu-plugins','cache','upgrade','db-snapshot.sql','database.sql','wp-launcher-connector');
-		if ( ! $include_plugins ) {
-			$skip[] = 'plugins';
-			error_log('[WPL Connector] Skipping plugins/ (pass include_plugins=1 to include)');
-		}
+		$skip[] = 'plugins'; // always handle plugins separately (smart or forced below)
+
+		// Copy everything except plugins
 		wpl_recursive_copy($source_wpc, WP_CONTENT_DIR, $skip);
+
+		// Now handle plugins
+		$newly_installed_plugins = array();
+		$src_plugins_dir = $source_wpc . '/plugins';
+		$dst_plugins_dir = WP_CONTENT_DIR . '/plugins';
+		if ( is_dir( $src_plugins_dir ) ) {
+			$items = @scandir( $src_plugins_dir ) ?: array();
+			foreach ( $items as $item ) {
+				if ( $item === '.' || $item === '..' || $item === 'wp-launcher-connector' ) continue;
+				$src_dir = $src_plugins_dir . '/' . $item;
+				$dst_dir = $dst_plugins_dir . '/' . $item;
+				if ( ! is_dir( $src_dir ) ) continue;
+
+				if ( $include_plugins ) {
+					// Force-overwrite: copy regardless of whether plugin exists on remote
+					wpl_recursive_copy( $src_dir, $dst_dir, array() );
+					error_log( '[WPL Connector] Force-copied plugin: ' . $item );
+				} elseif ( ! is_dir( $dst_dir ) ) {
+					// Smart sync: only copy if plugin doesn't already exist on remote
+					wpl_recursive_copy( $src_dir, $dst_dir, array() );
+					$newly_installed_plugins[] = $item;
+					error_log( '[WPL Connector] Installed new plugin: ' . $item );
+				} else {
+					error_log( '[WPL Connector] Plugin already on remote, keeping remote version: ' . $item );
+				}
+			}
+		}
+
+		// ── Restore / merge active_plugins ───────────────────────────────────────
+		if ( ! $include_plugins ) {
+			// Start from remote's existing active plugins
+			$final_active = $remote_active_plugins;
+
+			// Activate newly installed plugins that were active on the source site
+			foreach ( $source_active_plugins as $plugin_file ) {
+				$slug = strstr( $plugin_file, '/', true ) ?: $plugin_file;
+				if ( in_array( $slug, $newly_installed_plugins, true ) ) {
+					$full_path = WP_CONTENT_DIR . '/plugins/' . $plugin_file;
+					if ( file_exists( $full_path ) && ! in_array( $plugin_file, $final_active, true ) ) {
+						$final_active[] = $plugin_file;
+						error_log( '[WPL Connector] Activating newly installed plugin: ' . $plugin_file );
+					}
+				}
+			}
+
+			update_option( 'active_plugins', $final_active );
+			update_option( 'template',       $remote_template );
+			update_option( 'stylesheet',     $remote_stylesheet );
+			error_log( '[WPL Connector] active_plugins merged: ' . count($final_active) . ' active' );
+		}
+
 		wpl_recursive_delete($import_dir);
 		wp_cache_flush();
 		if (function_exists('opcache_reset')) @opcache_reset();
 
-		return rest_ensure_response(array('status'=>'restored','siteUrl'=>$current_url,'sourceUrl'=>$source_url,'dbImported'=>$db_imported));
+		return rest_ensure_response(array(
+			'status'             => 'restored',
+			'siteUrl'            => $current_url,
+			'sourceUrl'          => $source_url,
+			'dbImported'         => $db_imported,
+			'pluginsInstalled'   => $newly_installed_plugins,
+		));
 	} catch (Exception $e) {
 		error_log('[WPL Connector] Import error: ' . $e->getMessage());
 		wpl_recursive_delete($import_dir);
