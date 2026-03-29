@@ -167,28 +167,60 @@ async function doPush(syncId: string, site: any, conn: RemoteConnection) {
   const tarPath = path.resolve(config.dataDir, 'snapshots', snapshotId, 'wp-content.tar');
   if (!fs.existsSync(tarPath)) throw new Error('Snapshot tar not found');
 
-  // 2. Upload tar to the remote WordPress connector plugin's import endpoint
-  //    The plugin can handle tar format via PharData
-  const fileBuffer = fs.readFileSync(tarPath);
-  // Pass the local site URL as query param so the plugin knows exactly what to search-replace
+  // 2. Upload tar to the remote connector plugin — uses chunked upload to avoid
+  //    nginx/PHP upload size limits on the remote server
   const sourceSiteUrl = site.site_url || `http://${site.subdomain}.${config.baseDomain}`;
-  const importUrl = `${conn.url}/wp-json/wpl-connector/v1/import?source_url=${encodeURIComponent(sourceSiteUrl)}`;
-  const uploadRes = await safeFetch(importUrl, {
-    method: 'POST',
-    headers: {
-      'X-WPL-Key': conn.api_key,
-      'Content-Type': 'application/octet-stream',
-    },
-    body: fileBuffer,
-    signal: AbortSignal.timeout(300000),
-  });
+  const fileBuffer = fs.readFileSync(tarPath);
+  const CHUNK_SIZE = 20 * 1024 * 1024; // 20MB chunks
+  const totalChunks = Math.ceil(fileBuffer.length / CHUNK_SIZE);
+  const uploadId = `sync-${syncId.slice(0, 8)}-${Date.now()}`;
 
-  if (!uploadRes.ok) {
-    const errBody = await uploadRes.text();
-    throw new Error(`Remote import failed: ${errBody}`);
+  console.log(`[sync] Uploading ${(fileBuffer.length / 1024 / 1024).toFixed(1)}MB in ${totalChunks} chunk(s)`);
+
+  let remoteResult: { status: string; siteUrl?: string };
+
+  if (totalChunks <= 1) {
+    // Small file — single upload (faster, backwards-compatible with older connector plugin)
+    const importUrl = `${conn.url}/wp-json/wpl-connector/v1/import?source_url=${encodeURIComponent(sourceSiteUrl)}&include_plugins=0`;
+    const uploadRes = await safeFetch(importUrl, {
+      method: 'POST',
+      headers: { 'X-WPL-Key': conn.api_key, 'Content-Type': 'application/octet-stream' },
+      body: fileBuffer,
+      signal: AbortSignal.timeout(300000),
+    });
+    if (!uploadRes.ok) throw new Error(`Remote import failed: ${await uploadRes.text()}`);
+    remoteResult = await uploadRes.json() as { status: string; siteUrl?: string };
+  } else {
+    // Large file — chunked upload to avoid nginx/PHP upload size limits
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const chunk = fileBuffer.subarray(start, start + CHUNK_SIZE);
+      const chunkRes = await safeFetch(`${conn.url}/wp-json/wpl-connector/v1/upload-chunk`, {
+        method: 'POST',
+        headers: {
+          'X-WPL-Key': conn.api_key,
+          'Content-Type': 'application/octet-stream',
+          'X-Upload-Id': uploadId,
+          'X-Chunk-Index': String(i),
+          'X-Total-Chunks': String(totalChunks),
+        },
+        body: chunk,
+        signal: AbortSignal.timeout(120000),
+      });
+      if (!chunkRes.ok) throw new Error(`Chunk ${i + 1}/${totalChunks} upload failed: ${await chunkRes.text()}`);
+      console.log(`[sync] Chunk ${i + 1}/${totalChunks} uploaded`);
+    }
+
+    // Finalize: reassemble chunks and run import on the remote side
+    const finalizeRes = await safeFetch(`${conn.url}/wp-json/wpl-connector/v1/finalize-import`, {
+      method: 'POST',
+      headers: { 'X-WPL-Key': conn.api_key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upload_id: uploadId, total_chunks: totalChunks, source_url: sourceSiteUrl, include_plugins: false }),
+      signal: AbortSignal.timeout(600000),
+    });
+    if (!finalizeRes.ok) throw new Error(`Remote finalize failed: ${await finalizeRes.text()}`);
+    remoteResult = await finalizeRes.json() as { status: string; siteUrl?: string };
   }
-
-  const remoteResult = await uploadRes.json() as { status: string; siteUrl?: string };
 
   // 3. Update sync history
   db.prepare(`

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Launcher Connector
  * Description: Connects this WordPress site to WP Launcher for push/pull sync. Exposes a REST API for remote content sync operations.
- * Version: 1.0.2
+ * Version: 1.1.1
  * Author: MSR Builds
  * License: GPL-2.0-or-later
  * Requires PHP: 7.4
@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPL_CONNECTOR_VERSION', '1.0.2' );
+define( 'WPL_CONNECTOR_VERSION', '1.1.1' );
 define( 'WPL_CONNECTOR_FILE', __FILE__ );
 define( 'WPL_CONNECTOR_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -121,6 +121,9 @@ add_action( 'rest_api_init', function () {
 	register_rest_route( 'wpl-connector/v1', '/export', array( 'methods' => 'POST', 'callback' => 'wpl_connector_export', 'permission_callback' => $auth ) );
 	register_rest_route( 'wpl-connector/v1', '/export/(?P<id>[a-zA-Z0-9_-]+)', array( 'methods' => 'GET', 'callback' => 'wpl_connector_download', 'permission_callback' => $auth ) );
 	register_rest_route( 'wpl-connector/v1', '/import', array( 'methods' => 'POST', 'callback' => 'wpl_connector_import', 'permission_callback' => $auth ) );
+	// Chunked upload
+	register_rest_route( 'wpl-connector/v1', '/upload-chunk', array( 'methods' => 'POST', 'callback' => 'wpl_connector_upload_chunk', 'permission_callback' => $auth ) );
+	register_rest_route( 'wpl-connector/v1', '/finalize-import', array( 'methods' => 'POST', 'callback' => 'wpl_connector_finalize_import', 'permission_callback' => $auth ) );
 	// Incremental sync
 	register_rest_route( 'wpl-connector/v1', '/manifest', array( 'methods' => 'GET', 'callback' => 'wpl_connector_manifest', 'permission_callback' => $auth ) );
 	register_rest_route( 'wpl-connector/v1', '/export-content', array( 'methods' => 'POST', 'callback' => 'wpl_connector_export_content', 'permission_callback' => $auth ) );
@@ -186,25 +189,52 @@ function wpl_connector_download( $request ) {
 	readfile($path); @unlink($path); exit;
 }
 
-function wpl_connector_import( $request ) {
+function wpl_connector_import( $request, $archive_file = null ) {
 	@set_time_limit(600); @ini_set('memory_limit','512M');
 	$tmp_dir = WPL_CONNECTOR_DIR . 'tmp';
 	$import_dir = $tmp_dir . '/wpl-import-' . wp_generate_password(8,false,false);
 	wp_mkdir_p($import_dir);
 
 	try {
-		$body = $request->get_body();
-		if (empty($body)) $body = file_get_contents('php://input');
-		if (empty($body)) throw new Exception('Empty request body');
+		// If a pre-assembled archive file is provided (from chunked upload), use it directly
+		if ( $archive_file && file_exists( $archive_file ) ) {
+			$body = null;
+			$is_tar = true;
+			$archive_path = $archive_file;
+		} else {
+			$body = $request->get_body();
+			if (empty($body)) $body = file_get_contents('php://input');
+			if (empty($body)) throw new Exception('Empty request body');
+		}
 
-		$is_tar = (substr($body,0,4) !== "PK\x03\x04");
-		$archive_path = $import_dir . '/import' . ($is_tar ? '.tar' : '.zip');
-		file_put_contents($archive_path, $body); unset($body);
+		if ( $body !== null ) {
+			$is_tar = (substr($body,0,4) !== "PK\x03\x04");
+			$archive_path = $import_dir . '/import' . ($is_tar ? '.tar' : '.zip');
+			file_put_contents($archive_path, $body); unset($body);
+		}
 
 		$extract_dir = $import_dir . '/extracted'; wp_mkdir_p($extract_dir);
+
+		error_log('[WPL Connector] Archive: path=' . $archive_path . ' size=' . filesize($archive_path) . ' is_tar=' . ($is_tar ? 'yes' : 'no'));
+
 		if ($is_tar) {
 			if (!class_exists('PharData')) throw new Exception('PharData required for tar import');
-			$phar = new PharData($archive_path); $phar->extractTo($extract_dir);
+			// Ensure file has .tar extension (PharData requires it)
+			if (substr($archive_path, -4) !== '.tar') {
+				$tar_path = $archive_path . '.tar';
+				rename($archive_path, $tar_path);
+				$archive_path = $tar_path;
+			}
+			try {
+				$phar = new PharData($archive_path);
+				$phar->extractTo($extract_dir);
+			} catch (Exception $e) {
+				error_log('[WPL Connector] PharData extractTo failed: ' . $e->getMessage());
+				// Fallback: try shell tar command
+				$cmd = 'tar xf ' . escapeshellarg($archive_path) . ' -C ' . escapeshellarg($extract_dir) . ' 2>&1';
+				$output = shell_exec($cmd);
+				error_log('[WPL Connector] tar fallback output: ' . ($output ?: 'OK'));
+			}
 		} else {
 			if (!class_exists('ZipArchive')) throw new Exception('ZipArchive required');
 			$zip = new ZipArchive();
@@ -213,11 +243,23 @@ function wpl_connector_import( $request ) {
 		}
 		@unlink($archive_path);
 
+		// Log extracted contents for debugging
+		$extracted_items = @scandir($extract_dir) ?: array();
+		error_log('[WPL Connector] Extracted top-level: ' . implode(', ', $extracted_items));
+		if (is_dir($extract_dir . '/wp-content')) {
+			error_log('[WPL Connector] wp-content contents: ' . implode(', ', array_slice(@scandir($extract_dir . '/wp-content') ?: array(), 0, 20)));
+		}
+
 		$source_wpc = is_dir($extract_dir.'/wp-content') ? $extract_dir.'/wp-content' : $extract_dir;
 
-		// Find SQL file
+		// Find SQL file — check multiple possible locations
 		$sql_file = null;
-		foreach (array($extract_dir.'/database.sql', $source_wpc.'/db-snapshot.sql', $extract_dir.'/db-snapshot.sql') as $c) {
+		$sql_candidates = array(
+			$extract_dir.'/database.sql',
+			$source_wpc.'/db-snapshot.sql',
+			$extract_dir.'/db-snapshot.sql',
+		);
+		foreach ($sql_candidates as $c) {
 			if (file_exists($c)) { $sql_file = $c; break; }
 		}
 
@@ -294,7 +336,14 @@ function wpl_connector_import( $request ) {
 			return new WP_Error('no_database', 'No database file found in snapshot. Push aborted to protect site URLs.', array('status' => 400));
 		}
 
+		// By default skip plugins/ to prevent version conflicts on the remote site.
+		// Pass include_plugins=1 as a query param or JSON body param to sync plugins too.
+		$include_plugins = ! empty( $_GET['include_plugins'] ) || ! empty( $request->get_param('include_plugins') );
 		$skip = array('mu-plugins','cache','upgrade','db-snapshot.sql','database.sql','wp-launcher-connector');
+		if ( ! $include_plugins ) {
+			$skip[] = 'plugins';
+			error_log('[WPL Connector] Skipping plugins/ (pass include_plugins=1 to include)');
+		}
 		wpl_recursive_copy($source_wpc, WP_CONTENT_DIR, $skip);
 		wpl_recursive_delete($import_dir);
 		wp_cache_flush();
@@ -306,6 +355,95 @@ function wpl_connector_import( $request ) {
 		wpl_recursive_delete($import_dir);
 		return new WP_Error('import_failed', $e->getMessage(), array('status'=>500));
 	}
+}
+
+// ─── Chunked Upload ───
+// Receives file chunks and reassembles them, then triggers the same import logic.
+// This avoids nginx/PHP upload size limits for large snapshots.
+
+function wpl_connector_upload_chunk( $request ) {
+	@set_time_limit(120);
+	$tmp_dir = WPL_CONNECTOR_DIR . 'tmp';
+
+	$upload_id = sanitize_file_name( isset($_SERVER['HTTP_X_UPLOAD_ID']) ? $_SERVER['HTTP_X_UPLOAD_ID'] : ($request->get_param('upload_id') ?: '') );
+	$chunk_index = intval( isset($_SERVER['HTTP_X_CHUNK_INDEX']) ? $_SERVER['HTTP_X_CHUNK_INDEX'] : $request->get_param('chunk_index') );
+	$total_chunks = intval( isset($_SERVER['HTTP_X_TOTAL_CHUNKS']) ? $_SERVER['HTTP_X_TOTAL_CHUNKS'] : $request->get_param('total_chunks') );
+
+	if ( ! $upload_id || $total_chunks < 1 ) {
+		return new WP_Error( 'invalid_params', 'upload_id and total_chunks are required', array( 'status' => 400 ) );
+	}
+
+	$chunk_dir = $tmp_dir . '/chunks-' . $upload_id;
+	wp_mkdir_p( $chunk_dir );
+
+	$body = $request->get_body();
+	if ( empty( $body ) ) $body = file_get_contents( 'php://input' );
+	if ( empty( $body ) ) {
+		return new WP_Error( 'empty_chunk', 'Empty chunk body', array( 'status' => 400 ) );
+	}
+
+	file_put_contents( $chunk_dir . '/chunk-' . str_pad( $chunk_index, 5, '0', STR_PAD_LEFT ), $body );
+	unset( $body );
+
+	// Count received chunks
+	$received = count( glob( $chunk_dir . '/chunk-*' ) );
+
+	return rest_ensure_response( array(
+		'received' => $received,
+		'total'    => $total_chunks,
+		'complete' => $received >= $total_chunks,
+	) );
+}
+
+function wpl_connector_finalize_import( $request ) {
+	@set_time_limit(600); @ini_set('memory_limit','512M');
+	$tmp_dir = WPL_CONNECTOR_DIR . 'tmp';
+
+	$upload_id = sanitize_file_name( $request->get_param('upload_id') ?: '' );
+	$total_chunks = intval( $request->get_param('total_chunks') );
+	$source_url = $request->get_param('source_url') ?: '';
+
+	if ( ! $upload_id ) {
+		return new WP_Error( 'invalid_params', 'upload_id is required', array( 'status' => 400 ) );
+	}
+
+	$chunk_dir = $tmp_dir . '/chunks-' . $upload_id;
+	$received = count( glob( $chunk_dir . '/chunk-*' ) );
+	if ( $received < $total_chunks ) {
+		return new WP_Error( 'incomplete', "Only $received of $total_chunks chunks received", array( 'status' => 400 ) );
+	}
+
+	// Reassemble chunks into a single archive file
+	$archive_path = $tmp_dir . '/assembled-' . $upload_id . '.tar';
+	$out = fopen( $archive_path, 'wb' );
+	if ( ! $out ) {
+		return new WP_Error( 'write_error', 'Cannot create assembled file', array( 'status' => 500 ) );
+	}
+
+	$chunk_files = glob( $chunk_dir . '/chunk-*' );
+	sort( $chunk_files ); // ensures correct order (zero-padded names)
+	foreach ( $chunk_files as $cf ) {
+		$data = file_get_contents( $cf );
+		fwrite( $out, $data );
+		unset( $data );
+	}
+	fclose( $out );
+	wpl_recursive_delete( $chunk_dir );
+
+	$archive_size = filesize( $archive_path );
+	error_log( '[WPL Connector] Reassembled ' . $received . ' chunks into ' . $archive_size . ' bytes' );
+
+	// Pass the assembled file directly to the import function (zero-copy, no memory issues)
+	if ( $source_url ) {
+		$_GET['source_url'] = $source_url;
+	}
+	$include_plugins = $request->get_param('include_plugins');
+	if ( $include_plugins ) {
+		$_GET['include_plugins'] = '1';
+	}
+
+	$fake_request = new WP_REST_Request( 'POST' );
+	return wpl_connector_import( $fake_request, $archive_path );
 }
 
 // ─── Incremental Sync: Manifest ───
