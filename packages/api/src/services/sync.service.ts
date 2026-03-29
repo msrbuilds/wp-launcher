@@ -195,7 +195,7 @@ async function doPush(syncId: string, site: any, conn: RemoteConnection) {
     for (let i = 0; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
       const chunk = fileBuffer.subarray(start, start + CHUNK_SIZE);
-      const chunkRes = await safeFetch(`${conn.url}/wp-json/wpl-connector/v1/upload-chunk`, {
+      const chunkRes = await safeFetch(`${conn.url}/wp-json/wpl-connector/v1/upload-chunk?_wpl_key=${encodeURIComponent(conn.api_key)}`, {
         method: 'POST',
         headers: {
           'X-WPL-Key': conn.api_key,

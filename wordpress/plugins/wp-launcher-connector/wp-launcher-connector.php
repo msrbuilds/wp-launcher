@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Launcher Connector
  * Description: Connects this WordPress site to WP Launcher for push/pull sync. Exposes a REST API for remote content sync operations.
- * Version: 1.1.4
+ * Version: 1.1.5
  * Author: MSR Builds
  * License: GPL-2.0-or-later
  * Requires PHP: 7.4
@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPL_CONNECTOR_VERSION', '1.1.4' );
+define( 'WPL_CONNECTOR_VERSION', '1.1.5' );
 define( 'WPL_CONNECTOR_FILE', __FILE__ );
 define( 'WPL_CONNECTOR_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -105,8 +105,11 @@ function wpl_connector_settings_page() {
 }
 
 function wpl_connector_authenticate( $request ) {
+	// Try header first (standard path)
 	$key = $request->get_header( 'X-WPL-Key' );
 	if ( ! $key ) $key = $request->get_header( 'X_WPL_Key' );
+	// Fallback: query param — some hosts strip custom headers on binary (octet-stream) uploads
+	if ( ! $key && ! empty( $_GET['_wpl_key'] ) ) $key = sanitize_text_field( $_GET['_wpl_key'] );
 	$stored = get_option( 'wpl_connector_api_key', '' );
 	if ( ! $key || ! $stored || ! hash_equals( $stored, $key ) ) {
 		return new WP_Error( 'unauthorized', 'Invalid or missing API key', array( 'status' => 401 ) );
