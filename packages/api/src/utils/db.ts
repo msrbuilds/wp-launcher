@@ -350,6 +350,11 @@ function initSchema(db: Database.Database): void {
     // Column already exists
   }
   try {
+    db.exec(`ALTER TABLE sites ADD COLUMN direct_file_access INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
+  try {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_sites_custom_domain ON sites(custom_domain)`);
   } catch {
     // Index already exists

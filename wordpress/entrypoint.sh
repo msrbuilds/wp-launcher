@@ -202,6 +202,82 @@ if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
         wp plugin activate sqlite-database-integration --path=/var/www/html --allow-root 2>/dev/null || true
     fi
 
+    # ── Fast staged install ──────────────────────────────────────────────────
+    # When wp-cli cache exists, bypass wp-cli install entirely: unzip to /tmp
+    # (fast overlay fs) then bulk-copy to wp-content (one op vs thousands of
+    # small file writes through Docker Desktop's file sharing layer).
+    # Falls back to wp-cli for first-time installs, URL-based, or local zips.
+
+    CACHE_DIR="${WP_CLI_CACHE_DIR:-/var/www/.wp-cli-cache}"
+
+    fast_plugin_install() {
+        local ref="$1"
+        local activate="$2"
+        local slug=""
+
+        # Only optimize simple slugs (wordpress.org plugins) — not URLs or paths
+        if [[ "$ref" != *"/"* ]] && [[ "$ref" != *"."* ]]; then
+            slug="$ref"
+            local cached_zip=""
+            if [ -d "$CACHE_DIR/plugin" ]; then
+                cached_zip=$(ls -t "$CACHE_DIR/plugin/${slug}"-*.zip 2>/dev/null | head -1)
+            fi
+
+            if [ -n "$cached_zip" ]; then
+                echo "[wp-launcher]   → $slug (cached)"
+                local stage="/tmp/staged-plugins"
+                mkdir -p "$stage"
+                unzip -qo "$cached_zip" -d "$stage/" 2>/dev/null
+                if [ -d "$stage/$slug" ]; then
+                    cp -a "$stage/$slug" /var/www/html/wp-content/plugins/
+                    rm -rf "$stage/$slug"
+                    if [ "$activate" = "true" ]; then
+                        wp plugin activate "$slug" --path=/var/www/html --allow-root 2>&1 || true
+                    fi
+                    return 0
+                fi
+                rm -rf "$stage/$slug"
+            fi
+        fi
+
+        # Fallback: wp-cli install (first-time download, URLs, local zips)
+        echo "[wp-launcher]   → $ref"
+        if [ "$activate" = "true" ]; then
+            wp plugin install "$ref" --activate --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher]   ⚠ Failed: $ref"
+        else
+            wp plugin install "$ref" --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher]   ⚠ Failed: $ref"
+        fi
+    }
+
+    fast_theme_install() {
+        local ref="$1"
+        local slug=""
+
+        if [[ "$ref" != *"/"* ]] && [[ "$ref" != *"."* ]]; then
+            slug="$ref"
+            local cached_zip=""
+            if [ -d "$CACHE_DIR/theme" ]; then
+                cached_zip=$(ls -t "$CACHE_DIR/theme/${slug}"-*.zip 2>/dev/null | head -1)
+            fi
+
+            if [ -n "$cached_zip" ]; then
+                echo "[wp-launcher]   → $slug (cached)"
+                local stage="/tmp/staged-themes"
+                mkdir -p "$stage"
+                unzip -qo "$cached_zip" -d "$stage/" 2>/dev/null
+                if [ -d "$stage/$slug" ]; then
+                    cp -a "$stage/$slug" /var/www/html/wp-content/themes/
+                    rm -rf "$stage/$slug"
+                    return 0
+                fi
+                rm -rf "$stage/$slug"
+            fi
+        fi
+
+        echo "[wp-launcher]   → $ref"
+        wp theme install "$ref" --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher]   ⚠ Failed: $ref"
+    }
+
     # Install and activate plugins (from wp.org, URL, or local zip)
     # Install one-at-a-time so a failure/fatal in one plugin doesn't block the rest
     if [ -n "${WP_INSTALL_PLUGINS_ACTIVATE:-}" ]; then
@@ -210,8 +286,7 @@ if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
         if [ ${#PLUGINS[@]} -gt 0 ]; then
             echo "[wp-launcher] Installing + activating ${#PLUGINS[@]} plugins..."
             for plugin in "${PLUGINS[@]}"; do
-                echo "[wp-launcher]   → $plugin"
-                wp plugin install "$plugin" --activate --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher]   ⚠ Failed: $plugin"
+                fast_plugin_install "$plugin" "true"
             done
         fi
     fi
@@ -222,8 +297,7 @@ if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
         if [ ${#PLUGINS[@]} -gt 0 ]; then
             echo "[wp-launcher] Installing ${#PLUGINS[@]} plugins..."
             for plugin in "${PLUGINS[@]}"; do
-                echo "[wp-launcher]   → $plugin"
-                wp plugin install "$plugin" --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher]   ⚠ Failed: $plugin"
+                fast_plugin_install "$plugin" "false"
             done
         fi
     fi
@@ -248,13 +322,15 @@ if ! wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
         fi
     fi
 
-    # Install themes (batch)
+    # Install themes
     if [ -n "${WP_INSTALL_THEMES:-}" ]; then
         THEMES=()
         parse_csv "$WP_INSTALL_THEMES" THEMES
         if [ ${#THEMES[@]} -gt 0 ]; then
             echo "[wp-launcher] Installing ${#THEMES[@]} themes..."
-            wp theme install "${THEMES[@]}" --path=/var/www/html --allow-root 2>&1 || echo "[wp-launcher] Warning: some themes failed to install"
+            for theme in "${THEMES[@]}"; do
+                fast_theme_install "$theme"
+            done
         fi
     fi
 
@@ -287,6 +363,20 @@ chmod -R 755 /var/www/html/wp-content
 # Write ready marker — dashboard polls this to know ALL setup (plugins, themes, etc.) is done
 echo "ready" > /var/www/html/.wp-launcher-ready
 echo "[wp-launcher] Ready marker written."
+
+# Background sync: copy plugins/themes to host directory for direct file access.
+# Runs AFTER the ready marker so the site is usable immediately while files sync.
+# When done, writes a sync-complete marker so the API can upgrade to bind mounts.
+if [ "${WP_HOST_SYNC:-}" = "true" ] && [ -d "/var/www/host-files" ]; then
+    (
+        echo "[wp-launcher] Syncing plugins and themes to host..."
+        mkdir -p /var/www/host-files/plugins /var/www/host-files/themes
+        cp -a /var/www/html/wp-content/plugins/. /var/www/host-files/plugins/ 2>/dev/null || true
+        cp -a /var/www/html/wp-content/themes/. /var/www/host-files/themes/ 2>/dev/null || true
+        echo "synced" > /var/www/html/.wp-launcher-synced
+        echo "[wp-launcher] Host sync complete."
+    ) &
+fi
 
 # Keep the container running with the Apache process
 wait $WP_PID

@@ -2481,6 +2481,27 @@ body:has(.admin-layout) .header .container {
 }
 
 /* PHP configuration collapsible */
+.llp-file-access-toggle {
+  margin-top: 1rem;
+}
+.llp-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+.llp-toggle-row input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+.llp-toggle-hint {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 .llp-php-config-section {
   margin-top: 1.5rem;
 }

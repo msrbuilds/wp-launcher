@@ -38,7 +38,7 @@ const PHP_OPTIONS = [
 ];
 
 export default function LocalLaunchPage() {
-  const { loading: settingsLoading } = useSettings();
+  const { loading: settingsLoading, sitesHostPath } = useSettings();
   const [searchParams] = useSearchParams();
 
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -70,6 +70,8 @@ export default function LocalLaunchPage() {
     { value: 'ldap', label: 'LDAP' },
     { value: 'gettext', label: 'Gettext' },
   ];
+
+  const [directFileAccess, setDirectFileAccess] = useState(false);
 
   const [step, setStep] = useState<Step>('configure');
   const [creating, setCreating] = useState(false);
@@ -117,6 +119,7 @@ export default function LocalLaunchPage() {
           adminUser,
           adminPassword,
           adminEmail,
+          directFileAccess,
           ...(subdomain.trim() ? { subdomain: subdomain.trim().toLowerCase() } : {}),
           phpConfig: {
             memoryLimit: phpMemoryLimit,
@@ -145,11 +148,11 @@ export default function LocalLaunchPage() {
   }
 
   async function pollUntilReady(siteId: string) {
-    const maxAttempts = 30;
-    const expectedAttempts = 8;
+    const maxAttempts = 120;
+    const expectedAttempts = 12;
     setProvisionProgress(0);
     for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 3000));
       const pct = i < expectedAttempts
         ? Math.min(80, ((i + 1) / expectedAttempts) * 80)
         : 80 + Math.min(15, (i - expectedAttempts) * 2);
@@ -375,6 +378,21 @@ export default function LocalLaunchPage() {
             </div>
           </div>
         </div>
+
+        {/* Direct File Access toggle (only when SITES_HOST_PATH is configured) */}
+        {sitesHostPath && (
+          <div className="form-group llp-file-access-toggle">
+            <label className="llp-toggle-row">
+              <input
+                type="checkbox"
+                checked={directFileAccess}
+                onChange={(e) => setDirectFileAccess(e.target.checked)}
+              />
+              <span>Direct File Access</span>
+              <span className="llp-toggle-hint">Sync plugins &amp; themes to host for editing in VS Code</span>
+            </label>
+          </div>
+        )}
 
         {/* PHP Configuration (collapsible) */}
         <div className="llp-php-config-section">

@@ -45,6 +45,7 @@ export interface CreateContainerOptions {
   autoLoginToken?: string;
   localMode?: boolean;
   heartbeatSecret?: string;
+  directFileAccess?: boolean;
   phpConfig?: {
     memoryLimit?: string;
     uploadMaxFilesize?: string;
@@ -83,6 +84,15 @@ export async function updateAutoLoginToken(containerId: string, token: string): 
     method: 'PATCH',
     body: JSON.stringify({ token }),
   });
+}
+
+export async function enableBindMounts(containerId: string, subdomain: string): Promise<string> {
+  const res = await provisionerFetch(`/containers/${containerId}/enable-bind-mounts`, {
+    method: 'POST',
+    body: JSON.stringify({ subdomain }),
+  });
+  const data = await res.json() as { containerId: string };
+  return data.containerId;
 }
 
 export async function removeSiteContainer(containerId: string): Promise<void> {

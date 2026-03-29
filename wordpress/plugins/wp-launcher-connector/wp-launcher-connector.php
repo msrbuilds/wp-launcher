@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WP Launcher Connector
  * Description: Connects this WordPress site to WP Launcher for push/pull sync. Exposes a REST API for remote content sync operations.
- * Version: 1.1.5
+ * Version: 1.1.7
  * Author: MSR Builds
  * License: GPL-2.0-or-later
  * Requires PHP: 7.4
@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPL_CONNECTOR_VERSION', '1.1.5' );
+define( 'WPL_CONNECTOR_VERSION', '1.1.7' );
 define( 'WPL_CONNECTOR_FILE', __FILE__ );
 define( 'WPL_CONNECTOR_DIR', plugin_dir_path( __FILE__ ) );
 
@@ -34,73 +34,176 @@ add_action( 'admin_menu', function () {
 
 function wpl_connector_settings_page() {
 	if ( ! current_user_can( 'manage_options' ) ) return;
+	$regen_success = false;
 	if ( isset( $_POST['wpl_regenerate_key'] ) && check_admin_referer( 'wpl_connector_regen' ) ) {
 		update_option( 'wpl_connector_api_key', wp_generate_password( 40, false ) );
-		echo '<div class="notice notice-success"><p>API key regenerated.</p></div>';
+		$regen_success = true;
 	}
 	$api_key  = get_option( 'wpl_connector_api_key', '' );
 	$site_url = get_site_url();
-	$rest_url = rest_url( 'wpl-connector/v1/status' );
+
+	$zip_ok  = class_exists( 'ZipArchive' );
+	$phar_ok = class_exists( 'PharData' );
+	$upload_size = ini_get( 'upload_max_filesize' );
+	$post_size   = ini_get( 'post_max_size' );
+	$exec_time   = ini_get( 'max_execution_time' );
 	?>
-	<div class="wrap">
-		<h1>WP Launcher Connector</h1>
-		<p>This plugin allows WP Launcher to push and pull site content to/from this WordPress installation.</p>
-		<div class="card" style="max-width:600px;padding:1.5rem;">
-			<h2 style="margin-top:0;">Connection Details</h2>
-			<p>Enter these values in WP Launcher's Sync page to connect:</p>
-			<table class="form-table">
-				<tr>
-					<th>Site URL</th>
-					<td>
-						<code id="wpl-site-url" style="font-size:14px;"><?php echo esc_html( $site_url ); ?></code>
-						<button type="button" class="button button-small wpl-copy-btn" data-target="wpl-site-url" style="margin-left:8px;vertical-align:middle;">Copy</button>
-					</td>
-				</tr>
-				<tr>
-					<th>API Key</th>
-					<td>
-						<code id="wpl-api-key" style="font-size:14px;background:#f0f0f0;padding:4px 8px;display:inline-block;word-break:break-all;"><?php echo esc_html( $api_key ); ?></code>
-						<button type="button" class="button button-small wpl-copy-btn" data-target="wpl-api-key" style="margin-left:8px;vertical-align:middle;">Copy</button>
-					</td>
-				</tr>
-				<tr>
-					<th>Status Endpoint</th>
-					<td>
-						<code id="wpl-rest-url" style="font-size:12px;"><?php echo esc_html( $rest_url ); ?></code>
-						<button type="button" class="button button-small wpl-copy-btn" data-target="wpl-rest-url" style="margin-left:8px;vertical-align:middle;">Copy</button>
-					</td>
-				</tr>
-			</table>
-			<script>
-			document.addEventListener('DOMContentLoaded', function() {
-				document.querySelectorAll('.wpl-copy-btn').forEach(function(btn) {
-					btn.addEventListener('click', function() {
-						var el = document.getElementById(this.getAttribute('data-target'));
-						if (!el) return;
-						navigator.clipboard.writeText(el.textContent.trim()).then(function() {
-							var orig = btn.textContent; btn.textContent = 'Copied!';
-							setTimeout(function() { btn.textContent = orig; }, 1500);
-						});
-					});
+	<style>
+	.wpl-wrap { max-width: 680px; margin: 24px 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+	.wpl-header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%); border-radius: 12px; padding: 28px 32px; margin-bottom: 20px; display: flex; align-items: center; gap: 20px; }
+	.wpl-header-logo { width: 48px; height: 48px; background: rgba(255,255,255,0.12); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+	.wpl-header-logo svg { width: 28px; height: 28px; }
+	.wpl-header-text h1 { color: #fff; margin: 0 0 4px; font-size: 20px; font-weight: 600; line-height: 1.2; }
+	.wpl-header-text p { color: rgba(255,255,255,0.65); margin: 0; font-size: 13px; }
+	.wpl-header-badge { margin-left: auto; background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.85); font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+	.wpl-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px 28px; margin-bottom: 16px; }
+	.wpl-card-title { font-size: 14px; font-weight: 600; color: #111; margin: 0 0 18px; padding-bottom: 14px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 8px; }
+	.wpl-field { margin-bottom: 16px; }
+	.wpl-field:last-of-type { margin-bottom: 0; }
+	.wpl-field-label { font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+	.wpl-copy-row { display: flex; gap: 8px; align-items: stretch; }
+	.wpl-copy-input { flex: 1; padding: 9px 12px; font-size: 13px; font-family: "SF Mono", "Fira Code", "Fira Mono", monospace; background: #f8f9fa; border: 1px solid #e5e7eb; border-radius: 6px; color: #374151; outline: none; cursor: text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.wpl-copy-btn { flex-shrink: 0; padding: 0 14px; font-size: 12px; font-weight: 500; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; color: #374151; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 5px; }
+	.wpl-copy-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
+	.wpl-copy-btn.copied { background: #ecfdf5; border-color: #6ee7b7; color: #059669; }
+	.wpl-copy-btn svg { width: 13px; height: 13px; }
+	.wpl-regen-area { margin-top: 20px; padding-top: 18px; border-top: 1px solid #f0f0f0; display: flex; align-items: center; gap: 12px; }
+	.wpl-regen-btn { padding: 8px 16px; font-size: 13px; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; color: #374151; cursor: pointer; font-weight: 500; transition: all 0.15s; }
+	.wpl-regen-btn:hover { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+	.wpl-regen-note { font-size: 12px; color: #9ca3af; }
+	.wpl-req-list { list-style: none; margin: 0; padding: 0; }
+	.wpl-req-list li { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; color: #374151; }
+	.wpl-req-list li:last-child { border-bottom: none; padding-bottom: 0; }
+	.wpl-req-list li:first-child { padding-top: 0; }
+	.wpl-badge-ok { background: #ecfdf5; color: #059669; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+	.wpl-badge-warn { background: #fffbeb; color: #d97706; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+	.wpl-badge-err { background: #fef2f2; color: #dc2626; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+	.wpl-badge-info { background: #f0f9ff; color: #0369a1; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+	.wpl-notice { background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #065f46; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+	</style>
+
+	<div class="wpl-wrap">
+
+		<?php if ( $regen_success ) : ?>
+		<div class="wpl-notice">
+			<svg width="16" height="16" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#059669"/><path d="M7 13l3 3 7-7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+			API key regenerated. Update the connection in WP Launcher's Sync tab.
+		</div>
+		<?php endif; ?>
+
+		<div class="wpl-header">
+			<div class="wpl-header-logo">
+				<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+					<rect x="2" y="3" width="9" height="9" rx="2" fill="rgba(255,255,255,0.9)"/>
+					<rect x="13" y="3" width="9" height="9" rx="2" fill="rgba(255,255,255,0.5)"/>
+					<rect x="2" y="14" width="9" height="9" rx="2" fill="rgba(255,255,255,0.5)"/>
+					<rect x="13" y="14" width="9" height="9" rx="2" fill="rgba(255,255,255,0.9)"/>
+				</svg>
+			</div>
+			<div class="wpl-header-text">
+				<h1>WP Launcher Connector</h1>
+				<p>Push &amp; pull site content between WP Launcher and this site</p>
+			</div>
+			<div class="wpl-header-badge">v<?php echo esc_html( WPL_CONNECTOR_VERSION ); ?></div>
+		</div>
+
+		<div class="wpl-card">
+			<div class="wpl-card-title">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+				Connection Details
+			</div>
+			<p style="margin:0 0 18px;font-size:13px;color:#6b7280;">Copy these values into WP Launcher &rarr; Sync &rarr; Add Connection.</p>
+
+			<div class="wpl-field">
+				<div class="wpl-field-label">Site URL</div>
+				<div class="wpl-copy-row">
+					<input type="text" class="wpl-copy-input" id="wpl-site-url" value="<?php echo esc_attr( $site_url ); ?>" readonly>
+					<button type="button" class="wpl-copy-btn" data-target="wpl-site-url">
+						<svg viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg>
+						Copy
+					</button>
+				</div>
+			</div>
+
+			<div class="wpl-field">
+				<div class="wpl-field-label">API Key</div>
+				<div class="wpl-copy-row">
+					<input type="text" class="wpl-copy-input" id="wpl-api-key" value="<?php echo esc_attr( $api_key ); ?>" readonly>
+					<button type="button" class="wpl-copy-btn" data-target="wpl-api-key">
+						<svg viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg>
+						Copy
+					</button>
+				</div>
+			</div>
+
+			<div class="wpl-regen-area">
+				<form method="post" style="margin:0;">
+					<?php wp_nonce_field( 'wpl_connector_regen' ); ?>
+					<button type="submit" name="wpl_regenerate_key" class="wpl-regen-btn" onclick="return confirm('Regenerate the API key? Any existing WP Launcher connection to this site will need to be updated.');">
+						&#8635; Regenerate Key
+					</button>
+				</form>
+				<span class="wpl-regen-note">Invalidates the current key immediately.</span>
+			</div>
+		</div>
+
+		<div class="wpl-card">
+			<div class="wpl-card-title">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 2a10 10 0 100 20A10 10 0 0012 2z" stroke="#6b7280" stroke-width="2"/></svg>
+				Server Requirements
+			</div>
+			<ul class="wpl-req-list">
+				<li>
+					<span>ZipArchive</span>
+					<?php if ( $zip_ok ) : ?>
+						<span class="wpl-badge-ok">Available</span>
+					<?php else : ?>
+						<span class="wpl-badge-err">Missing — required for sync</span>
+					<?php endif; ?>
+				</li>
+				<li>
+					<span>PharData</span>
+					<?php if ( $phar_ok ) : ?>
+						<span class="wpl-badge-ok">Available</span>
+					<?php else : ?>
+						<span class="wpl-badge-warn">Not available</span>
+					<?php endif; ?>
+				</li>
+				<li>
+					<span>Upload Max Filesize</span>
+					<span class="wpl-badge-info"><?php echo esc_html( $upload_size ); ?></span>
+				</li>
+				<li>
+					<span>Post Max Size</span>
+					<span class="wpl-badge-info"><?php echo esc_html( $post_size ); ?></span>
+				</li>
+				<li>
+					<span>Max Execution Time</span>
+					<span class="wpl-badge-info"><?php echo esc_html( $exec_time ); ?>s</span>
+				</li>
+			</ul>
+		</div>
+
+	</div>
+
+	<script>
+	document.addEventListener('DOMContentLoaded', function () {
+		document.querySelectorAll('.wpl-copy-btn').forEach(function (btn) {
+			btn.addEventListener('click', function () {
+				var input = document.getElementById(btn.getAttribute('data-target'));
+				if (!input) return;
+				navigator.clipboard.writeText(input.value.trim()).then(function () {
+					btn.classList.add('copied');
+					btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" width="13" height="13"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Copied!';
+					setTimeout(function () {
+						btn.classList.remove('copied');
+						btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" width="13" height="13"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg> Copy';
+					}, 2000);
 				});
 			});
-			</script>
-			<form method="post" style="margin-top:1rem;">
-				<?php wp_nonce_field( 'wpl_connector_regen' ); ?>
-				<button type="submit" name="wpl_regenerate_key" class="button button-secondary" onclick="return confirm('Regenerate API key? Existing connections will stop working.');">Regenerate API Key</button>
-			</form>
-		</div>
-		<div class="card" style="max-width:600px;padding:1.5rem;margin-top:1rem;">
-			<h2 style="margin-top:0;">Requirements</h2>
-			<table class="widefat" style="max-width:400px;">
-				<tr><td>ZipArchive</td><td><?php echo class_exists('ZipArchive') ? '&#9989; Available' : '&#10060; Missing'; ?></td></tr>
-				<tr><td>PharData</td><td><?php echo class_exists('PharData') ? '&#9989; Available' : '&#9888; Missing'; ?></td></tr>
-				<tr><td>Upload Max Size</td><td><?php echo esc_html(ini_get('upload_max_filesize')); ?></td></tr>
-				<tr><td>Post Max Size</td><td><?php echo esc_html(ini_get('post_max_size')); ?></td></tr>
-				<tr><td>Max Execution Time</td><td><?php echo esc_html(ini_get('max_execution_time')); ?>s</td></tr>
-			</table>
-		</div>
-	</div>
+		});
+	});
+	</script>
 	<?php
 }
 
@@ -271,8 +374,9 @@ function wpl_connector_import( $request, $archive_file = null ) {
 			error_log('[WPL Connector] wp-content contents: ' . implode(', ', array_slice(@scandir($source_wpc), 0, 20)));
 		}
 
-		// Save current site URL BEFORE any DB changes
+		// Save current site URL and API key BEFORE any DB changes
 		$current_url = get_site_url();
+		$current_api_key = get_option( 'wpl_connector_api_key', '' );
 		$source_url = null;
 		$db_imported = false;
 
@@ -323,21 +427,44 @@ function wpl_connector_import( $request, $archive_file = null ) {
 			wpl_import_database($sql_file);
 			$db_imported = true;
 
-			// Safety: force correct URLs via direct SQL (belt and suspenders)
+			// CRITICAL: raw SQL import bypasses WP object cache entirely.
+			// Flush now so every get_option() below reads fresh from DB.
 			global $wpdb;
+			wp_cache_delete( 'alloptions', 'options' );
+			wp_cache_delete( 'notoptions', 'options' );
+
+			// Force correct URLs via direct SQL
 			$wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = 'siteurl'", $current_url));
 			$wpdb->query($wpdb->prepare("UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = 'home'", $current_url));
 
-			// Ensure the connector plugin stays active after the DB import
-			// (local site doesn't have it, so it won't be in source active_plugins)
-			$active_plugins = get_option( 'active_plugins', array() );
-			$connector_file = 'wp-launcher-connector/wp-launcher-connector.php';
-			if ( ! in_array( $connector_file, $active_plugins, true ) ) {
-				$active_plugins[] = $connector_file;
-				update_option( 'active_plugins', $active_plugins );
+			// Restore API key using direct SQL — local DB won't have this option,
+			// and get_option() cache is unreliable after a raw import.
+			if ( $current_api_key ) {
+				$wpdb->query( $wpdb->prepare(
+					"INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES ('wpl_connector_api_key', %s, 'yes') ON DUPLICATE KEY UPDATE option_value = VALUES(option_value)",
+					$current_api_key
+				) );
+				wp_cache_delete( 'wpl_connector_api_key', 'options' );
+				error_log('[WPL Connector] API key restored');
 			}
 
-			error_log('[WPL Connector] URLs restored to: ' . $current_url);
+			// Ensure connector stays in active_plugins.
+			// Read DIRECTLY from DB — the in-memory cache has pre-import data and cannot be trusted.
+			$connector_file = 'wp-launcher-connector/wp-launcher-connector.php';
+			$active_raw = $wpdb->get_var( "SELECT option_value FROM {$wpdb->options} WHERE option_name = 'active_plugins'" );
+			$active_plugins = $active_raw ? maybe_unserialize( $active_raw ) : array();
+			if ( ! is_array( $active_plugins ) ) $active_plugins = array();
+			if ( ! in_array( $connector_file, $active_plugins, true ) ) {
+				$active_plugins[] = $connector_file;
+				$wpdb->query( $wpdb->prepare(
+					"UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = 'active_plugins'",
+					serialize( $active_plugins )
+				) );
+				wp_cache_delete( 'active_plugins', 'options' );
+				error_log('[WPL Connector] Connector re-added to active_plugins');
+			}
+
+			error_log('[WPL Connector] Post-import restore complete: url=' . $current_url);
 		} else {
 			error_log('[WPL Connector] CRITICAL: No SQL file found! Aborting to prevent URL corruption.');
 			error_log('[WPL Connector] extract_dir contents: ' . implode(', ', @scandir($extract_dir) ?: array()));

@@ -2,7 +2,7 @@
 
 <img width="128" height="128" alt="logo-square" src="https://github.com/user-attachments/assets/e095da03-fa2e-4484-8f8b-6d4a984f4e5b" />
 
-[![Version](https://img.shields.io/badge/version-2.3.0-blue)](https://github.com/msrbuilds/wp-launcher/releases)
+[![Version](https://img.shields.io/badge/version-2.3.1-blue)](https://github.com/msrbuilds/wp-launcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/Docker-required-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)

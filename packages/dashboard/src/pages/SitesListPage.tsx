@@ -357,14 +357,25 @@ export default function SitesListPage() {
   const [fetchError, setFetchError] = useState('');
   const [siteReady, setSiteReady] = useState<Record<string, boolean>>({});
 
-  // Poll readiness for sites created in the last 2 minutes
+  // One-shot readiness check for all running sites on load
   useEffect(() => {
-    const recentSites = sites.filter(s => s.status === 'running' && (Date.now() - new Date(s.createdAt).getTime()) < 120000 && !siteReady[s.id]);
+    const runningSites = sites.filter(s => s.status === 'running' && !siteReady[s.id]);
+    for (const s of runningSites) {
+      apiFetch(`/api/sites/${s.id}/ready`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data?.ready) setSiteReady(prev => ({ ...prev, [s.id]: true })); })
+        .catch(() => {});
+    }
+  }, [sites.length]);
+
+  // Poll readiness for recently created sites (up to 10 minutes for large plugin/theme installs)
+  useEffect(() => {
+    const recentSites = sites.filter(s => s.status === 'running' && (Date.now() - new Date(s.createdAt + 'Z').getTime()) < 600000 && !siteReady[s.id]);
     if (recentSites.length === 0) return;
     let cancelled = false;
     for (const s of recentSites) {
       (async () => {
-        for (let i = 0; i < 30 && !cancelled; i++) {
+        for (let i = 0; i < 120 && !cancelled; i++) {
           try {
             const res = await apiFetch(`/api/sites/${s.id}/ready`);
             if (res.ok) {
@@ -375,7 +386,7 @@ export default function SitesListPage() {
               }
             }
           } catch { /* not ready */ }
-          await new Promise(r => setTimeout(r, 3000));
+          await new Promise(r => setTimeout(r, 5000));
         }
       })();
     }
@@ -384,8 +395,6 @@ export default function SitesListPage() {
 
   function isSiteReady(site: Site): boolean {
     if (site.status !== 'running') return false;
-    // Sites older than 2 minutes are always considered ready
-    if (Date.now() - new Date(site.createdAt).getTime() > 120000) return true;
     return !!siteReady[site.id];
   }
 

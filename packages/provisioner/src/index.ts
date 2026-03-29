@@ -129,6 +129,7 @@ interface CreateBody {
   autoLoginToken?: string;
   localMode?: boolean;
   heartbeatSecret?: string;
+  directFileAccess?: boolean;
   phpConfig?: {
     memoryLimit?: string;
     uploadMaxFilesize?: string;
@@ -255,6 +256,8 @@ app.post('/containers', async (req: Request, res: Response) => {
     if (opts.localMode) env.push('WP_LOCAL_MODE=true');
     env.push(`WP_LAUNCHER_API_URL=http://api:3737`);
     env.push(`WP_SUBDOMAIN=${opts.subdomain}`);
+    // Shared wp-cli download cache — avoids re-downloading plugins/themes across site launches
+    env.push('WP_CLI_CACHE_DIR=/var/www/.wp-cli-cache');
     // SBP-004: Pass heartbeat secret for authenticated productivity tracking
     if (opts.heartbeatSecret) env.push(`WP_HEARTBEAT_SECRET=${opts.heartbeatSecret}`);
 
@@ -292,17 +295,20 @@ app.post('/containers', async (req: Request, res: Response) => {
     const allRefs = [opts.installActivatePlugins, opts.installPlugins, opts.installThemes].filter(Boolean).join(',');
     const needsAssets = allRefs.includes('/product-assets/');
 
+    // Shared wp-cli cache volume — reuse downloaded plugin/theme ZIPs across all sites
+    hostConfig.Binds = ['wp-cli-cache:/var/www/.wp-cli-cache'];
+
     if (useLocalMode) {
-      // Persist wp-content with named volume for performance, plus host bind mounts
-      // for plugins/ and themes/ (the parts users actually edit) for direct file access
-      hostConfig.Binds = [`wp-site-${opts.subdomain}:/var/www/html/wp-content`];
-      if (SITES_HOST_PATH) {
+      // Named volume for wp-content (fast I/O, no host bind mount overlay)
+      hostConfig.Binds.push(`wp-site-${opts.subdomain}:/var/www/html/wp-content`);
+
+      // Direct File Access: mount host path at a SEPARATE location (not overlaying wp-content)
+      // so the entrypoint can install fast on the named volume, then background-copy to host
+      if (opts.directFileAccess && SITES_HOST_PATH) {
         const basePath = `${SITES_HOST_PATH}/${opts.subdomain}`;
-        hostConfig.Binds.push(
-          `${basePath}/plugins:/var/www/html/wp-content/plugins`,
-          `${basePath}/themes:/var/www/html/wp-content/themes`,
-        );
-        console.log(`[provisioner] Host bind mounts for plugins/themes: ${basePath}`);
+        hostConfig.Binds.push(`${basePath}:/var/www/host-files`);
+        env.push('WP_HOST_SYNC=true');
+        console.log(`[provisioner] Direct file access enabled → host sync at ${basePath}`);
       }
     } else {
       // Agency mode: enforce resource limits
@@ -1022,6 +1028,73 @@ app.post('/containers/:id/restore', async (req: Request, res: Response) => {
       return;
     }
     console.error('[provisioner] restore error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Upgrade a container to use host bind mounts for live file editing.
+// Called after the site is fully installed and plugins/themes have been synced to host.
+// Steps: stop → remove → recreate with bind mount overlays → start
+app.post('/containers/:id/enable-bind-mounts', async (req: Request, res: Response) => {
+  try {
+    if (!validateContainerId(req.params.id)) {
+      res.status(400).json({ error: 'Invalid container ID format' });
+      return;
+    }
+    const { subdomain } = req.body;
+    if (!subdomain || !SITES_HOST_PATH) {
+      res.status(400).json({ error: 'subdomain and SITES_HOST_PATH are required' });
+      return;
+    }
+
+    const oldContainer = docker.getContainer(req.params.id);
+    const info = await oldContainer.inspect();
+
+    // Extract config from the existing container
+    const oldEnv = info.Config.Env || [];
+    const oldLabels = info.Config.Labels || {};
+    const oldImage = info.Config.Image;
+
+    // Build new bind list: keep existing binds, replace host-files with plugin/theme overlays
+    const oldBinds: string[] = info.HostConfig?.Binds || [];
+    const newBinds = oldBinds.filter((b: string) => !b.includes('/var/www/host-files'));
+    const basePath = `${SITES_HOST_PATH}/${subdomain}`;
+    newBinds.push(
+      `${basePath}/plugins:/var/www/html/wp-content/plugins`,
+      `${basePath}/themes:/var/www/html/wp-content/themes`,
+    );
+
+    // Preserve resource limits, network, restart policy
+    const newHostConfig: any = {
+      NetworkMode: info.HostConfig?.NetworkMode || DOCKER_NETWORK,
+      RestartPolicy: info.HostConfig?.RestartPolicy || { Name: 'unless-stopped' },
+      Binds: newBinds,
+    };
+    if (info.HostConfig?.Memory) newHostConfig.Memory = info.HostConfig.Memory;
+    if (info.HostConfig?.NanoCpus) newHostConfig.NanoCpus = info.HostConfig.NanoCpus;
+
+    const containerName = info.Name.replace(/^\//, '');
+
+    // Stop and remove the old container (keep named volumes)
+    if (info.State.Running) {
+      await oldContainer.stop({ t: 3 });
+    }
+    await oldContainer.remove({ v: false }); // v:false preserves named volumes
+
+    // Create and start the new container with bind mount overlays
+    const newContainer = await docker.createContainer({
+      Image: oldImage,
+      name: containerName,
+      Env: oldEnv,
+      Labels: oldLabels,
+      HostConfig: newHostConfig,
+    });
+    await newContainer.start();
+
+    console.log(`[provisioner] Upgraded ${containerName} with host bind mounts for plugins/themes`);
+    res.json({ containerId: newContainer.id });
+  } catch (err: any) {
+    console.error('[provisioner] enable-bind-mounts error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

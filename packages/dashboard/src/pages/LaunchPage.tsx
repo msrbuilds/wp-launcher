@@ -210,11 +210,11 @@ export default function LaunchPage() {
   }
 
   async function pollUntilReady(siteId: string) {
-    const maxAttempts = 60; // 60 x 2s = 120s max (MySQL sites need longer)
-    const expectedAttempts = 10; // typical ready in ~20s
+    const maxAttempts = 120; // 120 x 3s = 360s max (large plugin/theme installs need longer)
+    const expectedAttempts = 15; // typical ready in ~45s
     setProvisionProgress(0);
     for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 3000));
       // Progress: fast to 80%, then slow crawl to 95%
       const pct = i < expectedAttempts
         ? Math.min(80, ((i + 1) / expectedAttempts) * 80)
@@ -293,7 +293,7 @@ export default function LaunchPage() {
             <div className="result-icon lp-result-icon-warning">&#9888;</div>
             <h3>Site is still setting up...</h3>
             <p className="lp-result-warning-text">
-              WordPress is still installing. This can take up to 2 minutes for MySQL sites. Please wait a moment before clicking login.
+              WordPress is still installing plugins and themes. This can take a few minutes for larger setups. Please wait a moment before clicking login.
             </p>
           </>
         )}

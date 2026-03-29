@@ -9,6 +9,7 @@ import {
   createSiteContainer,
   removeSiteContainer,
   getContainerStatus,
+  enableBindMounts,
 } from './docker.service';
 import { fireWebhookEvent } from './webhook.service';
 import { getProductConfig } from './product.service';
@@ -39,6 +40,7 @@ export interface CreateSiteRequest {
     displayErrors?: string;
     extensions?: string;
   };
+  directFileAccess?: boolean;
 }
 
 export interface SiteRecord {
@@ -153,9 +155,9 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
     // Insert site record
     db.prepare(`
-      INSERT INTO sites (id, subdomain, product_id, user_id, status, site_url, admin_url, admin_user, admin_password, auto_login_token, expires_at)
-      VALUES (?, ?, ?, ?, 'creating', ?, ?, ?, ?, ?, ?)
-    `).run(id, subdomain, req.productId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt);
+      INSERT INTO sites (id, subdomain, product_id, user_id, status, site_url, admin_url, admin_user, admin_password, auto_login_token, expires_at, direct_file_access)
+      VALUES (?, ?, ?, ?, 'creating', ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, subdomain, req.productId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt, req.directFileAccess ? 1 : 0);
   });
 
   insertSiteTxn();
@@ -242,6 +244,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       localMode: config.isLocalMode,
       phpConfig: req.phpConfig,
       heartbeatSecret,
+      directFileAccess: req.directFileAccess,
     });
 
     // Clear password from DB now that it's been sent to the container — it's only needed at provision time
@@ -261,6 +264,32 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
     siteId: site.id, subdomain: site.subdomain, productId: site.product_id,
     siteUrl: site.site_url, expiresAt: site.expires_at, userEmail: req.userEmail,
   }).catch(() => {});
+
+  // Background: after host sync completes, upgrade container to use bind mount overlays
+  // so host edits are live inside the container (bidirectional file access)
+  if (req.directFileAccess && config.sitesHostPath) {
+    (async () => {
+      try {
+        const syncMarkerUrl = `http://wp-site-${subdomain}/.wp-launcher-synced`;
+        for (let i = 0; i < 120; i++) {
+          await new Promise(r => setTimeout(r, 5000));
+          try {
+            const probe = await fetch(syncMarkerUrl, { signal: AbortSignal.timeout(3000) });
+            if (probe.status === 200) break;
+          } catch { /* keep polling */ }
+        }
+        // Re-read site to get current container_id (in case it changed)
+        const current = db.prepare('SELECT container_id, status FROM sites WHERE id = ?').get(id) as any;
+        if (!current || current.status !== 'running' || !current.container_id) return;
+
+        const newContainerId = await enableBindMounts(current.container_id, subdomain);
+        db.prepare('UPDATE sites SET container_id = ? WHERE id = ?').run(newContainerId, id);
+        console.log(`[site] Upgraded ${subdomain} to live bind mounts (new container: ${newContainerId.slice(0, 12)})`);
+      } catch (err: any) {
+        console.error(`[site] Failed to upgrade ${subdomain} to bind mounts:`, err.message);
+      }
+    })();
+  }
 
   return { ...site, oneTimePassword: adminPassword };
 }

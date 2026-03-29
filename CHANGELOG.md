@@ -2,6 +2,13 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [2.3.1] - 2026-03-29
+
+### Fixed
+- **Push sync: connector plugin deactivated after sync** — WordPress object cache is stale after a raw SQL import; `active_plugins` was read from the in-memory cache (which still showed the connector as active) and never written back to the newly imported database. Fix: flush `alloptions`/`notoptions` cache groups immediately after import, then read and write `active_plugins` directly via `$wpdb` (bypassing cache entirely).
+- **Push sync: API key reset after sync** — the connector's `wpl_connector_api_key` option was wiped by the DB import (local sites don't have it). Fix: save the key before import and restore it via direct SQL (`INSERT … ON DUPLICATE KEY UPDATE`) after import, with explicit cache invalidation.
+- **WP Launcher Connector settings page** — redesigned with a branded header, clean labeled input fields (selectable text instead of `<code>` blocks), icon copy buttons with visual feedback, color-coded server requirements badges, and consistent card layout.
+
 ## [2.3.0] - 2026-03-28
 
 ### Security
