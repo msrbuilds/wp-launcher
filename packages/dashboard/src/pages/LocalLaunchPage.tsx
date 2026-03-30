@@ -133,10 +133,11 @@ export default function LocalLaunchPage() {
         }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to create site');
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || `Failed to create site (HTTP ${res.status})`);
       }
-      const site = await res.json();
+      const site = await res.json().catch(() => null);
+      if (!site) throw new Error('Invalid response from server');
       setResult(site);
       setStep('provisioning');
       pollUntilReady(site.id);
