@@ -6,6 +6,17 @@
 const PROVISIONER_URL = process.env.PROVISIONER_URL || 'http://provisioner:4000';
 const INTERNAL_KEY = process.env.PROVISIONER_INTERNAL_KEY || '';
 
+/** Parse JSON from a provisioner response, throwing a clear error if the body isn't valid JSON (e.g. HTML error page). */
+async function parseJson<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const preview = text.slice(0, 120).replace(/\n/g, ' ');
+    throw new Error(`Provisioner returned non-JSON response (HTTP ${res.status}): ${preview}`);
+  }
+}
+
 export async function provisionerFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -63,13 +74,13 @@ export async function createSiteContainer(opts: CreateContainerOptions): Promise
     body: JSON.stringify(opts),
   });
 
-  const data = await res.json() as { containerId: string };
+  const data = await parseJson<{ containerId: string }>(res);
   return data.containerId;
 }
 
 export async function getPhpConfig(containerId: string): Promise<Record<string, any>> {
   const res = await provisionerFetch(`/containers/${containerId}/php-config`);
-  return await res.json() as Record<string, any>;
+  return await parseJson<Record<string, any>>(res);
 }
 
 export async function updatePhpConfig(containerId: string, phpConfig: Record<string, any>): Promise<void> {
@@ -91,7 +102,7 @@ export async function enableBindMounts(containerId: string, subdomain: string): 
     method: 'POST',
     body: JSON.stringify({ subdomain }),
   });
-  const data = await res.json() as { containerId: string };
+  const data = await parseJson<{ containerId: string }>(res);
   return data.containerId;
 }
 
@@ -103,7 +114,7 @@ export async function removeSiteContainer(containerId: string): Promise<void> {
 
 export async function getContainerStatus(containerId: string): Promise<string> {
   const res = await provisionerFetch(`/containers/${containerId}/status`);
-  const data = await res.json() as { status: string };
+  const data = await parseJson<{ status: string }>(res);
   return data.status;
 }
 
@@ -114,12 +125,12 @@ export interface ManagedContainerInfo {
 
 export async function listManagedContainers(): Promise<ManagedContainerInfo[]> {
   const res = await provisionerFetch('/containers');
-  return await res.json() as ManagedContainerInfo[];
+  return await parseJson<ManagedContainerInfo[]>(res);
 }
 
 export async function pruneImages(): Promise<{ pruned: number; spaceReclaimed: number }> {
   const res = await provisionerFetch('/images/prune', { method: 'POST' });
-  return await res.json() as { pruned: number; spaceReclaimed: number };
+  return await parseJson<{ pruned: number; spaceReclaimed: number }>(res);
 }
 
 export async function buildImage(contextPath: string, tag: string): Promise<void> {
@@ -136,7 +147,7 @@ export async function createSnapshot(containerId: string, snapshotId: string): P
     method: 'POST',
     body: JSON.stringify({ snapshotId }),
   });
-  return await res.json() as { snapshotId: string; sizeBytes: number; dbEngine: string };
+  return await parseJson<{ snapshotId: string; sizeBytes: number; dbEngine: string }>(res);
 }
 
 export async function restoreSnapshot(containerId: string, snapshotId: string, newSiteUrl?: string): Promise<void> {
@@ -153,7 +164,7 @@ export async function execWpCommands(containerId: string, commands: string[]): P
     method: 'POST',
     body: JSON.stringify({ commands }),
   });
-  return await res.json() as { results: { command: string; output: string; exitCode: number }[] };
+  return await parseJson<{ results: { command: string; output: string; exitCode: number }[] }>(res);
 }
 
 export async function exportAssets(containerId: string, plugins: string[], themes: string[], targetDir: string): Promise<{ exported: { type: string; slug: string; path: string }[] }> {
@@ -161,14 +172,14 @@ export async function exportAssets(containerId: string, plugins: string[], theme
     method: 'POST',
     body: JSON.stringify({ plugins, themes, targetDir }),
   });
-  return await res.json() as { exported: { type: string; slug: string; path: string }[] };
+  return await parseJson<{ exported: { type: string; slug: string; path: string }[] }>(res);
 }
 
 // Container Stats (Health Monitoring)
 
 export async function getContainerStats(containerId: string): Promise<any> {
   const res = await provisionerFetch(`/containers/${containerId}/stats`);
-  return await res.json();
+  return await parseJson<any>(res);
 }
 
 // Site Password Protection
@@ -182,7 +193,7 @@ export async function setSitePassword(containerId: string, password: string | nu
 
 export async function getSitePasswordStatus(containerId: string): Promise<{ protected: boolean; scope: string | null }> {
   const res = await provisionerFetch(`/containers/${containerId}/site-password`);
-  return await res.json() as { protected: boolean; scope: string | null };
+  return await parseJson<{ protected: boolean; scope: string | null }>(res);
 }
 
 // Export Site as ZIP
@@ -191,14 +202,14 @@ export async function exportSiteZip(containerId: string): Promise<{ exportId: st
   const res = await provisionerFetch(`/containers/${containerId}/export-zip`, {
     method: 'POST',
   });
-  return await res.json() as { exportId: string; path: string; sizeBytes: number; dbEngine: string };
+  return await parseJson<{ exportId: string; path: string; sizeBytes: number; dbEngine: string }>(res);
 }
 
 // Database Credentials (Adminer)
 
 export async function getDbCredentials(containerId: string): Promise<{ dbEngine: string; host: string; user: string; password: string; database: string }> {
   const res = await provisionerFetch(`/containers/${containerId}/db-credentials`);
-  return await res.json() as { dbEngine: string; host: string; user: string; password: string; database: string };
+  return await parseJson<{ dbEngine: string; host: string; user: string; password: string; database: string }>(res);
 }
 
 export function getExportDownloadUrl(exportId: string): string {
@@ -257,25 +268,25 @@ export interface MonitoringDisk {
 
 export async function getMonitoringContainers(): Promise<MonitoringContainer[]> {
   const res = await provisionerFetch('/monitoring/containers');
-  return await res.json() as MonitoringContainer[];
+  return await parseJson<MonitoringContainer[]>(res);
 }
 
 export async function getMonitoringSystem(): Promise<MonitoringSystem> {
   const res = await provisionerFetch('/monitoring/system');
-  return await res.json() as MonitoringSystem;
+  return await parseJson<MonitoringSystem>(res);
 }
 
 export async function getMonitoringDisk(): Promise<MonitoringDisk> {
   const res = await provisionerFetch('/monitoring/disk');
-  return await res.json() as MonitoringDisk;
+  return await parseJson<MonitoringDisk>(res);
 }
 
 export async function pruneVolumes(): Promise<{ pruned: number; spaceReclaimed: number }> {
   const res = await provisionerFetch('/system/prune-volumes', { method: 'POST' });
-  return await res.json() as { pruned: number; spaceReclaimed: number };
+  return await parseJson<{ pruned: number; spaceReclaimed: number }>(res);
 }
 
 export async function pruneBuildCache(): Promise<{ spaceReclaimed: number }> {
   const res = await provisionerFetch('/system/prune-buildcache', { method: 'POST' });
-  return await res.json() as { spaceReclaimed: number };
+  return await parseJson<{ spaceReclaimed: number }>(res);
 }
