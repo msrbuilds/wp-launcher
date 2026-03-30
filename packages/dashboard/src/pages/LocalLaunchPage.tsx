@@ -382,15 +382,20 @@ export default function LocalLaunchPage() {
 
         {/* Direct File Access toggle (only when SITES_HOST_PATH is configured) */}
         {sitesHostPath && (
-          <div className="form-group llp-file-access-toggle">
+          <div className="llp-file-access-toggle">
             <label className="llp-toggle-row">
-              <input
-                type="checkbox"
-                checked={directFileAccess}
-                onChange={(e) => setDirectFileAccess(e.target.checked)}
-              />
-              <span>Direct File Access</span>
-              <span className="llp-toggle-hint">Sync plugins &amp; themes to host for editing in VS Code</span>
+              <div className={`llp-toggle-switch${directFileAccess ? ' llp-toggle-switch--on' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={directFileAccess}
+                  onChange={(e) => setDirectFileAccess(e.target.checked)}
+                />
+                <span className="llp-toggle-thumb" />
+              </div>
+              <div className="llp-toggle-text">
+                <span className="llp-toggle-label">Direct File Access</span>
+                <span className="llp-toggle-hint">Sync plugins &amp; themes to host for editing in VS Code</span>
+              </div>
             </label>
           </div>
         )}
