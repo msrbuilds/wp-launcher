@@ -1,9 +1,9 @@
 {
-  "version": "2.3.0",
-  "commit": "6521380",
-  "commitFull": "652138001deadc3bd159b1cfe2afc2e58fee2c78",
+  "version": "2.3.1",
+  "commit": "4145560",
+  "commitFull": "41455605abace78fc647d82c07629d9e1d185d1e",
   "branch": "main",
-  "buildDate": "2026-03-28T15:24:40Z",
-  "commitDate": "2026-03-26 02:38:17 +0500",
-  "commitMessage": "Add productivity extension screenshots"
+  "buildDate": "2026-03-30T19:28:51Z",
+  "commitDate": "2026-03-31 00:24:58 +0500",
+  "commitMessage": "Fix Direct File Access toggle: replace checkbox with toggle switch, fix inherited uppercase styles"
 }
