@@ -179,7 +179,7 @@ async function main() {
       }
 
       try {
-        const res = await fetch('http://localhost:${process.env.API_PORT || '3737'}/api/admin/users/promote', {
+        const res = await fetch(`http://localhost:${process.env.API_PORT || '3737'}/api/admin/users/promote`, {
           method: 'POST',
           headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, role }),

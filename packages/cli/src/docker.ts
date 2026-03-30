@@ -241,7 +241,7 @@ export async function getSites(): Promise<SiteInfo[]> {
   try {
     let data: any;
     try {
-      const res = await fetch('http://localhost:${process.env.API_PORT || '3737'}/api/sites');
+      const res = await fetch(`http://localhost:${process.env.API_PORT || '3737'}/api/sites`);
       if (res.ok) data = await res.json();
     } catch { /* fall through */ }
     if (!data) {
