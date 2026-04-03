@@ -1,6 +1,10 @@
-# WP Launcher
 <div align="center">
+  
+# WP Launcher
+
 <img width="128" height="128" alt="logo-square" src="https://github.com/user-attachments/assets/e095da03-fa2e-4484-8f8b-6d4a984f4e5b" />
+
+.
 
 [![Version](https://img.shields.io/badge/version-2.3.1-blue)](https://github.com/msrbuilds/wp-launcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
