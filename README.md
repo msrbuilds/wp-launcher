@@ -1,5 +1,5 @@
 # WP Launcher
-
+<div align="center">
 <img width="128" height="128" alt="logo-square" src="https://github.com/user-attachments/assets/e095da03-fa2e-4484-8f8b-6d4a984f4e5b" />
 
 [![Version](https://img.shields.io/badge/version-2.3.1-blue)](https://github.com/msrbuilds/wp-launcher/releases)
@@ -14,7 +14,7 @@
 
 [Website](https://wplauncher.msrbuilds.com) &middot; [Documentation](https://wplauncher.msrbuilds.com/docs/) &middot; [Get in Touch](https://msrbuilds.com/lets-talk/) &middot; [Report a Bug](https://github.com/msrbuilds/wp-launcher/issues)
 
----
+</div>
 
 Docker-based WordPress development and publishing platform with two modes:
 
