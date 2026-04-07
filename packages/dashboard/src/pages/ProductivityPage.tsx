@@ -56,6 +56,7 @@ interface SummaryStats {
 interface CloudConfig {
   cloud_url?: string;
   cloud_api_key?: string;
+  heartbeat_secret?: string;
   last_synced_at?: string;
   device_name?: string;
 }
@@ -672,6 +673,16 @@ export default function ProductivityPage() {
                   <p><strong>Cloud URL:</strong> {cloudConfig.cloud_url}</p>
                   <p><strong>API Key:</strong> {cloudConfig.cloud_api_key}</p>
                   <p><strong>Last Synced:</strong> {cloudConfig.last_synced_at ? new Date(cloudConfig.last_synced_at).toLocaleString() : 'Never'}</p>
+                  {cloudConfig.heartbeat_secret && (
+                    <div className="pd-secret-row">
+                      <p><strong>VS Code Secret:</strong></p>
+                      <div className="pd-secret-copy">
+                        <code className="pd-secret-value">{cloudConfig.heartbeat_secret}</code>
+                        <button className="btn btn-sm" title="Copy secret" onClick={() => { navigator.clipboard.writeText(cloudConfig.heartbeat_secret!); }}>Copy</button>
+                      </div>
+                      <p className="pd-secret-hint">Paste this into VS Code Settings &gt; WP Launcher Productivity &gt; Heartbeat Secret</p>
+                    </div>
+                  )}
                 </div>
                 <div className="pd-cloud-actions">
                   <button className="btn btn-primary btn-sm" onClick={triggerSync} disabled={syncing}>

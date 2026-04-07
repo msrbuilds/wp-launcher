@@ -7105,6 +7105,30 @@ body:has(.admin-layout) .header .container {
   margin: 0.25rem 0;
   font-size: 0.82rem;
 }
+.pd-secret-row {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.pd-secret-copy {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0;
+}
+.pd-secret-value {
+  background: var(--bg-surface);
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  word-break: break-all;
+  flex: 1;
+}
+.pd-secret-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
 
 .pd-cloud-actions {
   display: flex;
