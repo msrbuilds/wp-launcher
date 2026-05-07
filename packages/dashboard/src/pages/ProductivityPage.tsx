@@ -199,6 +199,7 @@ const INTEGRATIONS: Integration[] = [
 export default function ProductivityPage() {
   const headers = useAdminHeaders();
   const [todayStats, setTodayStats] = useState<TodayStats | null>(null);
+  const [rangeStats, setRangeStats] = useState<TodayStats | null>(null);
   const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([]);
   const [hourlyData, setHourlyData] = useState<HourlyData[]>([]);
   const [weekdayData, setWeekdayData] = useState<WeekdayData[]>([]);
@@ -230,11 +231,14 @@ export default function ProductivityPage() {
     try {
       const sourceParam = sourceFilter !== 'all' ? `&source=${sourceFilter}` : '';
       const today = new Date().toISOString().slice(0, 10);
-      const startParam = `${today} 00:00:00`;
+      const rangeStart = new Date();
+      rangeStart.setDate(rangeStart.getDate() - (days - 1));
+      const startParam = `${rangeStart.toISOString().slice(0, 10)} 00:00:00`;
       const endParam = `${today} 23:59:59`;
 
-      const [statsRes, dailyRes, hourlyRes, weekdayRes, screenRes, summaryRes, cloudRes, logsRes] = await Promise.all([
+      const [statsRes, rangeRes, dailyRes, hourlyRes, weekdayRes, screenRes, summaryRes, cloudRes, logsRes] = await Promise.all([
         apiFetch(`/api/productivity/stats/today${sourceParam ? '?' + sourceParam.slice(1) : ''}`, { headers }),
+        apiFetch(`/api/productivity/stats/range?days=${days}${sourceParam}`, { headers }),
         apiFetch(`/api/productivity/stats/daily?days=${days}${sourceParam}`, { headers }),
         apiFetch(`/api/productivity/stats/hourly?date=${today}${sourceParam}`, { headers }),
         apiFetch(`/api/productivity/stats/weekdays?days=${days}${sourceParam}`, { headers }),
@@ -249,6 +253,7 @@ export default function ProductivityPage() {
         setTodayStats(data);
         setGoalHours(Math.round((data.goal || 21600) / 3600));
       }
+      if (rangeRes.ok) setRangeStats(await rangeRes.json());
       if (dailyRes.ok) setDailyTotals(await dailyRes.json());
       if (hourlyRes.ok) setHourlyData(await hourlyRes.json());
       if (weekdayRes.ok) setWeekdayData(await weekdayRes.json());
@@ -333,15 +338,15 @@ export default function ProductivityPage() {
   const todaySeconds = todayStats?.totalSeconds || 0;
   const goalPercent = Math.min(100, Math.round((todaySeconds / goalSeconds) * 100));
 
-  const editorSeconds = todayStats?.bySource.find(s => s.source === 'editor')?.totalSeconds || 0;
-  const wpSeconds = todayStats?.bySource.find(s => s.source === 'wordpress')?.totalSeconds || 0;
+  const editorSeconds = rangeStats?.bySource.find(s => s.source === 'editor')?.totalSeconds || 0;
+  const wpSeconds = rangeStats?.bySource.find(s => s.source === 'wordpress')?.totalSeconds || 0;
   const totalSourceSeconds = editorSeconds + wpSeconds || 1;
 
   const weeklyAvg = dailyTotals.length > 0
     ? Math.round(dailyTotals.reduce((sum, d) => sum + d.totalSeconds, 0) / dailyTotals.length)
     : 0;
 
-  const activeProjects = todayStats?.byProject.filter(p => p.totalSeconds > 0).length || 0;
+  const activeProjects = rangeStats?.byProject.filter(p => p.totalSeconds > 0).length || 0;
 
   const barData = dailyTotals.map(d => ({
     date: formatShortDate(d.date),
@@ -551,7 +556,7 @@ export default function ProductivityPage() {
           </h3>
           <BreakdownList
             label="project"
-            items={(todayStats?.byProject || []).map(p => ({ name: p.project, seconds: p.totalSeconds }))}
+            items={(rangeStats?.byProject || []).map(p => ({ name: p.project, seconds: p.totalSeconds }))}
           />
         </div>
 
@@ -563,19 +568,19 @@ export default function ProductivityPage() {
           {sourceFilter === 'editor' ? (
             <BreakdownList
               label="language"
-              items={(todayStats?.byLanguage || []).map(l => ({ name: l.language, seconds: l.totalSeconds }))}
+              items={(rangeStats?.byLanguage || []).map(l => ({ name: l.language, seconds: l.totalSeconds }))}
             />
           ) : sourceFilter === 'wordpress' ? (
             <BreakdownList
               label="activity"
-              items={(todayStats?.byCategory || []).map(c => ({ name: c.category, seconds: c.totalSeconds }))}
+              items={(rangeStats?.byCategory || []).map(c => ({ name: c.category, seconds: c.totalSeconds }))}
             />
           ) : (
             <BreakdownList
               label="category"
               items={[
-                ...(todayStats?.byCategory || []).map(c => ({ name: c.category, seconds: c.totalSeconds })),
-                ...(todayStats?.byLanguage || []).map(l => ({ name: l.language, seconds: l.totalSeconds })),
+                ...(rangeStats?.byCategory || []).map(c => ({ name: c.category, seconds: c.totalSeconds })),
+                ...(rangeStats?.byLanguage || []).map(l => ({ name: l.language, seconds: l.totalSeconds })),
               ].sort((a, b) => b.seconds - a.seconds)}
             />
           )}
@@ -587,7 +592,7 @@ export default function ProductivityPage() {
           <BreakdownList
             label="editor"
             colorMap={EDITOR_COLORS}
-            items={(todayStats?.byEditor || []).map(e => ({ name: e.editor, seconds: e.totalSeconds }))}
+            items={(rangeStats?.byEditor || []).map(e => ({ name: e.editor, seconds: e.totalSeconds }))}
           />
         </div>
 
@@ -642,11 +647,11 @@ export default function ProductivityPage() {
             <span className="pd-summary-label">Saves / Publishes</span>
           </div>
           <div className="pd-summary-item">
-            <span className="pd-summary-num">{summary.heartbeatCount}</span>
-            <span className="pd-summary-label">Heartbeats Today</span>
+            <span className="pd-summary-num">{rangeStats?.heartbeatCount || 0}</span>
+            <span className="pd-summary-label">Heartbeats</span>
           </div>
           <div className="pd-summary-item">
-            <span className="pd-summary-num">{todayStats?.byCategory.length || 0}</span>
+            <span className="pd-summary-num">{rangeStats?.byCategory.length || 0}</span>
             <span className="pd-summary-label">Activity Types</span>
           </div>
           <div className="pd-summary-item">

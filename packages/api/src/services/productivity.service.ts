@@ -264,6 +264,43 @@ export function getStatsForDate(dateStr: string, source?: string): DayStats {
   };
 }
 
+export function getStatsForRange(days: number, source?: string): DayStats {
+  const now = new Date();
+  const startDate = new Date(now);
+  startDate.setDate(startDate.getDate() - (days - 1));
+  const start = `${startDate.toISOString().slice(0, 10)} 00:00:00`;
+  const end = `${now.toISOString().slice(0, 10)} 23:59:59`;
+  const heartbeats = getHeartbeatsForDateRange(start, end, source);
+
+  const totalSeconds = calculateCodingTime(heartbeats);
+  const sourceBreakdown = computeBreakdown(heartbeats, 'source');
+  const projectBreakdown = computeBreakdown(heartbeats, 'project');
+  const languageBreakdown = computeBreakdown(heartbeats, 'language');
+  const categoryBreakdown = computeBreakdown(heartbeats, 'category');
+  const editorBreakdown = computeBreakdown(heartbeats, 'editor');
+
+  return {
+    totalSeconds,
+    bySource: Object.entries(sourceBreakdown).map(([source, totalSeconds]) => ({ source, totalSeconds })),
+    byProject: Object.entries(projectBreakdown)
+      .map(([project, totalSeconds]) => ({ project, totalSeconds }))
+      .sort((a, b) => b.totalSeconds - a.totalSeconds),
+    byLanguage: Object.entries(languageBreakdown)
+      .filter(([lang]) => lang !== 'unknown')
+      .map(([language, totalSeconds]) => ({ language, totalSeconds }))
+      .sort((a, b) => b.totalSeconds - a.totalSeconds),
+    byCategory: Object.entries(categoryBreakdown)
+      .filter(([cat]) => cat !== 'unknown')
+      .map(([category, totalSeconds]) => ({ category, totalSeconds }))
+      .sort((a, b) => b.totalSeconds - a.totalSeconds),
+    byEditor: Object.entries(editorBreakdown)
+      .filter(([ed]) => ed !== 'unknown')
+      .map(([editor, totalSeconds]) => ({ editor, totalSeconds }))
+      .sort((a, b) => b.totalSeconds - a.totalSeconds),
+    heartbeatCount: heartbeats.length,
+  };
+}
+
 export function getDailyTotals(days: number, source?: string): DailyTotal[] {
   const results: DailyTotal[] = [];
   const now = new Date();

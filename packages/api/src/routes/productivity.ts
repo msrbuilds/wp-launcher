@@ -7,7 +7,7 @@ import { validateRemoteUrl, safeFetch } from '../utils/ssrf';
 import { getDb } from '../utils/db';
 import {
   insertHeartbeats, isDuplicate,
-  getStatsForDate, getDailyTotals,
+  getStatsForDate, getStatsForRange, getDailyTotals,
   getProjectBreakdown, getLanguageBreakdown, getCategoryBreakdown, getSourceBreakdown,
   getSessionsForDate,
   getHourlyActivity, getWeekdayActivity, getScreenBreakdown, getWriteEvents, getSummaryStats,
@@ -163,6 +163,17 @@ router.get('/stats/today', (req: AuthRequest, res: Response) => {
     const goal = getGoal();
     const streak = getCurrentStreak();
     res.json({ ...stats, goal: goal.dailyGoalSeconds, streak });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/stats/range', (req: AuthRequest, res: Response) => {
+  try {
+    const source = req.query.source as string | undefined;
+    const days = Math.min(Math.max(parseInt(req.query.days as string) || 14, 1), 90);
+    const stats = getStatsForRange(days, source);
+    res.json(stats);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
