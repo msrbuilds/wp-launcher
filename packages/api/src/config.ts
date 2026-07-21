@@ -1,34 +1,30 @@
-const KNOWN_DEV_DEFAULTS = ['dev-api-key', 'dev-jwt-secret-change-me'];
+import { ensureSecrets } from './utils/secrets';
 
 const appMode = (process.env.APP_MODE || 'agency') as 'local' | 'agency';
 const isLocalMode = appMode === 'local';
 
-function requireSecret(envVar: string, fallback: string): string {
-  if (isLocalMode) return process.env[envVar] || fallback;
-  const value = process.env[envVar] || fallback;
-  if (process.env.NODE_ENV === 'production' && KNOWN_DEV_DEFAULTS.includes(value)) {
-    console.error(`[FATAL] ${envVar} is set to an insecure default. Set a strong secret before running in production.`);
-    process.exit(1);
-  }
-  return value;
-}
+const dataDir = process.env.DATA_DIR || './data';
+
+// Every install gets strong secrets whether or not the operator set any.
+// Environment variables still take precedence.
+const generated = ensureSecrets(dataDir);
 
 export const config = {
   appMode,
   isLocalMode,
   port: parseInt(process.env.PORT || '3737', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
-  apiKey: requireSecret('API_KEY', 'dev-api-key'),
+  apiKey: process.env.API_KEY || generated.apiKey,
   baseDomain: process.env.BASE_DOMAIN || 'localhost',
   wpImage: process.env.WP_IMAGE || 'wp-launcher/wordpress:latest',
-  dataDir: process.env.DATA_DIR || './data',
+  dataDir,
   sitesDir: process.env.SITES_DIR || '',  // Container-internal path to sites directory (for cleanup)
   sitesHostPath: process.env.SITES_HOST_PATH || '',  // Host path to sites directory (exposed to dashboard)
   productConfigsDir: process.env.PRODUCT_CONFIGS_DIR || './products',
   templateConfigsDir: process.env.TEMPLATE_CONFIGS_DIR || './templates',
 
   // JWT
-  jwtSecret: requireSecret('JWT_SECRET', 'dev-jwt-secret-change-me'),
+  jwtSecret: process.env.JWT_SECRET || generated.jwtSecret,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
 
   // Email provider: 'smtp' (default) or 'brevo' (HTTP API, bypasses SMTP port blocks)
