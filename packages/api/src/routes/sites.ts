@@ -58,7 +58,7 @@ const siteReadLimiter = rateLimit({
 
 // Create a new demo site (requires auth)
 router.post('/', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { productId, expiresIn, siteTitle, adminUser, adminPassword, adminEmail, dbEngine, phpVersion, subdomain, phpConfig, directFileAccess } = req.body;
+  const { productId, expiresIn, siteTitle, adminUser, adminPassword, adminEmail, dbEngine, phpVersion, subdomain, phpConfig, directFileAccess, restrictCapabilities } = req.body;
 
   if (!productId) {
     throw new ValidationError('productId is required');
@@ -69,6 +69,7 @@ router.post('/', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: Aut
     expiresIn,
     userId: req.userId,
     userEmail: req.userEmail,
+    userRole: req.userRole,
     siteTitle,
     adminUser,
     adminPassword,
@@ -78,6 +79,7 @@ router.post('/', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: Aut
     subdomain,
     phpConfig,
     directFileAccess,
+    restrictCapabilities,
   });
 
   res.status(201).json({

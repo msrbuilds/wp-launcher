@@ -9,8 +9,15 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-// Skip ALL restrictions in local mode — full WordPress functionality
-if ( getenv( 'WP_LOCAL_MODE' ) === 'true' ) {
+// Per-site lockdown. Containers created before v3 have no WPL_RESTRICT, so fall
+// back to the inverted legacy flag. Remove the fallback after the next release.
+$wpl_restrict = getenv( 'WPL_RESTRICT' );
+if ( false === $wpl_restrict ) {
+    $wpl_restrict = getenv( 'WP_LOCAL_MODE' ) === 'true' ? 'false' : 'true';
+}
+
+// Skip ALL restrictions when this site is not locked down — full WordPress functionality
+if ( 'true' !== $wpl_restrict ) {
     return;
 }
 

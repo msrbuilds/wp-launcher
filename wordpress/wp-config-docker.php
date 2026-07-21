@@ -44,8 +44,13 @@ define( 'NONCE_SALT',       getenv( 'WORDPRESS_NONCE_SALT' )       ?: 'wp-launch
 // Table prefix
 $table_prefix = getenv( 'WORDPRESS_TABLE_PREFIX' ) ?: 'wp_';
 
-// Demo site restrictions (disabled in local mode)
-if ( getenv( 'WP_LOCAL_MODE' ) !== 'true' ) {
+// Per-site restrictions. Containers created before v3 have no WPL_RESTRICT, so
+// fall back to the inverted legacy flag. Remove the fallback after the next release.
+$wpl_restrict = getenv( 'WPL_RESTRICT' );
+if ( false === $wpl_restrict ) {
+    $wpl_restrict = getenv( 'WP_LOCAL_MODE' ) === 'true' ? 'false' : 'true';
+}
+if ( 'true' === $wpl_restrict ) {
     define( 'DISALLOW_FILE_MODS', true );
     define( 'DISALLOW_FILE_EDIT', true );
     define( 'AUTOMATIC_UPDATER_DISABLED', true );
