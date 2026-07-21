@@ -4,6 +4,7 @@ import rateLimit from 'express-rate-limit';
 import { conditionalAuth, AuthRequest } from '../middleware/userAuth';
 import { config } from '../config';
 import { validateRemoteUrl, safeFetch } from '../utils/ssrf';
+import { seesAllRows } from '../utils/scope';
 import { getDb } from '../utils/db';
 import {
   insertHeartbeats, isDuplicate,
@@ -139,19 +140,20 @@ router.post('/heartbeats', requireFeature, (req: AuthRequest, res: Response) => 
   }
 });
 
-// SBP-003: Enforce local-mode-only access for stats/config/data routes.
-// Productivity Monitor is a single-user local feature — in agency/multi-user mode,
-// these global (non-user-scoped) endpoints would expose cross-user data.
-function requireLocalMode(_req: AuthRequest, res: Response, next: () => void) {
-  if (!config.isLocalMode) {
-    res.status(403).json({ error: 'Productivity Monitor is only available in local mode' });
+// SBP-003: these stats/config routes return install-wide, non-user-scoped data,
+// so only callers who may already see every row can read them. This replaces the
+// old local-mode check — the protection is "you can see everything anyway",
+// which under roles means owner or admin.
+function requireGlobalReader(req: AuthRequest, res: Response, next: () => void) {
+  if (!seesAllRows(req.userRole)) {
+    res.status(403).json({ error: 'Productivity Monitor requires an admin or owner account' });
     return;
   }
   next();
 }
 
-// All other routes require auth + feature enabled + local mode
-router.use(conditionalAuth, requireFeature, requireLocalMode);
+// All other routes require auth + feature enabled + global read access
+router.use(conditionalAuth, requireFeature, requireGlobalReader);
 
 // ── Stats ──
 

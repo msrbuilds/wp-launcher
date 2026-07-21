@@ -41,36 +41,20 @@ export function adminAuth(req: AuthRequest, res: Response, next: NextFunction): 
     return next();
   }
 
-  // Path 2: Legacy wpl_admin cookie
-  const adminCookie = (req as any).cookies?.wpl_admin as string | undefined;
-  if (adminCookie && safeEqual(adminCookie, config.apiKey)) {
-    req.userId = 'admin';
-    req.userEmail = 'admin@localhost';
-    req.userRole = 'admin';
-    return next();
-  }
-
-  // Path 3: JWT with role=admin (human admin via normal login)
+  // Path 2: JWT belonging to a user the DB still says is an owner or admin.
+  // The DB is authoritative: a token's own role claim is never trusted, so
+  // revoking a role or deleting an account takes effect immediately rather
+  // than when the token expires.
   const token = extractToken(req);
   if (token) {
     try {
       const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string };
-      // Local-user is always admin (no DB row exists)
-      if (decoded.userId === 'local-user') {
+      const user = getUserById(decoded.userId);
+      if (user && (user.role === 'owner' || user.role === 'admin')) {
         req.userId = decoded.userId;
         req.userEmail = decoded.email;
-        req.userRole = 'admin';
+        req.userRole = user.role;
         return next();
-      }
-      if (decoded.role === 'admin') {
-        // Double-check DB role to prevent stale token escalation
-        const user = getUserById(decoded.userId);
-        if (user && user.role === 'admin') {
-          req.userId = decoded.userId;
-          req.userEmail = decoded.email;
-          req.userRole = 'admin';
-          return next();
-        }
       }
     } catch {
       // Invalid token — fall through to 401

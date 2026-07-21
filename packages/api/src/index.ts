@@ -371,7 +371,7 @@ app.put('/api/admin/features', adminAuth, (req, res) => {
 
 // Branding settings (available in both modes — no auth needed in local mode)
 // In agency mode, adminLimiter already applied via /api/admin prefix mount
-const brandingAuth = config.isLocalMode ? [] : [adminAuth];
+const brandingAuth = [adminAuth];
 
 app.get('/api/admin/branding', ...brandingAuth, (_req: any, res: any) => {
   const db = getDb();
@@ -474,11 +474,9 @@ app.use('/api/productivity', productivityRouter);
 // Sites routes (rate limiting handled per-route inside the router)
 app.use('/api/sites', sitesRouter);
 
-// Templates routes (GET open, POST/DELETE require API key — skipped in local mode)
+// Templates routes (GET open, writes require an admin JWT or the M2M API key)
 app.use('/api/templates', (req, res, next) => {
-  if (req.method === 'GET' || config.isLocalMode) {
-    return next();
-  }
+  if (req.method === 'GET') return next();
   return adminAuth(req as any, res, next);
 }, templatesRouter);
 

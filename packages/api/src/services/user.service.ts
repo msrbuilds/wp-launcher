@@ -4,12 +4,19 @@ import crypto from 'crypto';
 import { getDb } from '../utils/db';
 import { ValidationError, UnauthorizedError, NotFoundError } from '../utils/errors';
 
+/**
+ * `user` is the pre-v3 name for `member`; rows are renamed by the roles-v3
+ * migration, but the literal stays in the union because JWTs issued before the
+ * upgrade still carry it.
+ */
+export type UserRole = 'owner' | 'admin' | 'member' | 'user';
+
 export interface UserRecord {
   id: string;
   email: string;
   password_hash: string;
   verified: number;
-  role: 'user' | 'admin';
+  role: UserRole;
   verification_token: string | null;
   verification_expires_at: string | null;
   created_at: string;
@@ -196,17 +203,15 @@ export function getUsersCount(): number {
   return (db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
 }
 
-export function updateUserRole(id: string, role: 'user' | 'admin'): void {
+export function updateUserRole(id: string, role: 'member' | 'admin'): void {
   const db = getDb();
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord | undefined;
   if (!user) throw new NotFoundError('User not found');
 
-  if (role === 'user' && user.role === 'admin') {
-    // Prevent demoting the last admin
-    const adminCount = (db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin' AND id NOT IN ('admin', 'local-user')").get() as { count: number }).count;
-    if (adminCount <= 1) {
-      throw new ValidationError('Cannot demote the last admin. Promote another user first.');
-    }
+  // The owner is the panel's root of authority — there is exactly one, and it
+  // cannot be demoted, or the install could be left with nobody in charge.
+  if (user.role === 'owner') {
+    throw new ValidationError('The owner role cannot be changed');
   }
 
   db.prepare("UPDATE users SET role = ?, updated_at = datetime('now') WHERE id = ?").run(role, id);

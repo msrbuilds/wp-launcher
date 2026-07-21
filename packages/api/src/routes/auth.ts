@@ -3,6 +3,7 @@ import { registerUser, verifyUserEmail, setInitialPassword, loginUser, updatePas
 import { sendVerificationEmail, sendWelcomeEmail } from '../services/email.service';
 import { userAuth, generateToken, AuthRequest } from '../middleware/userAuth';
 import { asyncHandler } from '../utils/asyncHandler';
+import { policy } from '../policy';
 import { ValidationError } from '../utils/errors';
 import { config } from '../config';
 
@@ -21,6 +22,11 @@ function setAuthCookie(res: Response, token: string): void {
 
 // Step 1: User enters email → sends verification email
 router.post('/register', asyncHandler(async (req: Request, res: Response) => {
+  if (!policy.allowsPublicRegistration()) {
+    res.status(403).json({ error: 'Public registration is disabled on this panel' });
+    return;
+  }
+
   const { email } = req.body;
 
   if (!email || !email.includes('@')) {

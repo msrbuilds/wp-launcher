@@ -188,7 +188,8 @@ router.post('/users/promote', (req: AuthRequest, res: Response) => {
       res.status(400).json({ error: 'Email is required' });
       return;
     }
-    const targetRole = role === 'user' ? 'user' : 'admin';
+    // 'user' is accepted for compatibility with pre-v3 API callers.
+    const targetRole: 'member' | 'admin' = role === 'admin' ? 'admin' : 'member';
     const db = require('../utils/db').getDb();
     const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
     if (!user) {
