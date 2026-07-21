@@ -59,11 +59,11 @@ export const config = {
         `http://${process.env.BASE_DOMAIN || 'localhost'}`,
       ],
 
-  // Defaults for demo sites
+  // Defaults for new sites. Site quotas now live in the settings table and are
+  // read through `policy` — see policy.quotaForRole / policy.totalSiteQuota.
   defaults: {
     expiration: '1h',
     maxConcurrentSites: 50,
-    maxTotalSites: isLocalMode ? 0 : parseInt(process.env.MAX_TOTAL_SITES || '50', 10),
   },
 
   // Cleanup interval in milliseconds

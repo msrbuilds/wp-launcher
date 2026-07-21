@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
-import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, getSiteLogsByUser, MAX_SITES_PER_USER } from '../services/site.service';
+import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, getSiteLogsByUser } from '../services/site.service';
+import { policy } from '../policy';
 import { getPhpConfig, updatePhpConfig, updateAutoLoginToken, setSitePassword, getSitePasswordStatus, exportSiteZip, getExportDownloadUrl, getContainerStats, getDbCredentials } from '../services/docker.service';
 import { takeSnapshot, listSnapshots, restoreSnapshotToSite, deleteSnapshot, cloneSite } from '../services/snapshot.service';
 import { exportSiteAsTemplate } from '../services/template-export.service';
@@ -118,13 +119,13 @@ router.get('/', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Respon
     status: s.status,
     createdAt: s.created_at,
     expiresAt: s.expires_at,
-    hostPath: config.isLocalMode && config.sitesHostPath
+    hostPath: s.direct_file_access && config.sitesHostPath
       ? `${config.sitesHostPath}\\${s.subdomain}`.replace(/[/\\]+/g, config.sitesHostPath.includes('\\') ? '\\' : '/')
       : undefined,
   }));
 
   if (req.userId) {
-    res.json({ sites: mapped, maxSites: MAX_SITES_PER_USER });
+    res.json({ sites: mapped, maxSites: policy.quotaForRole(req.userRole || 'member') });
   } else {
     res.json(mapped);
   }

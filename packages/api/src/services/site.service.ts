@@ -15,14 +15,14 @@ import { fireWebhookEvent } from './webhook.service';
 import { getProductConfig } from './product.service';
 import { getCloudConfig } from './productivity.service';
 import { ConflictError, ValidationError, NotFoundError, ForbiddenError } from '../utils/errors';
-
-export const MAX_SITES_PER_USER = config.isLocalMode ? 0 : parseInt(process.env.MAX_SITES_PER_USER || '3', 10);
+import { policy } from '../policy';
 
 export interface CreateSiteRequest {
   productId: string;
   expiresIn?: string;
   userId?: string;
   userEmail?: string;
+  userRole?: string;
   // Local mode overrides
   siteTitle?: string;
   adminUser?: string;
@@ -58,6 +58,11 @@ export interface SiteRecord {
   created_at: string;
   expires_at: string;
   deleted_at: string | null;
+  /** 1 when wp-content plugins/themes are bind-mounted to the host. */
+  direct_file_access: number;
+  /** 1 when the WordPress admin is locked down for this site. */
+  restrict_capabilities: number;
+  origin: string;
 }
 
 function logSiteAction(siteRecord: SiteRecord, action: string, userEmail?: string): void {
@@ -119,22 +124,26 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
   // Atomic transaction: check all limits + insert site record
   const insertSiteTxn = db.transaction(() => {
-    // Check per-user limit
-    if (req.userId && req.userId !== 'admin' && MAX_SITES_PER_USER > 0) {
+    // Check per-user limit (0 = unlimited)
+    const userQuota = policy.quotaForRole(req.userRole || 'member');
+    if (req.userId && req.userId !== 'admin' && userQuota > 0) {
       const userCount = db
         .prepare("SELECT COUNT(*) as count FROM sites WHERE user_id = ? AND status = 'running'")
         .get(req.userId) as { count: number };
-      if (userCount.count >= MAX_SITES_PER_USER) {
-        throw new ConflictError(`You already have ${MAX_SITES_PER_USER} active demo sites. Please delete one before creating a new one.`);
+      if (userCount.count >= userQuota) {
+        throw new ConflictError(`You already have ${userQuota} active sites. Please delete one before creating a new one.`);
       }
     }
 
-    // Check global total site limit
-    const totalActive = db
-      .prepare("SELECT COUNT(*) as count FROM sites WHERE status = 'running'")
-      .get() as { count: number };
-    if (config.defaults.maxTotalSites > 0 && totalActive.count >= config.defaults.maxTotalSites) {
-      throw new ConflictError('Our servers are currently at capacity. Please try again in a few minutes.');
+    // Check global total site limit (0 = unlimited)
+    const totalQuota = policy.totalSiteQuota();
+    if (totalQuota > 0) {
+      const totalActive = db
+        .prepare("SELECT COUNT(*) as count FROM sites WHERE status = 'running'")
+        .get() as { count: number };
+      if (totalActive.count >= totalQuota) {
+        throw new ConflictError('This server is currently at capacity. Please try again in a few minutes.');
+      }
     }
 
     // Check concurrent site limit per product
