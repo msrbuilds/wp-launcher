@@ -31,6 +31,14 @@ export function getDb(): Database.Database {
   return db;
 }
 
+/**
+ * Test-only: replace the module singleton with a caller-supplied database.
+ * Pass `null` to restore normal lazy initialisation.
+ */
+export function __setDbForTesting(instance: Database.Database | null): void {
+  db = instance as Database.Database;
+}
+
 function initSchema(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
