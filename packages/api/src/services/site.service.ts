@@ -209,7 +209,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
   const landingPage = productConfig?.demo?.landing_page || '';
 
-  const VALID_PHP_VERSIONS = ['8.1', '8.2', '8.3'];
+  const VALID_PHP_VERSIONS = ['7.4', '8.1', '8.2', '8.3'];
   const phpVersion = req.phpVersion && VALID_PHP_VERSIONS.includes(req.phpVersion) ? req.phpVersion : null;
   const image = productConfig?.docker?.image
     || (phpVersion ? `wp-launcher/wordpress:php${phpVersion}` : config.wpImage);
@@ -333,25 +333,36 @@ export async function deleteSite(id: string, userId?: string, userEmail?: string
     throw new ForbiddenError('You can only delete your own sites');
   }
 
-  if (site.container_id) {
-    await removeSiteContainer(site.container_id);
-  }
-
-  // Clean up host bind-mount directory if using SITES_HOST_PATH
-  cleanupSiteDir(site.subdomain);
-
+  // Mark the DB row as expired up-front and free the subdomain. This lets the
+  // HTTP response return in milliseconds instead of blocking the dashboard for
+  // 10–60s while Docker tears down the container. The orphan watchdog cleans
+  // up the container even if the async cleanup below crashes mid-way.
   const deleteTxn = db.transaction(() => {
-    // Free up the subdomain for reuse by appending a unique suffix to the expired record
     const freedSubdomain = `${site.subdomain}--deleted-${Date.now()}`;
     db.prepare("UPDATE sites SET status = 'expired', deleted_at = datetime('now'), subdomain = ? WHERE id = ?").run(freedSubdomain, id);
     logSiteAction(site, 'deleted', userEmail);
   });
   deleteTxn();
 
-  fireWebhookEvent('site.deleted', {
-    siteId: site.id, subdomain: site.subdomain, productId: site.product_id,
-    siteUrl: site.site_url, userEmail,
-  }).catch(() => {});
+  // Tear down container + host dir + webhook async — caller has already returned.
+  void (async () => {
+    if (site.container_id) {
+      try {
+        await removeSiteContainer(site.container_id);
+      } catch (err: any) {
+        console.error(`[site] Background container removal failed for ${site.subdomain}:`, err.message);
+      }
+    }
+    try {
+      cleanupSiteDir(site.subdomain);
+    } catch (err: any) {
+      console.error(`[site] Background site dir cleanup failed for ${site.subdomain}:`, err.message);
+    }
+    fireWebhookEvent('site.deleted', {
+      siteId: site.id, subdomain: site.subdomain, productId: site.product_id,
+      siteUrl: site.site_url, userEmail,
+    }).catch(() => {});
+  })();
 }
 
 /** Remove the host-side site directory (sites/{subdomain}/) if SITES_DIR is configured */

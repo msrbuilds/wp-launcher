@@ -35,6 +35,7 @@ const PHP_OPTIONS = [
   { label: 'PHP 8.3 (Default)', value: '8.3' },
   { label: 'PHP 8.2', value: '8.2' },
   { label: 'PHP 8.1', value: '8.1' },
+  { label: 'PHP 7.4 (legacy — WP 6.1)', value: '7.4' },
 ];
 
 export default function LocalLaunchPage() {
@@ -433,6 +434,9 @@ export default function LocalLaunchPage() {
                     <option value="128M">128 MB</option>
                     <option value="256M">256 MB</option>
                     <option value="512M">512 MB</option>
+                    <option value="1G">1 GB</option>
+                    <option value="2G">2 GB</option>
+                    <option value="0">Unlimited</option>
                   </select>
                 </div>
                 <div className="form-group">
@@ -444,6 +448,9 @@ export default function LocalLaunchPage() {
                     <option value="128M">128 MB</option>
                     <option value="256M">256 MB</option>
                     <option value="512M">512 MB</option>
+                    <option value="1G">1 GB</option>
+                    <option value="2G">2 GB</option>
+                    <option value="0">Unlimited</option>
                   </select>
                 </div>
               </div>

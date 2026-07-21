@@ -453,9 +453,26 @@ export default function SitesListPage() {
   async function handleDelete(id: string) {
     if (!confirm('Delete this site?')) return;
 
-    await apiFetch(`/api/sites/${id}`, {
-      method: 'DELETE',
-    });
+    // Optimistic remove so the dashboard never appears frozen while the API
+    // tears down the container. A failed request restores the row and surfaces
+    // the error.
+    const prev = sites;
+    setSites((s) => s.filter((site) => site.id !== id));
+
+    try {
+      const res = await apiFetch(`/api/sites/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setSites(prev);
+        setFetchError(body.error || `Delete failed (HTTP ${res.status})`);
+        return;
+      }
+    } catch (err: any) {
+      setSites(prev);
+      setFetchError(err?.message || 'Network error while deleting site');
+      return;
+    }
+
     fetchSites();
   }
 

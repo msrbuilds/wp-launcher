@@ -17,15 +17,27 @@ PRODUCT_ASSETS_DIR="$PROJECT_DIR/product-assets"
 PRODUCT_ID="${1:-}"
 CUSTOM_TAG="${2:-}"
 
-# Supported PHP versions
-ALL_PHP_VERSIONS=("8.3" "8.2" "8.1")
+# Supported PHP versions and the WordPress base they pair with on Docker Hub.
+# WP 6.9 only ships PHP 8.x images; PHP 7.4 must use the last WP version that
+# published a 7.4 tag (WP 6.1).
+ALL_PHP_VERSIONS=("8.3" "8.2" "8.1" "7.4")
 DEFAULT_PHP="8.3"
+DEFAULT_WP_VERSION="6.9"
+WP_VERSION_FOR_PHP_7_4="6.1"
+
+wp_base_for_php() {
+    case "$1" in
+        7.4) echo "$WP_VERSION_FOR_PHP_7_4" ;;
+        *)   echo "$DEFAULT_WP_VERSION" ;;
+    esac
+}
 
 # Which PHP versions to build:
 #   - Default: only the default version ("8.3")
 #   - Override via WP_PHP_VERSIONS env var (comma or space separated)
 #       e.g.  WP_PHP_VERSIONS="8.3,8.2"  bash scripts/build-wp-image.sh
-#             WP_PHP_VERSIONS=all         bash scripts/build-wp-image.sh
+#             WP_PHP_VERSIONS="7.4"       bash scripts/build-wp-image.sh
+#             WP_PHP_VERSIONS=all          bash scripts/build-wp-image.sh
 WP_PHP_VERSIONS="${WP_PHP_VERSIONS:-$DEFAULT_PHP}"
 
 if [ "$WP_PHP_VERSIONS" = "all" ]; then
@@ -35,26 +47,35 @@ else
     IFS=', ' read -r -a PHP_VERSIONS <<< "$WP_PHP_VERSIONS"
 fi
 
+build_php_image() {
+    local PHP_VER="$1"
+    local WP_VER
+    WP_VER="$(wp_base_for_php "$PHP_VER")"
+    local TAG="wp-launcher/wordpress:php${PHP_VER}"
+    echo "Building: $TAG (PHP $PHP_VER, WP $WP_VER)..."
+    docker build \
+        --build-arg PHP_VERSION="$PHP_VER" \
+        --build-arg WP_VERSION="$WP_VER" \
+        -t "$TAG" "$WP_DIR"
+    echo "  Built: $TAG"
+}
+
 # Build base images for the selected PHP versions
 echo "=== Building base WordPress images (PHP: ${PHP_VERSIONS[*]}) ==="
 for PHP_VER in "${PHP_VERSIONS[@]}"; do
-    TAG="wp-launcher/wordpress:php${PHP_VER}"
-    echo "Building: $TAG (PHP $PHP_VER)..."
-    docker build --build-arg PHP_VERSION="$PHP_VER" -t "$TAG" "$WP_DIR"
-    echo "  Built: $TAG"
+    build_php_image "$PHP_VER"
 done
 
 # Tag default PHP version as :latest (build it first if it wasn't selected)
 if ! printf '%s\n' "${PHP_VERSIONS[@]}" | grep -qx "$DEFAULT_PHP"; then
-    TAG="wp-launcher/wordpress:php${DEFAULT_PHP}"
-    echo "Building default: $TAG (PHP $DEFAULT_PHP)..."
-    docker build --build-arg PHP_VERSION="$DEFAULT_PHP" -t "$TAG" "$WP_DIR"
+    build_php_image "$DEFAULT_PHP"
 fi
 docker tag "wp-launcher/wordpress:php${DEFAULT_PHP}" wp-launcher/wordpress:latest
 echo "Tagged wp-launcher/wordpress:php${DEFAULT_PHP} as wp-launcher/wordpress:latest"
 echo ""
 echo "Tip: build additional PHP versions with:"
 echo "  WP_PHP_VERSIONS=\"8.2,8.1\" bash scripts/build-wp-image.sh"
+echo "  WP_PHP_VERSIONS=\"7.4\"       bash scripts/build-wp-image.sh   # uses WP 6.1 base"
 echo "  WP_PHP_VERSIONS=all          bash scripts/build-wp-image.sh"
 echo ""
 

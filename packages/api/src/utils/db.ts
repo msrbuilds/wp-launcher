@@ -9,8 +9,23 @@ export function getDb(): Database.Database {
   if (!db) {
     fs.mkdirSync(config.dataDir, { recursive: true });
     const dbPath = path.join(config.dataDir, 'wp-launcher.db');
+
+    // Clean up any stale WAL/SHM left behind from a previous WAL-mode run.
+    // Without this, SQLite refuses to open the DB with SQLITE_IOERR_CORRUPTFS
+    // on Windows bind mounts where the WAL files were created by a process
+    // that didn't shut down cleanly.
+    for (const ext of ['-wal', '-shm']) {
+      const stale = dbPath + ext;
+      if (fs.existsSync(stale)) {
+        try { fs.unlinkSync(stale); } catch { /* best effort */ }
+      }
+    }
+
     db = new Database(dbPath);
-    db.pragma('journal_mode = WAL');
+    // DELETE journal (default): slower writes than WAL but reliable on Windows
+    // bind mounts. Hit SQLITE_IOERR_CORRUPTFS twice in two days with WAL there.
+    db.pragma('journal_mode = DELETE');
+    db.pragma('synchronous = NORMAL');
     initSchema(db);
   }
   return db;

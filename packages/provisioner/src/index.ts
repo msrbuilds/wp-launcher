@@ -567,8 +567,10 @@ app.patch('/containers/:id/php-config', async (req: Request, res: Response) => {
 
     const { memoryLimit, uploadMaxFilesize, postMaxSize, maxExecutionTime, maxInputVars, displayErrors, extensions } = req.body;
 
-    // Defense-in-depth: validate all PHP config values with strict allowlists
-    const MEMORY_RE = /^\d+[MmGgKk]$/;
+    // Defense-in-depth: validate all PHP config values with strict allowlists.
+    // Memory-style values accept "-1" (no limit, memory_limit) and "0" (no limit,
+    // upload_max_filesize / post_max_size) as PHP-native sentinels for "unlimited".
+    const MEMORY_RE = /^(-1|0|\d+[MmGgKk])$/;
     const NUMERIC_RE = /^\d+$/;
     const DISPLAY_ERRORS_RE = /^(On|Off|0|1)$/i;
     const ALLOWED_EXTS = new Set(['redis', 'xdebug', 'sockets', 'calendar', 'pcntl', 'ldap', 'gettext']);

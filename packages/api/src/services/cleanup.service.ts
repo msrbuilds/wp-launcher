@@ -73,6 +73,7 @@ export async function cleanupOrphanedContainers(): Promise<void> {
 
   try {
     const containers = await listManagedContainers();
+    const liveContainerIds = new Set(containers.map(c => c.Id));
 
     for (const container of containers) {
       const siteId = container.Labels?.['wp-launcher.site-id'];
@@ -100,6 +101,20 @@ export async function cleanupOrphanedContainers(): Promise<void> {
           console.error(`[watchdog] Failed to remove container ${siteId}:`, err);
         }
       }
+    }
+
+    // Inverse sweep: DB rows marked 'running' whose container is gone
+    // (e.g. container removed manually, or DB write failed mid-delete).
+    // Without this, the dashboard polls /ready forever and shows "Setting up...".
+    const trackedRunning = db
+      .prepare("SELECT id, subdomain, container_id FROM sites WHERE status = 'running' AND container_id IS NOT NULL")
+      .all() as { id: string; subdomain: string; container_id: string }[];
+
+    for (const site of trackedRunning) {
+      if (liveContainerIds.has(site.container_id)) continue;
+      const freedSub = `${site.subdomain}--orphan-${Date.now()}`;
+      db.prepare("UPDATE sites SET status = 'expired', deleted_at = datetime('now'), subdomain = ? WHERE id = ?").run(freedSub, site.id);
+      console.log(`[watchdog] Marked DB-orphan site as expired (container missing): ${site.subdomain}`);
     }
   } catch (err) {
     console.error('[watchdog] Error during orphan cleanup:', err);
