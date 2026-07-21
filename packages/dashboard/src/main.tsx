@@ -53,6 +53,8 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 function LocalRoutes() {
   return (
     <Routes>
+      {/* Outside AdminLayout — the layout's auth guard would bounce it back here. */}
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<AdminLayout />}>
         <Route index element={<LocalDashboard />} />
         <Route path="sites" element={<SitesListPage />} />
@@ -80,7 +82,6 @@ function LocalRoutes() {
         <Route path="admin/branding" element={<Navigate to="/branding" replace />} />
         <Route path="admin/system" element={<Navigate to="/system" replace />} />
         <Route path="admin/bulk" element={<Navigate to="/bulk" replace />} />
-        <Route path="login" element={<Navigate to="/" replace />} />
         <Route path="launch/:productId" element={<LaunchRedirect />} />
       </Route>
     </Routes>

@@ -94,35 +94,34 @@ export default function AdminLayout() {
     navigate('/');
   }
 
-  // Auth guards (agency mode only — local mode auto-authenticates)
-  if (!isLocal) {
-    if (!isAuthenticated) {
-      return (
-        <div className="card auth-card al-auth-padding">
-          <div className="al-auth-center">
-            <h2 className="al-auth-title">Admin Access</h2>
-            <p className="al-auth-subtitle">Log in with an admin account to access this panel.</p>
-          </div>
-          <button className="btn btn-primary btn-lg al-btn-full" onClick={() => navigate('/login')}>
-            Go to Login
-          </button>
+  // Auth guards apply everywhere — there is no longer a mode that
+  // authenticates itself.
+  if (!isAuthenticated) {
+    return (
+      <div className="card auth-card al-auth-padding">
+        <div className="al-auth-center">
+          <h2 className="al-auth-title">Admin Access</h2>
+          <p className="al-auth-subtitle">Log in with an admin account to access this panel.</p>
         </div>
-      );
-    }
+        <button className="btn btn-primary btn-lg al-btn-full" onClick={() => navigate('/login')}>
+          Go to Login
+        </button>
+      </div>
+    );
+  }
 
-    if (!isAdmin) {
-      return (
-        <div className="card auth-card al-auth-padding">
-          <div className="al-auth-center">
-            <h2 className="al-auth-title-denied">Access Denied</h2>
-            <p className="al-auth-subtitle">Your account does not have admin privileges. Contact an administrator to get access.</p>
-          </div>
-          <button className="btn btn-secondary btn-lg al-btn-full" onClick={() => navigate('/')}>
-            Back to Dashboard
-          </button>
+  if (!isAdmin) {
+    return (
+      <div className="card auth-card al-auth-padding">
+        <div className="al-auth-center">
+          <h2 className="al-auth-title-denied">Access Denied</h2>
+          <p className="al-auth-subtitle">Your account does not have admin privileges. Contact an administrator to get access.</p>
         </div>
-      );
-    }
+        <button className="btn btn-secondary btn-lg al-btn-full" onClick={() => navigate('/')}>
+          Back to Dashboard
+        </button>
+      </div>
+    );
   }
 
   const headers: Record<string, string> = {};
