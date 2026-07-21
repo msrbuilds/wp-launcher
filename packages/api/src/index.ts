@@ -11,6 +11,7 @@ import { csrfProtection } from './middleware/csrf';
 import sitesRouter from './routes/sites';
 import productsRouter from './routes/products';
 import authRouter from './routes/auth';
+import setupRouter from './routes/setup';
 import adminRouter from './routes/admin';
 import analyticsRouter from './routes/analytics';
 import bulkRouter from './routes/bulk';
@@ -163,6 +164,9 @@ app.get('/api/settings', (_req, res) => {
     setupRequired: !policy.setupComplete(),
   });
 });
+
+// First-run setup (unauthenticated by necessity; rate limited inside the router)
+app.use('/api/setup', setupRouter);
 
 if (config.isLocalMode) {
   // Local mode: minimal auth — just issue a token for the local user
