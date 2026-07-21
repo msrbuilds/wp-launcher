@@ -55,6 +55,8 @@ function LocalRoutes() {
     <Routes>
       {/* Outside AdminLayout — the layout's auth guard would bounce it back here. */}
       <Route path="/login" element={<LoginPage />} />
+      {/* Setup is a one-time route; once done it must not render at all. */}
+      <Route path="/setup" element={<Navigate to="/" replace />} />
       <Route path="/" element={<AdminLayout />}>
         <Route index element={<LocalDashboard />} />
         <Route path="sites" element={<SitesListPage />} />
@@ -97,6 +99,8 @@ function AgencyRoutes() {
         <Route path="launch/:productId" element={<LaunchRedirect />} />
         <Route path="sites" element={<SitesListPage />} />
         <Route path="login" element={<LoginPage />} />
+        {/* Setup is a one-time route; once done it must not render at all. */}
+        <Route path="setup" element={<Navigate to="/" replace />} />
         <Route path="account" element={<AccountPage />} />
         <Route path="verify" element={<VerifyPage />} />
         <Route path="admin" element={<AdminLayout />}>

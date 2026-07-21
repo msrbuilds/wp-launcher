@@ -7441,3 +7441,24 @@ body:has(.admin-layout) .header .container {
   color: var(--text-muted);
   font-size: 0.875rem;
 }
+
+.su-done {
+  text-align: center;
+}
+
+.su-check {
+  width: 3rem;
+  height: 3rem;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: #10b981;
+  color: #fff;
+  font-size: 1.5rem;
+  line-height: 3rem;
+}
+
+.su-redirect {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-light);
+}
