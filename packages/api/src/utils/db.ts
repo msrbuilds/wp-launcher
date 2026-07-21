@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { config } from '../config';
+import { runPanelMigration } from './migrations/panel-v3';
 
 let db: Database.Database;
 
@@ -19,6 +20,19 @@ export function getDb(): Database.Database {
       if (fs.existsSync(stale)) {
         try { fs.unlinkSync(stale); } catch { /* best effort */ }
       }
+    }
+
+    // One-time safety copy before the panel-v3 migration rewrites settings and
+    // site columns. The marker is written only after the migration succeeds, so
+    // a crashed upgrade retries the backup on next boot rather than skipping it.
+    const migrationMarker = path.join(config.dataDir, '.panel-migration-v3');
+    if (fs.existsSync(dbPath) && !fs.existsSync(migrationMarker)) {
+      const backupDir = path.join(config.dataDir, 'backups');
+      fs.mkdirSync(backupDir, { recursive: true });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupPath = path.join(backupDir, `pre-v3-${stamp}.db`);
+      fs.copyFileSync(dbPath, backupPath);
+      console.log(`[db] Pre-migration backup written to ${backupPath}`);
     }
 
     db = new Database(dbPath);
@@ -398,6 +412,19 @@ function initSchema(db: Database.Database): void {
     `).run();
     // Ensure existing local-user is admin
     db.prepare(`UPDATE users SET role = 'admin' WHERE id = 'local-user'`).run();
+  }
+
+  // Panel settings + per-site columns. This is the only remaining reader of
+  // APP_MODE, and only on the first run after upgrading.
+  runPanelMigration(db, {
+    APP_MODE: process.env.APP_MODE,
+    MAX_SITES_PER_USER: process.env.MAX_SITES_PER_USER,
+    MAX_TOTAL_SITES: process.env.MAX_TOTAL_SITES,
+  });
+
+  const migrationMarker = path.join(config.dataDir, '.panel-migration-v3');
+  if (!fs.existsSync(migrationMarker)) {
+    fs.writeFileSync(migrationMarker, new Date().toISOString());
   }
 
   // Migration: add user_id to remote_connections for tenant isolation
