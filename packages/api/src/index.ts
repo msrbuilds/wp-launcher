@@ -9,13 +9,12 @@ import { config } from './config';
 import { adminAuth } from './middleware/auth';
 import { csrfProtection } from './middleware/csrf';
 import sitesRouter from './routes/sites';
-import productsRouter from './routes/products';
+import blueprintsRouter from './routes/blueprints';
 import authRouter from './routes/auth';
 import setupRouter from './routes/setup';
 import adminRouter from './routes/admin';
 import analyticsRouter from './routes/analytics';
 import bulkRouter from './routes/bulk';
-import templatesRouter from './routes/templates';
 import syncRouter from './routes/sync';
 import projectsRouter from './routes/projects';
 import productivityRouter from './routes/productivity';
@@ -474,14 +473,19 @@ app.use('/api/productivity', productivityRouter);
 // Sites routes (rate limiting handled per-route inside the router)
 app.use('/api/sites', sitesRouter);
 
-// Templates routes (GET open, writes require an admin JWT or the M2M API key)
-app.use('/api/templates', (req, res, next) => {
+// Blueprints (GET open, writes require an admin JWT or the M2M API key).
+// /api/products and /api/templates are deprecated aliases kept so existing
+// API callers and scripts keep working.
+const blueprintGuard = (req: any, res: any, next: any) => {
   if (req.method === 'GET') return next();
-  return adminAuth(req as any, res, next);
-}, templatesRouter);
+  return adminAuth(req, res, next);
+};
+app.use('/api/blueprints', blueprintGuard, blueprintsRouter);
+app.use('/api/products', blueprintGuard, blueprintsRouter);
+app.use('/api/templates', blueprintGuard, blueprintsRouter);
 
 // Serve product-assets images (card images, icons, etc.) with restrictive headers
-const productAssetsDir = path.resolve(config.templateConfigsDir, '..', 'product-assets');
+const productAssetsDir = path.resolve(config.blueprintConfigsDir, '..', 'product-assets');
 app.use('/api/assets', (_req, res, next) => {
   res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -490,14 +494,6 @@ app.use('/api/assets', (_req, res, next) => {
   maxAge: '1h',
   fallthrough: true,
 }));
-
-// Products routes (GET open, POST/PUT/DELETE require API key)
-app.use('/api/products', (req, res, next) => {
-  if (req.method === 'GET') {
-    return next();
-  }
-  return adminAuth(req as any, res, next);
-}, productsRouter);
 
 // Global error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

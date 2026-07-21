@@ -16,7 +16,7 @@ const themeSchema = z.object({
   activate: z.boolean().optional(),
 });
 
-export const productConfigSchema = z.object({
+export const blueprintConfigSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   wordpress: z.object({
