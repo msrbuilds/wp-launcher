@@ -23,6 +23,8 @@ import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cle
 import { startScheduleProcessor } from './services/schedule.service';
 import { startProductivitySync } from './services/productivity-sync.service';
 import { closeDb, getDb } from './utils/db';
+import { getPanelSettings } from './services/settings.service';
+import { policy } from './policy';
 import { AppError } from './utils/errors';
 import { Request, Response, NextFunction } from 'express';
 
@@ -145,6 +147,8 @@ app.get('/api/settings', (_req, res) => {
   }
   res.json({
     cardLayout: branding.cardLayout || config.ui.cardLayout,
+    // Retained until plan 4 removes the dashboard's mode fork. Nothing in the
+    // API reads it any more.
     appMode: config.appMode,
     baseDomain: config.baseDomain,
     features,
@@ -154,7 +158,9 @@ app.get('/api/settings', (_req, res) => {
       cardLayout: branding.cardLayout || config.ui.cardLayout,
     },
     colors,
-    sitesHostPath: config.isLocalMode ? config.sitesHostPath : '',
+    sitesHostPath: config.sitesHostPath,
+    panel: getPanelSettings(),
+    setupRequired: !policy.setupComplete(),
   });
 });
 
