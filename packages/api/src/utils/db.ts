@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { config } from '../config';
 import { runPanelMigration } from './migrations/panel-v3';
+import { runRolesMigration } from './migrations/roles-v3';
 
 let db: Database.Database;
 
@@ -404,16 +405,6 @@ function initSchema(db: Database.Database): void {
     // Column already exists
   }
 
-  // Auto-create local user in local mode
-  if (config.isLocalMode) {
-    db.prepare(`
-      INSERT OR IGNORE INTO users (id, email, password_hash, verified, role)
-      VALUES ('local-user', 'local@localhost', '', 1, 'admin')
-    `).run();
-    // Ensure existing local-user is admin
-    db.prepare(`UPDATE users SET role = 'admin' WHERE id = 'local-user'`).run();
-  }
-
   // Panel settings + per-site columns. This is the only remaining reader of
   // APP_MODE, and only on the first run after upgrading.
   runPanelMigration(db, {
@@ -421,6 +412,9 @@ function initSchema(db: Database.Database): void {
     MAX_SITES_PER_USER: process.env.MAX_SITES_PER_USER,
     MAX_TOTAL_SITES: process.env.MAX_TOTAL_SITES,
   });
+
+  // Normalise roles and elect an owner from any pre-existing admin.
+  runRolesMigration(db);
 
   const migrationMarker = path.join(config.dataDir, '.panel-migration-v3');
   if (!fs.existsSync(migrationMarker)) {

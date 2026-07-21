@@ -168,77 +168,23 @@ app.get('/api/settings', (_req, res) => {
 // First-run setup (unauthenticated by necessity; rate limited inside the router)
 app.use('/api/setup', setupRouter);
 
-if (config.isLocalMode) {
-  // Local mode: minimal auth — just issue a token for the local user
-  const { generateToken } = require('./middleware/userAuth');
-  app.post('/api/auth/local-token', (_req: any, res: any) => {
-    const token = generateToken('local-user', 'local@localhost', 'admin');
-    res.cookie('wpl_token', token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'strict',
-      path: '/api',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-    res.json({ user: { id: 'local-user', email: 'local@localhost', role: 'admin' } });
-  });
+// Auth routes with split rate limiting.
+// Write ops (login, register, verify, set-password) get strict limits
+app.post('/api/auth/register', authWriteLimiter);
+app.post('/api/auth/verify', authWriteLimiter);
+app.post('/api/auth/set-password', authWriteLimiter);
+app.post('/api/auth/login', authWriteLimiter);
+// Read ops (/me, logout, update-password) get relaxed limits
+app.get('/api/auth/me', authReadLimiter);
+app.post('/api/auth/logout', authReadLimiter);
+app.post('/api/auth/update-password', authReadLimiter);
+app.use('/api/auth', authRouter);
 
-  // Admin routes (JWT-protected in local mode, no rate limiting needed)
-  app.use('/api/admin', adminRouter);
-  app.use('/api/admin/analytics', analyticsRouter);
-  app.use('/api/admin/bulk', bulkRouter);
-  app.use('/api/admin/monitoring', monitoringRouter);
-} else {
-  // Agency mode: auth routes with split rate limiting
-  // Write ops (login, register, verify, set-password) get strict limits
-  app.post('/api/auth/register', authWriteLimiter);
-  app.post('/api/auth/verify', authWriteLimiter);
-  app.post('/api/auth/set-password', authWriteLimiter);
-  app.post('/api/auth/login', authWriteLimiter);
-  // Read ops (/me, logout, update-password) get relaxed limits
-  app.get('/api/auth/me', authReadLimiter);
-  app.post('/api/auth/logout', authReadLimiter);
-  app.post('/api/auth/update-password', authReadLimiter);
-  app.use('/api/auth', authRouter);
-
-  // Admin login — validates API key and sets httpOnly cookie
-  app.post('/api/admin/login', adminLimiter, (req, res) => {
-    const { apiKey: key } = req.body;
-    if (!key || !config.apiKey) {
-      res.status(401).json({ error: 'Invalid API key' });
-      return;
-    }
-    const crypto = require('crypto');
-    const a = Buffer.from(key);
-    const b = Buffer.from(config.apiKey);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      res.status(401).json({ error: 'Invalid API key' });
-      return;
-    }
-    const isProduction = config.nodeEnv === 'production';
-    res.cookie('wpl_admin', config.apiKey, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'strict',
-      path: '/api',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
-    res.json({ authenticated: true });
-  });
-
-  // Admin routes (API key protected + rate limited)
-  app.use('/api/admin', adminLimiter, adminRouter);
-
-  // Analytics routes (under admin, API key protected)
-  // Note: adminLimiter already applied via /api/admin prefix on line above
-  app.use('/api/admin/analytics', analyticsRouter);
-
-  // Monitoring routes (server monitoring, Docker containers, disk usage)
-  app.use('/api/admin/monitoring', monitoringRouter);
-
-  // Bulk provisioning routes (under admin, API key protected)
-  app.use('/api/admin/bulk', bulkRouter);
-}
+// Admin routes — admin JWT or M2M API key, rate limited
+app.use('/api/admin', adminLimiter, adminRouter);
+app.use('/api/admin/analytics', analyticsRouter);
+app.use('/api/admin/monitoring', monitoringRouter);
+app.use('/api/admin/bulk', bulkRouter);
 
 // ── Admin endpoints available in both local and agency modes ──
 

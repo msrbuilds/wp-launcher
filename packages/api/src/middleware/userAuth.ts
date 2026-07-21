@@ -39,27 +39,6 @@ export function generateToken(userId: string, email: string, role: string = 'use
   } as jwt.SignOptions);
 }
 
-export function localModeAuth(req: AuthRequest, _res: Response, next: NextFunction): void {
-  req.userId = 'local-user';
-  req.userEmail = 'local@localhost';
-  req.userRole = 'admin';
-  next();
-}
-
-export function conditionalAuth(req: AuthRequest, res: Response, next: NextFunction): void {
-  if (config.isLocalMode) {
-    return localModeAuth(req, res, next);
-  }
-  return userAuth(req, res, next);
-}
-
-export function conditionalOptionalAuth(req: AuthRequest, res: Response, next: NextFunction): void {
-  if (config.isLocalMode) {
-    return localModeAuth(req, res, next);
-  }
-  return optionalUserAuth(req, res, next);
-}
-
 export function userAuth(req: AuthRequest, res: Response, next: NextFunction): void {
   // Allow API key as admin auth
   if (isValidApiKey(req)) {
@@ -118,3 +97,8 @@ export function optionalUserAuth(req: AuthRequest, _res: Response, next: NextFun
 
   next();
 }
+
+// Retained as names only — there is no longer anything conditional about them.
+// Every request authenticates the same way regardless of how the panel is run.
+export const conditionalAuth = userAuth;
+export const conditionalOptionalAuth = optionalUserAuth;
