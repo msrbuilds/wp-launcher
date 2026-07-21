@@ -16,6 +16,8 @@ packages/api/dist/
 
 # Database
 data/
+# Manual copies taken before migrations (data.live, data.pre-v3-backup, ...)
+data.*/
 
 # Site wp-content bind mounts
 sites/
