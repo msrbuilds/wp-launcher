@@ -14,24 +14,24 @@ import {
   deleteSite,
 } from '../services/site.service';
 import { getDb } from '../utils/db';
+import { seesAllRows } from '../utils/scope';
 
 const router = Router();
 
 // All admin routes require admin role (JWT with role=admin) or API key (M2M)
 router.use(adminAuth);
 
-// Dashboard stats
-// In local mode, only count local-user's sites
-router.get('/stats', (_req: AuthRequest, res: Response) => {
+// Dashboard stats — members see only their own totals
+router.get('/stats', (req: AuthRequest, res: Response) => {
   try {
-    if (config.isLocalMode) {
-      const db = getDb();
-      const totalSitesCreated = (db.prepare("SELECT COUNT(*) as count FROM site_logs WHERE action = 'created' AND user_id = 'local-user'").get() as { count: number }).count;
-      const activeSites = (db.prepare("SELECT COUNT(*) as count FROM sites WHERE status = 'running' AND user_id = 'local-user'").get() as { count: number }).count;
-      res.json({ totalSitesCreated, activeSites, totalUsers: 1, verifiedUsers: 1 });
+    if (seesAllRows(req.userRole)) {
+      res.json(getSiteStats());
     } else {
-      const stats = getSiteStats();
-      res.json(stats);
+      const db = getDb();
+      const userId = req.userId ?? '';
+      const totalSitesCreated = (db.prepare("SELECT COUNT(*) as count FROM site_logs WHERE action = 'created' AND user_id = ?").get(userId) as { count: number }).count;
+      const activeSites = (db.prepare("SELECT COUNT(*) as count FROM sites WHERE status = 'running' AND user_id = ?").get(userId) as { count: number }).count;
+      res.json({ totalSitesCreated, activeSites, totalUsers: 1, verifiedUsers: 1 });
     }
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -74,7 +74,7 @@ router.delete('/users/:id', (req: AuthRequest, res: Response) => {
 });
 
 // List all sites (paginated, including expired)
-// In local mode, only show sites owned by local-user
+// Members see only sites they own
 router.get('/sites', (req: AuthRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;
@@ -86,12 +86,13 @@ router.get('/sites', (req: AuthRequest, res: Response) => {
     const validStatuses = ['running', 'creating', 'expired', 'error'];
     const statusFilter = validStatuses.includes(status) ? status : '';
 
-    if (config.isLocalMode) {
+    if (!seesAllRows(req.userRole)) {
+      const userId = req.userId ?? '';
       const where = statusFilter
-        ? `WHERE user_id = 'local-user' AND status = ?`
-        : `WHERE user_id = 'local-user'`;
-      const params = statusFilter ? [statusFilter, limit, offset] : [limit, offset];
-      const countParams = statusFilter ? [statusFilter] : [];
+        ? `WHERE user_id = ? AND status = ?`
+        : `WHERE user_id = ?`;
+      const params = statusFilter ? [userId, statusFilter, limit, offset] : [userId, limit, offset];
+      const countParams = statusFilter ? [userId, statusFilter] : [userId];
       sites = db.prepare(`SELECT * FROM sites ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params) as any[];
       total = (db.prepare(`SELECT COUNT(*) as count FROM sites ${where}`).get(...countParams) as { count: number }).count;
     } else if (statusFilter) {
@@ -132,17 +133,17 @@ router.delete('/sites/:id', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Site logs (paginated)
-// In local mode, only show logs from local-user
+// Site logs (paginated) — members see only their own
 router.get('/logs', (req: AuthRequest, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
     let logs, total: number;
-    if (config.isLocalMode) {
+    if (!seesAllRows(req.userRole)) {
       const db = getDb();
-      logs = db.prepare("SELECT * FROM site_logs WHERE user_id = 'local-user' ORDER BY created_at DESC LIMIT ? OFFSET ?").all(limit, offset);
-      total = (db.prepare("SELECT COUNT(*) as count FROM site_logs WHERE user_id = 'local-user'").get() as { count: number }).count;
+      const userId = req.userId ?? '';
+      logs = db.prepare("SELECT * FROM site_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?").all(userId, limit, offset);
+      total = (db.prepare("SELECT COUNT(*) as count FROM site_logs WHERE user_id = ?").get(userId) as { count: number }).count;
     } else {
       logs = getSiteLogs(limit, offset);
       total = getSiteLogsCount();
