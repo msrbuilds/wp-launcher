@@ -7,7 +7,7 @@ describe('createTestDb', () => {
     const names = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[])
       .map((r) => r.name)
       .sort();
-    expect(names).toEqual(['settings', 'sites', 'users']);
+    expect(names).toEqual(['clients', 'projects', 'settings', 'site_logs', 'sites', 'sqlite_sequence', 'users']);
     db.close();
   });
 

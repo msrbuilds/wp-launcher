@@ -55,6 +55,22 @@ describe('runSetup', () => {
     expect(stale).toBeUndefined();
   });
 
+  it('transfers every table that references local-user, not just sites', async () => {
+    seedLocalUserSite('s1');
+    db.prepare("INSERT INTO site_logs (site_id, user_id, product_id, subdomain, action) VALUES ('s1', 'local-user', 'demo', 'sub-s1', 'created')").run();
+    db.prepare("INSERT INTO clients (id, user_id, name) VALUES ('c1', 'local-user', 'Acme')").run();
+    db.prepare("INSERT INTO projects (id, user_id, name) VALUES ('p1', 'local-user', 'Redesign')").run();
+
+    const owner = await runSetup({ email: 'me@example.com', password: 'correct-horse-battery' });
+
+    for (const [table, column] of [['site_logs', 'user_id'], ['clients', 'user_id'], ['projects', 'user_id']] as const) {
+      const stale = db.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE ${column} = 'local-user'`).get() as { c: number };
+      expect(stale.c, `${table}.${column}`).toBe(0);
+      const moved = db.prepare(`SELECT COUNT(*) AS c FROM ${table} WHERE ${column} = ?`).get(owner.id) as { c: number };
+      expect(moved.c, `${table}.${column}`).toBe(1);
+    }
+  });
+
   it('stores the panel name as the branding site title', async () => {
     await runSetup({ email: 'me@example.com', password: 'correct-horse-battery', panelName: 'MSR Panel' });
     expect(getSetting('branding.siteTitle')).toBe('MSR Panel');
