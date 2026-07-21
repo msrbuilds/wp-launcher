@@ -81,6 +81,7 @@ interface Settings {
   branding: Branding;
   colors: ColorPalette;
   sitesHostPath: string;
+  setupRequired: boolean;
   version: string;
   loading: boolean;
   error: string;
@@ -95,6 +96,7 @@ const SettingsContext = createContext<Settings>({
   branding: DEFAULT_BRANDING,
   colors: DEFAULT_COLORS,
   sitesHostPath: '',
+  setupRequired: false,
   version: '',
   loading: true,
   error: '',
@@ -110,6 +112,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     branding: DEFAULT_BRANDING,
     colors: DEFAULT_COLORS,
     sitesHostPath: '',
+    setupRequired: false,
     version: '',
     loading: true,
     error: '',
@@ -143,6 +146,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           branding,
           colors,
           sitesHostPath: data.sitesHostPath || '',
+          setupRequired: !!data.setupRequired,
           version: versionData.version || '',
           loading: false,
           error: '',

@@ -11,6 +11,7 @@ import LocalLaunchPage from './pages/LocalLaunchPage';
 import LocalDashboard from './pages/LocalDashboard';
 import SitesListPage from './pages/SitesListPage';
 import LoginPage from './pages/LoginPage';
+import SetupPage from './pages/SetupPage';
 import AccountPage from './pages/AccountPage';
 import VerifyPage from './pages/VerifyPage';
 import AdminLayout, { useAdminAuth } from './pages/admin/AdminLayout';
@@ -121,10 +122,20 @@ function AgencyRoutes() {
 }
 
 function AppRoutes() {
-  const { loading } = useSettings();
+  const { loading, setupRequired } = useSettings();
   const isLocal = useIsLocalMode();
 
   if (loading) return null;
+
+  // Nothing else is reachable until the panel has an owner.
+  if (setupRequired) {
+    return (
+      <Routes>
+        <Route path="/setup" element={<SetupPage />} />
+        <Route path="*" element={<Navigate to="/setup" replace />} />
+      </Routes>
+    );
+  }
 
   return isLocal ? <LocalRoutes /> : <AgencyRoutes />;
 }

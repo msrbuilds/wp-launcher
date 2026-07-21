@@ -25,24 +25,12 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { appMode, loading: settingsLoading } = useSettings();
+  const { loading: settingsLoading } = useSettings();
   const [user, setUser] = useState<User | null>(null);
-
-  // Auto-login for local mode
-  useEffect(() => {
-    if (settingsLoading) return;
-    if (appMode === 'local' && !user) {
-      apiFetch('/api/auth/local-token', { method: 'POST' })
-        .then((res) => res.json())
-        .then((data) => setUser(data.user))
-        .catch(() => {});
-    }
-  }, [appMode, settingsLoading]);
 
   // Validate auth on mount via httpOnly cookie
   useEffect(() => {
     if (settingsLoading) return;
-    if (appMode === 'local') return;
 
     apiFetch('/api/auth/me')
       .then((res) => {
@@ -51,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .then((data) => setUser(data))
       .catch(() => setUser(null));
-  }, [settingsLoading, appMode]);
+  }, [settingsLoading]);
 
   function login(newUser: User) {
     setUser(newUser);
@@ -64,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('user');
   }
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'owner';
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isAdmin }}>

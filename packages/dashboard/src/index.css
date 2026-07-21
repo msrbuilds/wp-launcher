@@ -7413,3 +7413,31 @@ body:has(.admin-layout) .header .container {
     flex-direction: column;
   }
 }
+
+/* Setup wizard */
+.su-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  background: var(--bg-surface);
+}
+
+.su-card {
+  width: 100%;
+  max-width: 26rem;
+  padding: 2rem;
+}
+
+.su-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.375rem;
+  color: var(--prussian-blue);
+}
+
+.su-lead {
+  margin: 0 0 1.5rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
