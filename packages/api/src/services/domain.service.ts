@@ -55,9 +55,10 @@ async function updateWordPressUrls(containerId: string, oldUrl: string, newUrl: 
 }
 
 export async function setCustomDomain(siteId: string, domain: string, userId?: string): Promise<{ domain: string; status: string }> {
-  // Block in local mode — no DNS/TLS available
-  if (config.appMode === 'local') {
-    throw new ValidationError('Custom domains are not available in local mode');
+  // Custom domains need a real routable base domain; a localhost install has no
+  // DNS or TLS to point at.
+  if (!config.baseDomain || config.baseDomain === 'localhost') {
+    throw new ValidationError('Custom domains require BASE_DOMAIN to be set to a real domain');
   }
 
   const db = getDb();

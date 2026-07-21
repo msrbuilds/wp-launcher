@@ -1,6 +1,7 @@
 import dns from 'dns';
 import net from 'net';
 import { config } from '../config';
+import { policy } from '../policy';
 
 /**
  * SSRF protection: validates remote URLs before the server makes outbound requests.
@@ -67,7 +68,7 @@ export async function validateRemoteUrl(url: string): Promise<{ valid: boolean; 
   }
 
   // Protocol allowlist
-  const allowHttp = config.isLocalMode || config.nodeEnv === 'development';
+  const allowHttp = policy.allowsInsecureRemotes() || config.nodeEnv === 'development';
   if (parsed.protocol === 'http:' && !allowHttp) {
     return { valid: false, error: 'Only HTTPS URLs are allowed in production' };
   }
