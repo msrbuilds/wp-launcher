@@ -54,7 +54,10 @@ export interface CreateContainerOptions {
   landingPage?: string;
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
   autoLoginToken?: string;
-  localMode?: boolean;
+  /** Lock down the WordPress admin (restrictions mu-plugin + DISALLOW_FILE_MODS). */
+  restrictCapabilities?: boolean;
+  /** Apply CPU/memory limits and upload/disk quotas to the container. */
+  enforceResourceLimits?: boolean;
   heartbeatSecret?: string;
   directFileAccess?: boolean;
   phpConfig?: {

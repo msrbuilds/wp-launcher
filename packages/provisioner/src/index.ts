@@ -127,7 +127,10 @@ interface CreateBody {
   landingPage?: string;
   dbEngine?: 'sqlite' | 'mysql' | 'mariadb';
   autoLoginToken?: string;
-  localMode?: boolean;
+  /** Lock down the WordPress admin (restrictions mu-plugin + DISALLOW_FILE_MODS). */
+  restrictCapabilities?: boolean;
+  /** Apply CPU/memory limits and upload/disk quotas to the container. */
+  enforceResourceLimits?: boolean;
   heartbeatSecret?: string;
   directFileAccess?: boolean;
   phpConfig?: {
@@ -240,7 +243,7 @@ app.post('/containers', async (req: Request, res: Response) => {
       env.push('DB_ENGINE=sqlite');
     }
 
-    if (!opts.localMode) {
+    if (opts.enforceResourceLimits) {
       env.push(`WP_UPLOAD_LIMIT=${WP_UPLOAD_LIMIT}`);
       env.push(`WP_DISK_QUOTA=${WP_DISK_QUOTA}`);
     }
@@ -253,7 +256,10 @@ app.post('/containers', async (req: Request, res: Response) => {
     if (opts.activeTheme) env.push(`WP_ACTIVE_THEME=${opts.activeTheme}`);
     if (opts.landingPage) env.push(`WP_DEMO_LANDING_PAGE=${opts.landingPage}`);
     // autoLoginToken is no longer injected as env var — tokens are written on-demand via putArchive
-    if (opts.localMode) env.push('WP_LOCAL_MODE=true');
+    // Per-site lockdown. WP_LOCAL_MODE is still emitted for containers running a
+    // pre-v3 WordPress image; remove after the next release.
+    env.push(`WPL_RESTRICT=${opts.restrictCapabilities ? 'true' : 'false'}`);
+    if (!opts.restrictCapabilities) env.push('WP_LOCAL_MODE=true');
     env.push(`WP_LAUNCHER_API_URL=http://api:3737`);
     env.push(`WP_SUBDOMAIN=${opts.subdomain}`);
     // Shared wp-cli download cache — avoids re-downloading plugins/themes across site launches
@@ -284,8 +290,11 @@ app.post('/containers', async (req: Request, res: Response) => {
       if (pc.extensions) env.push(`PHP_EXTENSIONS=${pc.extensions}`);
     }
 
-    // In local mode: no resource limits, mount persistent volume
-    const useLocalMode = opts.localMode === true;
+    // Pre-v3 "local mode" bundled two decisions: skip resource limits, and give
+    // wp-content a persistent named volume. They stay bundled here so behaviour
+    // is unchanged; the spec's "named volume always" storage unification is a
+    // later plan.
+    const useLocalMode = opts.enforceResourceLimits !== true;
     const hostConfig: any = {
       NetworkMode: DOCKER_NETWORK,
       RestartPolicy: { Name: 'unless-stopped' },

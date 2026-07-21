@@ -41,6 +41,7 @@ export interface CreateSiteRequest {
     extensions?: string;
   };
   directFileAccess?: boolean;
+  restrictCapabilities?: boolean;
 }
 
 export interface SiteRecord {
@@ -164,9 +165,9 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
     // Insert site record
     db.prepare(`
-      INSERT INTO sites (id, subdomain, product_id, user_id, status, site_url, admin_url, admin_user, admin_password, auto_login_token, expires_at, direct_file_access)
-      VALUES (?, ?, ?, ?, 'creating', ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, subdomain, req.productId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt, req.directFileAccess ? 1 : 0);
+      INSERT INTO sites (id, subdomain, product_id, user_id, status, site_url, admin_url, admin_user, admin_password, auto_login_token, expires_at, direct_file_access, restrict_capabilities)
+      VALUES (?, ?, ?, ?, 'creating', ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, subdomain, req.productId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt, req.directFileAccess ? 1 : 0, (req.restrictCapabilities ?? policy.defaultRestrictCapabilities()) ? 1 : 0);
   });
 
   insertSiteTxn();
@@ -250,7 +251,8 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       landingPage,
       dbEngine,
       autoLoginToken,
-      localMode: config.isLocalMode,
+      restrictCapabilities: req.restrictCapabilities ?? policy.defaultRestrictCapabilities(),
+      enforceResourceLimits: policy.enforcesResourceLimits(),
       phpConfig: req.phpConfig,
       heartbeatSecret,
       directFileAccess: req.directFileAccess,
