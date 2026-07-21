@@ -20,8 +20,10 @@ export const config = {
   dataDir,
   sitesDir: process.env.SITES_DIR || '',  // Container-internal path to sites directory (for cleanup)
   sitesHostPath: process.env.SITES_HOST_PATH || '',  // Host path to sites directory (exposed to dashboard)
-  productConfigsDir: process.env.PRODUCT_CONFIGS_DIR || './products',
-  templateConfigsDir: process.env.TEMPLATE_CONFIGS_DIR || './templates',
+  blueprintConfigsDir: process.env.BLUEPRINT_CONFIGS_DIR || './blueprints',
+  // Legacy directories, read once by the blueprints migration then unused.
+  legacyProductConfigsDir: process.env.PRODUCT_CONFIGS_DIR || './products',
+  legacyTemplateConfigsDir: process.env.TEMPLATE_CONFIGS_DIR || './templates',
 
   // JWT
   jwtSecret: process.env.JWT_SECRET || generated.jwtSecret,
