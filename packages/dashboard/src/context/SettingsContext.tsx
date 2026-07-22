@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { apiFetch } from '../utils/api';
+import { readableForeground } from '../lib/color';
 
 export interface FeatureFlags {
   cloning: boolean;
@@ -134,12 +135,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         const colors = { ...DEFAULT_COLORS, ...(data.colors || {}) };
         // Apply color palette as CSS custom properties
         const root = document.documentElement;
+        // Only the accent is admin-configurable now; every other colour comes
+        // from the light/dark token sets in styles/theme.css.
+        root.style.setProperty('--primary', colors.accent);
+        root.style.setProperty('--ring', colors.accent);
+        root.style.setProperty('--primary-foreground', readableForeground(colors.accent));
+        // Legacy variables, still read by the unconverted pages in index.css.
         root.style.setProperty('--prussian-blue', colors.primaryDark);
         root.style.setProperty('--orange', colors.accent);
         root.style.setProperty('--grey', colors.grey);
         root.style.setProperty('--text-muted', colors.textMuted);
         root.style.setProperty('--text-light', colors.textLight);
-        root.style.setProperty('--border', colors.border);
         root.style.setProperty('--bg-surface', colors.bgSurface);
         setSettings({
           appMode: data.appMode || 'agency',

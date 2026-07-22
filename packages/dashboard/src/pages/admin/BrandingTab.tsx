@@ -13,14 +13,14 @@ const DEFAULT_COLORS: ColorPalette = {
   bgSurface: '#f5f5f5',
 };
 
+/**
+ * Only the accent remains configurable. Every other colour now comes from the
+ * light/dark token sets in styles/theme.css, so exposing them would let an
+ * admin produce combinations that are unreadable in one theme or the other.
+ * The retired values stay in the settings table, simply unused.
+ */
 const COLOR_META: { key: keyof ColorPalette; label: string; description: string; cssVar: string }[] = [
-  { key: 'primaryDark', label: 'Primary Dark', description: 'Header, sidebar, dark backgrounds', cssVar: '--prussian-blue' },
-  { key: 'accent', label: 'Accent', description: 'Buttons, links, active states', cssVar: '--orange' },
-  { key: 'grey', label: 'Grey', description: 'Subtle backgrounds, dividers', cssVar: '--grey' },
-  { key: 'textMuted', label: 'Text Muted', description: 'Secondary text, labels', cssVar: '--text-muted' },
-  { key: 'textLight', label: 'Text Light', description: 'Hints, placeholders', cssVar: '--text-light' },
-  { key: 'border', label: 'Border', description: 'Card borders, separators', cssVar: '--border' },
-  { key: 'bgSurface', label: 'Surface', description: 'Card backgrounds, panels', cssVar: '--bg-surface' },
+  { key: 'accent', label: 'Accent colour', description: 'Buttons, links and focus rings. All other colours follow the light or dark theme.', cssVar: '--primary' },
 ];
 
 const PRESETS: { name: string; colors: ColorPalette }[] = [
