@@ -237,7 +237,7 @@ export function getProjectSites(projectId: string, userId: string): any[] {
   const project = db.prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
   if (!project) throw new NotFoundError('Project not found');
   return db.prepare(`
-    SELECT s.id, s.subdomain, s.product_id, s.status, s.site_url, s.created_at, s.expires_at
+    SELECT s.id, s.subdomain, s.blueprint_id, s.status, s.site_url, s.created_at, s.expires_at
     FROM sites s
     INNER JOIN project_sites ps ON ps.site_id = s.id
     WHERE ps.project_id = ?

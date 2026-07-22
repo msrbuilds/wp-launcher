@@ -5,7 +5,7 @@ import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatu
 import { policy } from '../policy';
 import { getPhpConfig, updatePhpConfig, updateAutoLoginToken, setSitePassword, getSitePasswordStatus, exportSiteZip, getExportDownloadUrl, getContainerStats, getDbCredentials } from '../services/docker.service';
 import { takeSnapshot, listSnapshots, restoreSnapshotToSite, deleteSnapshot, cloneSite } from '../services/snapshot.service';
-import { exportSiteAsTemplate } from '../services/template-export.service';
+import { exportSiteAsTemplate } from '../services/blueprint-export.service';
 import { setCustomDomain, getCustomDomain, removeCustomDomain, getDnsInstructions } from '../services/domain.service';
 import { conditionalAuth, conditionalOptionalAuth, AuthRequest } from '../middleware/userAuth';
 import { scheduleNewLaunch, listScheduledLaunches, cancelScheduledLaunch } from '../services/schedule.service';
@@ -58,14 +58,16 @@ const siteReadLimiter = rateLimit({
 
 // Create a new demo site (requires auth)
 router.post('/', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { productId, expiresIn, siteTitle, adminUser, adminPassword, adminEmail, dbEngine, phpVersion, subdomain, phpConfig, directFileAccess, restrictCapabilities } = req.body;
+  const { expiresIn, siteTitle, adminUser, adminPassword, adminEmail, dbEngine, phpVersion, subdomain, phpConfig, directFileAccess, restrictCapabilities } = req.body;
+  // `productId` is the pre-v3 name, still accepted from older callers.
+  const blueprintId = req.body.blueprintId ?? req.body.productId;
 
-  if (!productId) {
-    throw new ValidationError('productId is required');
+  if (!blueprintId) {
+    throw new ValidationError('blueprintId is required');
   }
 
   const site = await createSite({
-    productId,
+    blueprintId,
     expiresIn,
     userId: req.userId,
     userEmail: req.userEmail,
@@ -97,13 +99,13 @@ router.post('/', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: Aut
 
 // List sites - requires auth, shows user's own sites (admin sees all)
 router.get('/', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Response) => {
-  const productId = req.query.productId as string | undefined;
+  const blueprintId = (req.query.blueprintId ?? req.query.productId) as string | undefined;
   let sites;
 
   if (req.userId && !req.query.all) {
     sites = listUserSites(req.userId);
-  } else if (productId) {
-    sites = listSites(productId);
+  } else if (blueprintId) {
+    sites = listSites(blueprintId);
   } else {
     sites = listSites();
   }
@@ -111,7 +113,9 @@ router.get('/', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Respon
   const mapped = sites.map((s) => ({
     id: s.id,
     subdomain: s.subdomain,
-    productId: s.product_id,
+    blueprintId: s.blueprint_id,
+        // Deprecated alias for pre-v3 API callers.
+        productId: s.blueprint_id,
     url: s.site_url,
     adminUrl: s.admin_url,
     credentials: req.userId ? {
@@ -136,10 +140,11 @@ router.get('/', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Respon
 
 router.post('/schedule', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
   if (!isFeatureEnabled('scheduledLaunch')) throw new ForbiddenError('Scheduled launches are disabled');
-  const { productId, scheduledAt, config } = req.body;
-  if (!productId) throw new ValidationError('productId is required');
+  const { scheduledAt, config } = req.body;
+  const blueprintId = req.body.blueprintId ?? req.body.productId;
+  if (!blueprintId) throw new ValidationError('blueprintId is required');
   if (!scheduledAt) throw new ValidationError('scheduledAt is required');
-  const launch = scheduleNewLaunch(productId, scheduledAt, req.userId, req.userEmail, config);
+  const launch = scheduleNewLaunch(blueprintId, scheduledAt, req.userId, req.userEmail, config);
   res.status(201).json(launch);
 }));
 
@@ -178,7 +183,9 @@ router.get('/:id', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Res
   res.json({
     id: site.id,
     subdomain: site.subdomain,
-    productId: site.product_id,
+    blueprintId: site.blueprint_id,
+        // Deprecated alias for pre-v3 API callers.
+        productId: site.blueprint_id,
     url: site.site_url,
     adminUrl: site.admin_url,
     credentials: {

@@ -1,6 +1,6 @@
 import { getDb } from '../utils/db';
 import { execWpCommands, exportAssets } from './docker.service';
-import { saveProductConfig, ProductConfig } from './product.service';
+import { saveBlueprint, BlueprintConfig } from './blueprint.service';
 import { NotFoundError, ForbiddenError, ValidationError } from '../utils/errors';
 import { config } from '../config';
 import fs from 'fs';
@@ -28,7 +28,7 @@ export async function exportSiteAsTemplate(
   templateId: string,
   templateName: string,
   userId?: string,
-): Promise<ProductConfig> {
+): Promise<BlueprintConfig> {
   const db = getDb();
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(siteId) as any;
   if (!site) throw new NotFoundError('Site not found');
@@ -88,7 +88,7 @@ export async function exportSiteAsTemplate(
     'wp-launcher-restrictions', 'wp-launcher-branding', 'wp-launcher-autologin']);
 
   // Build preinstall list
-  const preinstallPlugins: NonNullable<NonNullable<ProductConfig['plugins']>['preinstall']> = [];
+  const preinstallPlugins: NonNullable<NonNullable<BlueprintConfig['plugins']>['preinstall']> = [];
   const localPluginSlugs: string[] = [];
 
   for (const p of plugins) {
@@ -115,7 +115,7 @@ export async function exportSiteAsTemplate(
   }
 
   // Build theme install list
-  const installThemes: NonNullable<NonNullable<ProductConfig['themes']>['install']> = [];
+  const installThemes: NonNullable<NonNullable<BlueprintConfig['themes']>['install']> = [];
   const localThemeSlugs: string[] = [];
   let activeThemeSlug: string | undefined;
 
@@ -151,9 +151,9 @@ export async function exportSiteAsTemplate(
   }
 
   // Determine database engine from site
-  const dbEngine = site.product_id ? (() => {
+  const dbEngine = site.blueprint_id ? (() => {
     try {
-      const productRow = db.prepare('SELECT config FROM products WHERE id = ?').get(site.product_id) as { config: string } | undefined;
+      const productRow = db.prepare('SELECT config FROM products WHERE id = ?').get(site.blueprint_id) as { config: string } | undefined;
       if (productRow) {
         const cfg = JSON.parse(productRow.config);
         return cfg.database || 'sqlite';
@@ -162,8 +162,8 @@ export async function exportSiteAsTemplate(
     return 'sqlite';
   })() : 'sqlite';
 
-  // Build ProductConfig
-  const templateConfig: ProductConfig = {
+  // Build BlueprintConfig
+  const templateConfig: BlueprintConfig = {
     id: cleanId,
     name: templateName || siteName,
     database: dbEngine,
@@ -179,16 +179,16 @@ export async function exportSiteAsTemplate(
     branding: {
       description: `Exported from site ${site.subdomain}`,
     },
-  } as ProductConfig;
+  } as BlueprintConfig;
 
   // Save to templates or products directory
-  const targetDir = config.isLocalMode ? config.templateConfigsDir : config.productConfigsDir;
+  const targetDir = config.blueprintConfigsDir;
   fs.mkdirSync(targetDir, { recursive: true });
   const filePath = path.join(targetDir, `${cleanId}.json`);
   fs.writeFileSync(filePath, JSON.stringify(templateConfig, null, 2));
 
   // Also save to DB
-  saveProductConfig(templateConfig);
+  saveBlueprint(templateConfig);
 
   return templateConfig;
 }

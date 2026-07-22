@@ -73,7 +73,7 @@ function initSchema(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
       subdomain TEXT UNIQUE NOT NULL,
-      product_id TEXT NOT NULL,
+      blueprint_id TEXT NOT NULL,
       user_id TEXT,
       container_id TEXT,
       status TEXT NOT NULL DEFAULT 'creating',
@@ -97,7 +97,7 @@ function initSchema(db: Database.Database): void {
       site_id TEXT NOT NULL,
       user_id TEXT,
       user_email TEXT,
-      product_id TEXT NOT NULL,
+      blueprint_id TEXT NOT NULL,
       subdomain TEXT NOT NULL,
       site_url TEXT,
       action TEXT NOT NULL,
@@ -105,7 +105,7 @@ function initSchema(db: Database.Database): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_site_logs_user_id ON site_logs(user_id);
-    CREATE INDEX IF NOT EXISTS idx_site_logs_product_id ON site_logs(product_id);
+    CREATE INDEX IF NOT EXISTS idx_site_logs_blueprint_id ON site_logs(blueprint_id);
     CREATE INDEX IF NOT EXISTS idx_site_logs_created_at ON site_logs(created_at);
     CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
 
@@ -130,7 +130,7 @@ function initSchema(db: Database.Database): void {
 
     CREATE TABLE IF NOT EXISTS bulk_jobs (
       id TEXT PRIMARY KEY,
-      product_id TEXT NOT NULL,
+      blueprint_id TEXT NOT NULL,
       total INTEGER NOT NULL,
       completed INTEGER NOT NULL DEFAULT 0,
       failed INTEGER NOT NULL DEFAULT 0,
@@ -144,7 +144,7 @@ function initSchema(db: Database.Database): void {
 
     CREATE TABLE IF NOT EXISTS scheduled_launches (
       id TEXT PRIMARY KEY,
-      product_id TEXT NOT NULL,
+      blueprint_id TEXT NOT NULL,
       user_id TEXT,
       user_email TEXT,
       scheduled_at TEXT NOT NULL,

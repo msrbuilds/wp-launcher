@@ -6,7 +6,7 @@ interface TimeSeriesPoint {
 }
 
 interface ProductPopularity {
-  productId: string;
+  blueprintId: string;
   launches: number;
 }
 
@@ -18,16 +18,16 @@ interface AnalyticsSummary {
   sitesThisMonth: number;
 }
 
-export function getLaunchesOverTime(days: number, productId?: string): TimeSeriesPoint[] {
+export function getLaunchesOverTime(days: number, blueprintId?: string): TimeSeriesPoint[] {
   const db = getDb();
   const since = new Date(Date.now() - days * 86400000).toISOString();
 
-  if (productId) {
+  if (blueprintId) {
     return db.prepare(`
       SELECT date(created_at) as date, COUNT(*) as count
-      FROM site_logs WHERE action = 'created' AND created_at >= ? AND product_id = ?
+      FROM site_logs WHERE action = 'created' AND created_at >= ? AND blueprint_id = ?
       GROUP BY date(created_at) ORDER BY date
-    `).all(since, productId) as TimeSeriesPoint[];
+    `).all(since, blueprintId) as TimeSeriesPoint[];
   }
 
   return db.prepare(`
@@ -40,9 +40,9 @@ export function getLaunchesOverTime(days: number, productId?: string): TimeSerie
 export function getProductPopularity(): ProductPopularity[] {
   const db = getDb();
   return db.prepare(`
-    SELECT product_id as productId, COUNT(*) as launches
+    SELECT blueprint_id as blueprintId, COUNT(*) as launches
     FROM site_logs WHERE action = 'created'
-    GROUP BY product_id ORDER BY launches DESC
+    GROUP BY blueprint_id ORDER BY launches DESC
   `).all() as ProductPopularity[];
 }
 

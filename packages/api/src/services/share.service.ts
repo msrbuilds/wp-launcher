@@ -76,7 +76,7 @@ export function listSharedWithMe(userId: string, userEmail: string): any[] {
 
   // Find shares by user ID or email
   const shares = db.prepare(
-    "SELECT ss.*, s.subdomain, s.site_url, s.admin_url, s.status as site_status, s.product_id, s.expires_at, s.created_at as site_created_at " +
+    "SELECT ss.*, s.subdomain, s.site_url, s.admin_url, s.status as site_status, s.blueprint_id, s.expires_at, s.created_at as site_created_at " +
     "FROM site_shares ss JOIN sites s ON ss.site_id = s.id " +
     "WHERE (ss.shared_with_id = ? OR ss.shared_with_email = ?) AND s.status = 'running' " +
     "ORDER BY ss.created_at DESC"

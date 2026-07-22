@@ -12,13 +12,13 @@ import {
   enableBindMounts,
 } from './docker.service';
 import { fireWebhookEvent } from './webhook.service';
-import { getProductConfig } from './product.service';
+import { getBlueprint } from './blueprint.service';
 import { getCloudConfig } from './productivity.service';
 import { ConflictError, ValidationError, NotFoundError, ForbiddenError } from '../utils/errors';
 import { policy } from '../policy';
 
 export interface CreateSiteRequest {
-  productId: string;
+  blueprintId: string;
   expiresIn?: string;
   userId?: string;
   userEmail?: string;
@@ -47,7 +47,7 @@ export interface CreateSiteRequest {
 export interface SiteRecord {
   id: string;
   subdomain: string;
-  product_id: string;
+  blueprint_id: string;
   user_id: string | null;
   container_id: string | null;
   status: string;
@@ -69,13 +69,13 @@ export interface SiteRecord {
 function logSiteAction(siteRecord: SiteRecord, action: string, userEmail?: string): void {
   const db = getDb();
   db.prepare(`
-    INSERT INTO site_logs (site_id, user_id, user_email, product_id, subdomain, site_url, action)
+    INSERT INTO site_logs (site_id, user_id, user_email, blueprint_id, subdomain, site_url, action)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
     siteRecord.id,
     siteRecord.user_id,
     userEmail || null,
-    siteRecord.product_id,
+    siteRecord.blueprint_id,
     siteRecord.subdomain,
     siteRecord.site_url,
     action,
@@ -84,7 +84,7 @@ function logSiteAction(siteRecord: SiteRecord, action: string, userEmail?: strin
 
 export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & { oneTimePassword: string }> {
   const db = getDb();
-  const productConfig = getProductConfig(req.productId);
+  const blueprint = getBlueprint(req.blueprintId);
 
   // Validate subdomain early (before transaction) if custom
   let subdomain = '';
@@ -104,7 +104,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
     }
   }
 
-  const expiresIn = req.expiresIn || productConfig?.demo?.default_expiration || config.defaults.expiration;
+  const expiresIn = req.expiresIn || blueprint?.demo?.default_expiration || config.defaults.expiration;
   const expirationMs = parseExpiration(expiresIn);
   const expiresAt = expirationMs === 0
     ? '9999-12-31T23:59:59.999Z'
@@ -114,14 +114,14 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const siteUrl = `${protocol}://${subdomain}.${config.baseDomain}`;
   const adminUrl = `${siteUrl}/wp-admin/`;
 
-  const adminUser = req.adminUser || productConfig?.demo?.admin_user || 'demo';
+  const adminUser = req.adminUser || blueprint?.demo?.admin_user || 'demo';
   const adminPassword = req.adminPassword || crypto.randomBytes(16).toString('base64url');
   const autoLoginToken = ''; // generated on-demand via POST /api/sites/:id/autologin
-  const adminEmail = req.adminEmail || productConfig?.demo?.admin_email || 'demo@example.com';
-  const siteTitle = req.siteTitle || productConfig?.name || 'Demo Site';
+  const adminEmail = req.adminEmail || blueprint?.demo?.admin_email || 'demo@example.com';
+  const siteTitle = req.siteTitle || blueprint?.name || 'Demo Site';
 
   const id = uuidv4();
-  const maxConcurrent = productConfig?.demo?.max_concurrent_sites ?? config.defaults.maxConcurrentSites;
+  const maxConcurrent = blueprint?.demo?.max_concurrent_sites ?? config.defaults.maxConcurrentSites;
 
   // Atomic transaction: check all limits + insert site record
   const insertSiteTxn = db.transaction(() => {
@@ -149,8 +149,8 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
     // Check concurrent site limit per product
     const productCount = db
-      .prepare("SELECT COUNT(*) as count FROM sites WHERE product_id = ? AND status = 'running'")
-      .get(req.productId) as { count: number };
+      .prepare("SELECT COUNT(*) as count FROM sites WHERE blueprint_id = ? AND status = 'running'")
+      .get(req.blueprintId) as { count: number };
     if (maxConcurrent > 0 && productCount.count >= maxConcurrent) {
       throw new ConflictError(`Maximum concurrent sites (${maxConcurrent}) reached for this product.`);
     }
@@ -165,9 +165,9 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
     // Insert site record
     db.prepare(`
-      INSERT INTO sites (id, subdomain, product_id, user_id, status, site_url, admin_url, admin_user, admin_password, auto_login_token, expires_at, direct_file_access, restrict_capabilities)
+      INSERT INTO sites (id, subdomain, blueprint_id, user_id, status, site_url, admin_url, admin_user, admin_password, auto_login_token, expires_at, direct_file_access, restrict_capabilities)
       VALUES (?, ?, ?, ?, 'creating', ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, subdomain, req.productId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt, req.directFileAccess ? 1 : 0, (req.restrictCapabilities ?? policy.defaultRestrictCapabilities()) ? 1 : 0);
+    `).run(id, subdomain, req.blueprintId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt, req.directFileAccess ? 1 : 0, (req.restrictCapabilities ?? policy.defaultRestrictCapabilities()) ? 1 : 0);
   });
 
   insertSiteTxn();
@@ -177,7 +177,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const installOnly: string[] = [];          // plugins to install without activation
   const activateOnly: string[] = [];         // already-present plugins to activate by slug
 
-  for (const p of (productConfig?.plugins?.preinstall || [])) {
+  for (const p of (blueprint?.plugins?.preinstall || [])) {
     let ref = '';
     if (p.source === 'wordpress.org' && p.slug) {
       ref = p.slug;
@@ -199,12 +199,12 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const installPluginsList = installOnly.join(',');
   const activatePluginsList = activateOnly.join(',');
 
-  const pluginsToRemove = (productConfig?.plugins?.remove || []).join(',');
+  const pluginsToRemove = (blueprint?.plugins?.remove || []).join(',');
 
   // Build theme install list
   const installThemesList: string[] = [];
   let activeTheme = '';
-  for (const t of (productConfig?.themes?.install || [])) {
+  for (const t of (blueprint?.themes?.install || [])) {
     if (t.source === 'wordpress.org' && t.slug) {
       installThemesList.push(t.slug);
       if (t.activate) activeTheme = t.slug;
@@ -217,13 +217,13 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
     }
   }
 
-  const landingPage = productConfig?.demo?.landing_page || '';
+  const landingPage = blueprint?.demo?.landing_page || '';
 
   const VALID_PHP_VERSIONS = ['7.4', '8.1', '8.2', '8.3'];
   const phpVersion = req.phpVersion && VALID_PHP_VERSIONS.includes(req.phpVersion) ? req.phpVersion : null;
-  const image = productConfig?.docker?.image
+  const image = blueprint?.docker?.image
     || (phpVersion ? `wp-launcher/wordpress:php${phpVersion}` : config.wpImage);
-  const dbEngine = req.dbEngine || productConfig?.database || 'sqlite';
+  const dbEngine = req.dbEngine || blueprint?.database || 'sqlite';
 
   try {
     // SBP-004: Pass heartbeat secret to container so MU-plugin can authenticate
@@ -272,7 +272,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   logSiteAction(site, 'created', req.userEmail);
 
   fireWebhookEvent('site.created', {
-    siteId: site.id, subdomain: site.subdomain, productId: site.product_id,
+    siteId: site.id, subdomain: site.subdomain, blueprintId: site.blueprint_id,
     siteUrl: site.site_url, expiresAt: site.expires_at, userEmail: req.userEmail,
   }).catch(() => {});
 
@@ -305,13 +305,13 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   return { ...site, oneTimePassword: adminPassword };
 }
 
-export function listSites(productId?: string): SiteRecord[] {
+export function listSites(blueprintId?: string): SiteRecord[] {
   const db = getDb();
 
-  if (productId) {
+  if (blueprintId) {
     return db
-      .prepare("SELECT * FROM sites WHERE product_id = ? AND status != 'expired' ORDER BY created_at DESC")
-      .all(productId) as SiteRecord[];
+      .prepare("SELECT * FROM sites WHERE blueprint_id = ? AND status != 'expired' ORDER BY created_at DESC")
+      .all(blueprintId) as SiteRecord[];
   }
 
   return db
@@ -370,7 +370,7 @@ export async function deleteSite(id: string, userId?: string, userEmail?: string
       console.error(`[site] Background site dir cleanup failed for ${site.subdomain}:`, err.message);
     }
     fireWebhookEvent('site.deleted', {
-      siteId: site.id, subdomain: site.subdomain, productId: site.product_id,
+      siteId: site.id, subdomain: site.subdomain, blueprintId: site.blueprint_id,
       siteUrl: site.site_url, userEmail,
     }).catch(() => {});
   })();
@@ -462,7 +462,7 @@ export interface SiteLogRecord {
   site_id: string;
   user_id: string | null;
   user_email: string | null;
-  product_id: string;
+  blueprint_id: string;
   subdomain: string;
   site_url: string | null;
   action: string;

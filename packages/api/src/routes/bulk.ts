@@ -11,15 +11,16 @@ router.use(adminAuth);
 
 // Start a bulk job
 router.post('/', asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { productId, count, expiresIn, subdomainPrefix, adminUser, adminEmail } = req.body;
+  const { count, expiresIn, subdomainPrefix, adminUser, adminEmail } = req.body;
+  const blueprintId = req.body.blueprintId ?? req.body.productId;
 
-  if (!productId) {
-    res.status(400).json({ error: 'productId is required' });
+  if (!blueprintId) {
+    res.status(400).json({ error: 'blueprintId is required' });
     return;
   }
 
   const jobId = startBulkJob({
-    productId,
+    blueprintId,
     count: parseInt(count) || 1,
     expiresIn,
     subdomainPrefix,
@@ -41,7 +42,9 @@ router.get('/:id', (req: AuthRequest, res: Response) => {
   const job = getBulkJob(req.params.id);
   res.json({
     id: job.id,
-    productId: job.product_id,
+    blueprintId: job.blueprint_id,
+        // Deprecated alias for pre-v3 API callers.
+        productId: job.blueprint_id,
     total: job.total,
     completed: job.completed,
     failed: job.failed,

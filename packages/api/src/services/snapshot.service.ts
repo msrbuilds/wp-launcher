@@ -120,7 +120,7 @@ export async function cloneSite(siteId: string, userId?: string, opts?: { subdom
 
   // Create a new site with the same product and matching DB engine
   const newSite = await createSite({
-    productId: site.product_id,
+    blueprintId: site.blueprint_id,
     userId: userId || site.user_id,
     userEmail: userId === 'admin' ? 'admin@localhost' : undefined,
     expiresIn: opts?.expiresIn,

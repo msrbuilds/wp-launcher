@@ -5,7 +5,7 @@ import { createSite } from './site.service';
 
 export interface ScheduledLaunch {
   id: string;
-  product_id: string;
+  blueprint_id: string;
   user_id: string | null;
   user_email: string | null;
   scheduled_at: string;
@@ -17,7 +17,7 @@ export interface ScheduledLaunch {
 }
 
 export function scheduleNewLaunch(
-  productId: string,
+  blueprintId: string,
   scheduledAt: string,
   userId?: string,
   userEmail?: string,
@@ -39,8 +39,8 @@ export function scheduleNewLaunch(
   const sqliteDate = scheduledDate.toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
 
   db.prepare(
-    'INSERT INTO scheduled_launches (id, product_id, user_id, user_email, scheduled_at, config, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, productId, userId || null, userEmail || null, sqliteDate, JSON.stringify(config || {}), 'pending');
+    'INSERT INTO scheduled_launches (id, blueprint_id, user_id, user_email, scheduled_at, config, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, blueprintId, userId || null, userEmail || null, sqliteDate, JSON.stringify(config || {}), 'pending');
 
   return db.prepare('SELECT * FROM scheduled_launches WHERE id = ?').get(id) as ScheduledLaunch;
 }
@@ -83,7 +83,7 @@ async function processScheduledLaunches(): Promise<void> {
 
       const config = JSON.parse(launch.config || '{}');
       const site = await createSite({
-        productId: launch.product_id,
+        blueprintId: launch.blueprint_id,
         userId: launch.user_id || undefined,
         userEmail: launch.user_email || undefined,
         ...config,

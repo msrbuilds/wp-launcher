@@ -17,8 +17,8 @@ router.use(adminAuth);
 // Site launches over time
 router.get('/launches', (req: AuthRequest, res: Response) => {
   const days = Math.min(parseInt(req.query.days as string) || 30, 365);
-  const productId = req.query.productId as string | undefined;
-  res.json({ data: getLaunchesOverTime(days, productId) });
+  const blueprintId = (req.query.blueprintId ?? req.query.productId) as string | undefined;
+  res.json({ data: getLaunchesOverTime(days, blueprintId) });
 });
 
 // Product popularity

@@ -4,7 +4,7 @@ import { createSite, CreateSiteRequest } from './site.service';
 import { ValidationError, NotFoundError } from '../utils/errors';
 
 export interface BulkJobConfig {
-  productId: string;
+  blueprintId: string;
   count: number;
   expiresIn?: string;
   subdomainPrefix?: string;
@@ -14,7 +14,7 @@ export interface BulkJobConfig {
 
 export interface BulkJobRecord {
   id: string;
-  product_id: string;
+  blueprint_id: string;
   total: number;
   completed: number;
   failed: number;
@@ -49,9 +49,9 @@ export function startBulkJob(cfg: BulkJobConfig, userId?: string): string {
   const id = uuidv4();
 
   db.prepare(`
-    INSERT INTO bulk_jobs (id, product_id, total, status, config, results, user_id)
+    INSERT INTO bulk_jobs (id, blueprint_id, total, status, config, results, user_id)
     VALUES (?, ?, ?, 'running', ?, '[]', ?)
-  `).run(id, cfg.productId, cfg.count, JSON.stringify(cfg), userId || null);
+  `).run(id, cfg.blueprintId, cfg.count, JSON.stringify(cfg), userId || null);
 
   const signal = { cancelled: false };
   activeJobs.set(id, signal);
@@ -79,7 +79,7 @@ async function runBulkJob(jobId: string, cfg: BulkJobConfig, signal: { cancelled
 
     const index = i + 1;
     const req: CreateSiteRequest = {
-      productId: cfg.productId,
+      blueprintId: cfg.blueprintId,
       expiresIn: cfg.expiresIn,
       userId: 'admin',
       userEmail: 'admin@localhost',

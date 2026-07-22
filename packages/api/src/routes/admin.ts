@@ -106,7 +106,9 @@ router.get('/sites', (req: AuthRequest, res: Response) => {
       data: sites.map((s: any) => ({
         id: s.id,
         subdomain: s.subdomain,
-        productId: s.product_id,
+        blueprintId: s.blueprint_id,
+        // Deprecated alias for pre-v3 API callers.
+        productId: s.blueprint_id,
         userId: s.user_id,
         url: s.site_url,
         status: s.status,
