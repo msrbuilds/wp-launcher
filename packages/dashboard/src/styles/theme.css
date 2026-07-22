@@ -96,8 +96,11 @@
      it these read as either muted or brand-coloured, which loses the meaning. */
   --success: oklch(0.62 0.15 150);
   --success-foreground: oklch(0.99 0 0);
-  --border: oklch(0.92 0.006 265);
-  --input: oklch(0.92 0.006 265);
+  /* Panel/divider edges stay quiet — softer than the input border so cards
+     read as gently outlined, not boxed in. --input keeps more contrast so
+     fields stay clearly tappable. */
+  --border: oklch(0.94 0.004 265);
+  --input: oklch(0.90 0.006 265);
   --ring: oklch(0.72 0.17 55);
   --radius: 0.5rem;
 }
@@ -121,10 +124,12 @@
   --destructive-foreground: oklch(0.99 0 0);
   --success: oklch(0.7 0.15 150);
   --success-foreground: oklch(0.18 0.02 265);
-  /* Softer than the input border: panel/divider edges should whisper against
-     the dark card, not draw a bright line around it. */
-  --border: oklch(0.27 0.015 265);
-  --input: oklch(0.31 0.02 265);
+  /* A DARK edge for the dark theme: sit below the card fill (0.23) and page
+     background (0.19) so panels get a soft dark outline, mirroring how the
+     light theme's border sits just below its white card — never a light-grey
+     line floating on top. --input stays lighter so fields remain tappable. */
+  --border: oklch(0.17 0.01 265);
+  --input: oklch(0.32 0.02 265);
   --ring: oklch(0.72 0.17 55);
 }
 
