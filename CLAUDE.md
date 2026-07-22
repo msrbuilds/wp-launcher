@@ -79,7 +79,7 @@ bash install.sh            # One-click VPS installer
 
 ## Environment Variables
 
-**Core:** `APP_MODE` (local|agency), `NODE_ENV`, `BASE_DOMAIN` (e.g. demo.example.com), `PUBLIC_URL`
+**Core:** `NODE_ENV`, `BASE_DOMAIN` (e.g. demo.example.com), `PUBLIC_URL`
 **Secrets:** `API_KEY`, `JWT_SECRET`, `PROVISIONER_INTERNAL_KEY`, `JWT_EXPIRES_IN`
 **SMTP:** `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
 **WordPress:** `WP_IMAGE`, `MAX_TOTAL_SITES` (50), `MAX_SITES_PER_USER` (3), `CONTAINER_MEMORY` (268MB), `CONTAINER_CPU` (0.5), `PRODUCT_ASSETS_PATH` (host path to product-assets/), `SITES_HOST_PATH` (host path to sites/ — enables direct file access to wp-content)
@@ -274,16 +274,36 @@ Stored in `settings` table as `feature.*` keys. Controlled via Admin > Features 
 
 ## CSS Architecture
 
-- All dashboard styles in `packages/dashboard/src/index.css` (single file, no per-component CSS files)
-- CSS class naming: prefixed by component (`lp-` LaunchPage, `sl-` SitesListPage, `ft-` FeaturesTab, `br-` BrandingTab, `cl-` ClientsPage, `pj-` ProjectsPage, `iv-` InvoicesPage, `ip-` InvoicePrintPage, etc.)
-- Global reusable classes: `card`, `btn`, `btn-primary`, `btn-secondary`, `btn-danger`, `badge`, `badge-*`, `status-dot`, `spinner`, `form-group`, `form-label`, `form-input`, `alert-*`
-- Dynamic/conditional styles (dependent on JS state) may remain inline
-- CSS custom properties for theming: `--prussian-blue`, `--orange`, `--grey`, `--text-muted`, `--text-light`, `--border`, `--bg-surface`
+- **Tailwind CSS v4 + shadcn/ui.** There is no `index.css`; the old 7,464-line
+  stylesheet and its `lp-`/`sl-`/`ft-` class prefixes are gone.
+- Design tokens live in `packages/dashboard/src/styles/theme.css` as semantic pairs:
+  `background`/`foreground`, `card`, `popover`, `primary`, `secondary`, `muted`,
+  `accent`, `destructive`, `success`, plus `border`, `input`, `ring`. Two sets:
+  `:root` (light) and `.dark`.
+- **Never write a hex value or an inline `style` prop in a component.** Use tokens.
+  The only sanctioned exceptions, each commented at its site: user-supplied colour
+  swatches in BrandingTab, editor brand colours in `lib/editor-colors.ts`, the
+  decorative shortcut tints in LocalDashboard, and InvoicePrintPage which is pinned
+  to black-on-white so it prints correctly.
+- Primitives are in `src/components/ui/` (added via `npx shadcn@latest add <name>`).
+  Compose classes with `cn()` from `@/lib/utils`. Icons come from `lucide-react`.
+- Theme is `light | dark | system`, stored in `localStorage` under `wpl-theme` and
+  applied as a `dark` class on `<html>`. `public/theme-init.js` applies it before
+  first paint — it is an external file because the CSP forbids inline scripts.
+- The admin-configurable accent colour maps to the `primary` token; its foreground
+  is derived from WCAG luminance in `lib/color.ts`.
+- Charts (recharts) take colours as props, so they read the resolved CSS custom
+  properties and recompute on theme change.
 
 ## Dashboard Routing
 
-- **Local mode**: `AdminLayout` is root layout (sidebar navigation), no `App.tsx` wrapper. All pages rendered inside `AdminLayout > Outlet`. Footer added inside `admin-content`.
-- **Agency mode**: `App.tsx` is root layout (header navigation + footer). Admin pages nested under `/admin` with `AdminLayout`.
+- One route tree. `AppShell` (`src/components/shell/`) is the panel frame: collapsible
+  grouped sidebar, topbar with breadcrumb, theme toggle and account menu. There is no
+  `/admin` prefix and no `App.tsx`.
+- Routes outside the shell: `/login`, `/verify`, `/setup`. Old paths (`/admin/*`,
+  `/products`, `/create`) redirect to their new equivalents.
+- Sidebar entries are defined in `src/components/shell/nav-items.ts` and hidden by
+  feature flag and role only.
 
 ## Development Notes
 
