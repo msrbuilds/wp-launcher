@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Globe, Plus, Layers,
+  LayoutDashboard, Globe, Layers,
   Users, FolderKanban, Receipt,
   Activity, BarChart3, Timer,
   RefreshCw, ToggleLeft, Palette, UserCog, Server,
@@ -35,7 +35,6 @@ export function buildNavGroups(features: Features, role: string | undefined): Na
       items: [
         { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
         { to: '/sites', label: 'Sites', icon: Globe },
-        { to: '/sites/new', label: 'New Site', icon: Plus },
         { to: '/blueprints', label: 'Blueprints', icon: Layers },
       ],
     },

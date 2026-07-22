@@ -12,7 +12,7 @@ describe('buildNavGroups', () => {
   it('always shows the panel group', () => {
     const groups = buildNavGroups({}, 'member');
     const panel = groups.find((g) => g.label === 'Panel');
-    expect(panel?.items.map((i) => i.to)).toEqual(['/', '/sites', '/sites/new', '/blueprints']);
+    expect(panel?.items.map((i) => i.to)).toEqual(['/', '/sites', '/blueprints']);
   });
 
   it('hides the clients group unless the projects feature is on', () => {

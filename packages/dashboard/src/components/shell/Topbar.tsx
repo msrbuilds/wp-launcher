@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { PanelLeft, Sun, Moon, Monitor, LogOut } from 'lucide-react';
+import { PanelLeft, Sun, Moon, Monitor, LogOut, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -22,7 +22,10 @@ function useBreadcrumb(): string {
       if (matches) return item.label;
     }
   }
-  return pathname === '/' ? 'Overview' : '';
+  // Routes without a nav entry still need a title.
+  if (pathname === '/') return 'Overview';
+  if (pathname === '/sites/new') return 'New Site';
+  return '';
 }
 
 export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
@@ -41,6 +44,11 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
       <div className="text-sm font-medium text-foreground">{crumb}</div>
 
       <div className="ml-auto flex items-center gap-1">
+        <Button size="sm" className="mr-1" onClick={() => navigate('/sites/new')}>
+          <Plus className="h-4 w-4 sm:mr-1" />
+          <span className="hidden sm:inline">New Site</span>
+        </Button>
+
         <Button
           variant="ghost"
           size="icon"
