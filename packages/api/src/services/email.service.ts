@@ -95,6 +95,28 @@ export async function sendVerificationEmail(
   console.log(`[email] Verification email sent to ${email} via ${config.emailProvider}`);
 }
 
+export async function sendEmailChangeVerification(
+  newEmail: string,
+  token: string,
+): Promise<void> {
+  const verifyUrl = `${config.publicUrl}/verify-email-change?token=${token}`;
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 2rem;">
+      <h2 style="color: #1a1a2e;">Confirm your new email address</h2>
+      <p>You asked to change the email on your WP Launcher account to this address. Click below to confirm the change:</p>
+      <a href="${verifyUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500; margin: 1rem 0;">
+        Confirm Email Change
+      </a>
+      <p style="color: #64748b; font-size: 0.85rem;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email — your address won't change.</p>
+      <p style="color: #94a3b8; font-size: 0.8rem;">Or copy this link: ${verifyUrl}</p>
+    </div>
+  `;
+
+  await sendEmail(newEmail, 'Confirm your new email - WP Launcher', html);
+  console.log(`[email] Email-change verification sent to ${newEmail} via ${config.emailProvider}`);
+}
+
 export async function sendWelcomeEmail(
   email: string,
 ): Promise<void> {

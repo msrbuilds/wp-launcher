@@ -13,6 +13,7 @@ import LoginPage from './pages/LoginPage';
 import SetupPage from './pages/SetupPage';
 import AccountPage from './pages/AccountPage';
 import VerifyPage from './pages/VerifyPage';
+import VerifyEmailChangePage from './pages/VerifyEmailChangePage';
 import AppShell from './components/shell/AppShell';
 import AnalyticsTab from './pages/admin/AnalyticsTab';
 import MonitoringPage from './pages/admin/MonitoringPage';
@@ -63,6 +64,7 @@ function AppRoutes() {
       {/* Outside the shell: its auth guard would bounce these straight back. */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/verify" element={<VerifyPage />} />
+      <Route path="/verify-email-change" element={<VerifyEmailChangePage />} />
       <Route path="/setup" element={<Navigate to="/" replace />} />
 
       <Route path="/" element={<AppShell />}>

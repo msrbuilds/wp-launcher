@@ -1,6 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { registerUser, verifyUserEmail, setInitialPassword, loginUser, updatePassword } from '../services/user.service';
-import { sendVerificationEmail, sendWelcomeEmail } from '../services/email.service';
+import path from 'path';
+import fs from 'fs';
+import {
+  registerUser, verifyUserEmail, setInitialPassword, loginUser, updatePassword,
+  getUserById, updateProfile, setAvatarUrl, requestEmailChange, confirmEmailChange,
+  UserRecord,
+} from '../services/user.service';
+import { sendVerificationEmail, sendWelcomeEmail, sendEmailChangeVerification } from '../services/email.service';
 import { userAuth, generateToken, AuthRequest } from '../middleware/userAuth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { policy } from '../policy';
@@ -8,6 +14,18 @@ import { ValidationError } from '../utils/errors';
 import { config } from '../config';
 
 const router = Router();
+
+/** Shape returned to the dashboard for the signed-in user. */
+function publicUser(user: UserRecord) {
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role || 'user',
+    name: user.name || '',
+    avatarUrl: user.avatar_url || '',
+    pendingEmail: user.pending_email || '',
+  };
+}
 
 function setAuthCookie(res: Response, token: string): void {
   const isProduction = config.nodeEnv === 'production';
@@ -126,12 +144,28 @@ router.post('/login', asyncHandler(async (req: Request, res: Response) => {
 
 // Get current user info
 router.get('/me', userAuth, (req: AuthRequest, res: Response) => {
-  res.json({
-    id: req.userId,
-    email: req.userEmail,
-    role: req.userRole || 'user',
-  });
+  const user = getUserById(req.userId!);
+  if (!user) {
+    // API-key auth resolves to the synthetic 'admin' row, which always exists;
+    // a real JWT with no row means the account was removed.
+    res.status(401).json({ error: 'User not found' });
+    return;
+  }
+  res.json(publicUser(user));
 });
+
+// Update profile (display name)
+router.patch('/profile', userAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { name } = req.body;
+  if (typeof name !== 'string') {
+    throw new ValidationError('Name is required');
+  }
+  if (name.length > 80) {
+    throw new ValidationError('Name must be 80 characters or fewer');
+  }
+  const user = updateProfile(req.userId!, name);
+  res.json(publicUser(user));
+}));
 
 // Update password
 router.post('/update-password', userAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -148,6 +182,92 @@ router.post('/update-password', userAuth, asyncHandler(async (req: AuthRequest, 
   await updatePassword(req.userId!, currentPassword, newPassword);
   res.json({ message: 'Password updated successfully' });
 }));
+
+// Request an email change — sends a verification link to the new address
+router.post('/change-email', userAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { newEmail, currentPassword } = req.body;
+  if (!newEmail || !currentPassword) {
+    throw new ValidationError('New email and current password are required');
+  }
+
+  const { token, pendingEmail } = await requestEmailChange(req.userId!, newEmail, currentPassword);
+  await sendEmailChangeVerification(pendingEmail, token);
+
+  res.json({
+    message: `Verification link sent to ${pendingEmail}. Check that inbox to confirm the change.`,
+    pendingEmail,
+  });
+}));
+
+// Confirm an email change from the link — token-authenticated, no session needed
+router.post('/verify-email-change', asyncHandler(async (req: Request, res: Response) => {
+  const { token } = req.body;
+  if (!token) {
+    throw new ValidationError('Verification token is required');
+  }
+  const user = confirmEmailChange(token);
+  res.json({ message: 'Email address updated', email: user.email });
+}));
+
+const AVATAR_TYPES: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+};
+
+function removeExistingAvatars(dir: string, userId: string): void {
+  if (!fs.existsSync(dir)) return;
+  for (const f of fs.readdirSync(dir)) {
+    if (f.startsWith(`avatar-${userId}.`)) fs.unlinkSync(path.join(dir, f));
+  }
+}
+
+// Upload a profile avatar (raw image body — SVG rejected as an XSS vector).
+// express.json() ignores non-JSON content types, so the raw stream is intact here.
+router.post('/avatar', userAuth, (req: AuthRequest, res: Response) => {
+  const contentType = (req.headers['content-type'] || '').split(';')[0].trim();
+  const ext = AVATAR_TYPES[contentType];
+  if (!ext) {
+    res.status(400).json({ error: 'Invalid file type. Allowed: PNG, JPEG, WebP, GIF' });
+    return;
+  }
+
+  const chunks: Buffer[] = [];
+  let tooLarge = false;
+  req.on('data', (chunk: Buffer) => {
+    chunks.push(chunk);
+    if (Buffer.concat(chunks).length > 2 * 1024 * 1024) tooLarge = true;
+  });
+  req.on('end', () => {
+    if (tooLarge) {
+      res.status(400).json({ error: 'File too large (max 2MB)' });
+      return;
+    }
+    const body = Buffer.concat(chunks);
+    if (body.length === 0) {
+      res.status(400).json({ error: 'Empty upload' });
+      return;
+    }
+
+    const uploadDir = path.resolve(config.dataDir, 'uploads');
+    fs.mkdirSync(uploadDir, { recursive: true });
+    removeExistingAvatars(uploadDir, req.userId!);
+    fs.writeFileSync(path.join(uploadDir, `avatar-${req.userId}${ext}`), body);
+
+    const avatarUrl = `/api/uploads/avatar-${req.userId}${ext}`;
+    setAvatarUrl(req.userId!, avatarUrl);
+    res.json({ avatarUrl });
+  });
+});
+
+// Remove the profile avatar
+router.delete('/avatar', userAuth, (req: AuthRequest, res: Response) => {
+  const uploadDir = path.resolve(config.dataDir, 'uploads');
+  removeExistingAvatars(uploadDir, req.userId!);
+  setAvatarUrl(req.userId!, null);
+  res.json({ status: 'removed' });
+});
 
 // Logout — clear auth cookie
 router.post('/logout', (_req: Request, res: Response) => {

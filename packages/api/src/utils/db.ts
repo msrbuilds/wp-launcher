@@ -417,6 +417,21 @@ function initSchema(db: Database.Database): void {
     // Column already exists
   }
 
+  // Migration: account profile fields (display name, avatar, pending email change).
+  for (const col of [
+    `name TEXT`,
+    `avatar_url TEXT`,
+    `pending_email TEXT`,
+    `email_change_token TEXT`,
+    `email_change_expires_at TEXT`,
+  ]) {
+    try {
+      db.exec(`ALTER TABLE users ADD COLUMN ${col}`);
+    } catch {
+      // Column already exists
+    }
+  }
+
   // Panel settings + per-site columns. This is the only remaining reader of
   // APP_MODE, and only on the first run after upgrading.
   runPanelMigration(db, {

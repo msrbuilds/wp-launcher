@@ -1,8 +1,10 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { PanelLeft, Sun, Moon, Monitor, LogOut, Plus } from 'lucide-react';
+import { PanelLeft, Sun, Moon, Monitor, LogOut, Plus, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Avatar } from '@/components/ui/avatar';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -61,11 +63,29 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="max-w-[12rem] truncate">
-              {user?.email ?? 'Account'}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="max-w-[14rem] gap-2 pl-1.5"
+              aria-label="Account menu"
+            >
+              <Avatar name={user?.name} email={user?.email} src={user?.avatarUrl} size="sm" />
+              <span className="hidden truncate sm:inline">{user?.name || user?.email || 'Account'}</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="flex items-center gap-2 font-normal">
+              <Avatar name={user?.name} email={user?.email} src={user?.avatarUrl} size="md" />
+              <div className="min-w-0">
+                {user?.name && <div className="truncate text-sm font-medium text-foreground">{user.name}</div>}
+                <div className="truncate text-xs text-muted-foreground">{user?.email}</div>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate('/account')}>
+              <UserCog className="mr-2 h-4 w-4" />
+              Account settings
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { logout(); navigate('/login'); }}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign out

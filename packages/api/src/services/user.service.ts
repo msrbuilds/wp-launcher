@@ -17,6 +17,11 @@ export interface UserRecord {
   password_hash: string;
   verified: number;
   role: UserRole;
+  name: string | null;
+  avatar_url: string | null;
+  pending_email: string | null;
+  email_change_token: string | null;
+  email_change_expires_at: string | null;
   verification_token: string | null;
   verification_expires_at: string | null;
   created_at: string;
@@ -191,6 +196,103 @@ export async function updatePassword(userId: string, currentPassword: string, ne
 export function getUserById(id: string): UserRecord | undefined {
   const db = getDb();
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord | undefined;
+}
+
+/** Update the user's display name. An empty string clears it. */
+export function updateProfile(id: string, name: string): UserRecord {
+  const db = getDb();
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord | undefined;
+  if (!user) throw new NotFoundError('User not found');
+
+  const trimmed = name.trim();
+  db.prepare("UPDATE users SET name = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(trimmed || null, id);
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord;
+}
+
+/** Set (or clear, with null) the user's avatar URL. */
+export function setAvatarUrl(id: string, url: string | null): void {
+  const db = getDb();
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord | undefined;
+  if (!user) throw new NotFoundError('User not found');
+  db.prepare("UPDATE users SET avatar_url = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(url, id);
+}
+
+/**
+ * Begin an email change. Verifies the current password and that the new address
+ * is free, then stores it as pending behind a verification token. The change
+ * only takes effect once the token is confirmed via {@link confirmEmailChange}.
+ */
+export async function requestEmailChange(
+  id: string,
+  newEmail: string,
+  currentPassword: string,
+): Promise<{ token: string; pendingEmail: string }> {
+  const db = getDb();
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord | undefined;
+  if (!user) throw new NotFoundError('User not found');
+
+  const email = newEmail.toLowerCase().trim();
+  if (!email || !email.includes('@')) {
+    throw new ValidationError('A valid email address is required');
+  }
+  if (email === user.email) {
+    throw new ValidationError('That is already your email address');
+  }
+
+  if (!user.password_hash || !(await bcrypt.compare(currentPassword, user.password_hash))) {
+    throw new ValidationError('Current password is incorrect');
+  }
+
+  const taken = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, id);
+  if (taken) {
+    throw new ValidationError('That email address is already in use');
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+  db.prepare(`
+    UPDATE users SET pending_email = ?, email_change_token = ?, email_change_expires_at = ?,
+    updated_at = datetime('now') WHERE id = ?
+  `).run(email, token, expiresAt, id);
+
+  return { token, pendingEmail: email };
+}
+
+/**
+ * Confirm a pending email change. Re-checks that the address is still free (it
+ * could have been claimed while the link sat in an inbox), then swaps it in.
+ */
+export function confirmEmailChange(token: string): UserRecord {
+  const db = getDb();
+
+  const confirmTxn = db.transaction((token: string) => {
+    const user = db.prepare('SELECT * FROM users WHERE email_change_token = ?')
+      .get(token) as UserRecord | undefined;
+    if (!user || !user.pending_email) {
+      throw new ValidationError('Invalid or expired email-change link');
+    }
+    if (user.email_change_expires_at && new Date(user.email_change_expires_at) < new Date()) {
+      throw new ValidationError('This email-change link has expired. Please request a new one.');
+    }
+
+    const taken = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?')
+      .get(user.pending_email, user.id);
+    if (taken) {
+      throw new ValidationError('That email address is no longer available');
+    }
+
+    db.prepare(`
+      UPDATE users SET email = ?, pending_email = NULL, email_change_token = NULL,
+      email_change_expires_at = NULL, updated_at = datetime('now') WHERE id = ?
+    `).run(user.pending_email, user.id);
+
+    return db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as UserRecord;
+  });
+
+  return confirmTxn(token);
 }
 
 export function listUsers(limit = 100, offset = 0): UserRecord[] {

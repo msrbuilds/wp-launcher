@@ -6,12 +6,16 @@ interface User {
   id: string;
   email: string;
   role: string;
+  name?: string;
+  avatarUrl?: string;
+  pendingEmail?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   login: (user: User) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isAdmin: boolean;
 }
@@ -20,6 +24,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   login: () => {},
   logout: () => {},
+  refreshUser: async () => {},
   isAuthenticated: false,
   isAdmin: false,
 });
@@ -45,6 +50,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(newUser);
   }
 
+  // Re-fetch the signed-in user after a profile/avatar/email change so the
+  // topbar and account page reflect it without a full reload.
+  async function refreshUser() {
+    try {
+      const res = await apiFetch('/api/auth/me');
+      if (res.ok) setUser(await res.json());
+    } catch {
+      // Leave the current user in place on a transient failure.
+    }
+  }
+
   function logout() {
     apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     setUser(null);
@@ -55,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin = user?.role === 'admin' || user?.role === 'owner';
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isAdmin }}>
+    <AuthContext.Provider value={{ user, login, logout, refreshUser, isAuthenticated: !!user, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

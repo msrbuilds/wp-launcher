@@ -172,10 +172,13 @@ app.post('/api/auth/register', authWriteLimiter);
 app.post('/api/auth/verify', authWriteLimiter);
 app.post('/api/auth/set-password', authWriteLimiter);
 app.post('/api/auth/login', authWriteLimiter);
-// Read ops (/me, logout, update-password) get relaxed limits
+app.post('/api/auth/change-email', authWriteLimiter);
+app.post('/api/auth/verify-email-change', authWriteLimiter);
+// Read ops (/me, logout, update-password, profile) get relaxed limits
 app.get('/api/auth/me', authReadLimiter);
 app.post('/api/auth/logout', authReadLimiter);
 app.post('/api/auth/update-password', authReadLimiter);
+app.patch('/api/auth/profile', authReadLimiter);
 app.use('/api/auth', authRouter);
 
 // Admin routes — admin JWT or M2M API key, rate limited
