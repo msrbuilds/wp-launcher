@@ -49,7 +49,7 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
       <div className="ml-auto flex items-center gap-1">
         <ServerClock />
 
-        <Button size="sm" className="mr-1" onClick={() => navigate('/sites/new')}>
+        <Button variant="outline" size="sm" className="mr-1" onClick={() => navigate('/sites/new')}>
           <Plus className="h-4 w-4 sm:mr-1" />
           <span className="hidden sm:inline">New Site</span>
         </Button>
