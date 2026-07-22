@@ -121,7 +121,9 @@
   --destructive-foreground: oklch(0.99 0 0);
   --success: oklch(0.7 0.15 150);
   --success-foreground: oklch(0.18 0.02 265);
-  --border: oklch(0.31 0.02 265);
+  /* Softer than the input border: panel/divider edges should whisper against
+     the dark card, not draw a bright line around it. */
+  --border: oklch(0.27 0.015 265);
   --input: oklch(0.31 0.02 265);
   --ring: oklch(0.72 0.17 55);
 }
