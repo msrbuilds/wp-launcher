@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.6
+
+- Added `apiKey` setting. WP Launcher now requires an owner/admin caller for
+  productivity stats, so the status bar needs your panel's `API_KEY` to show
+  today's total. Heartbeat tracking is unaffected and still needs no key.
+- The status bar shows `set API key` when the key is missing, instead of `NaN`
+- Stats requests that fail or return an unexpected body no longer render as `NaN`
+
 ## 0.2.5
 
 - Added `heartbeatSecret` setting for authenticating heartbeats with WP Launcher API
