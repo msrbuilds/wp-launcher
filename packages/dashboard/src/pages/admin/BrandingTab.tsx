@@ -29,52 +29,27 @@ const COLOR_META: { key: keyof ColorPalette; label: string; description: string;
   { key: 'accent', label: 'Accent colour', description: 'Buttons, links and focus rings. All other colours follow the light or dark theme.', cssVar: '--primary' },
 ];
 
-const PRESETS: { name: string; colors: ColorPalette }[] = [
-  {
-    name: 'Default',
-    colors: { primaryDark: '#14213d', accent: '#fb8500', grey: '#e5e5e5', textMuted: '#6b7280', textLight: '#9ca3af', border: '#e5e5e5', bgSurface: '#f5f5f5' },
-  },
-  {
-    name: 'Ocean Blue',
-    colors: { primaryDark: '#0f172a', accent: '#0ea5e9', grey: '#e2e8f0', textMuted: '#64748b', textLight: '#94a3b8', border: '#e2e8f0', bgSurface: '#f8fafc' },
-  },
-  {
-    name: 'Forest',
-    colors: { primaryDark: '#1a2e1a', accent: '#16a34a', grey: '#e2e8e2', textMuted: '#4b6b4b', textLight: '#86a886', border: '#d4e5d4', bgSurface: '#f5f8f5' },
-  },
-  {
-    name: 'Royal Purple',
-    colors: { primaryDark: '#1e1b3a', accent: '#8b5cf6', grey: '#e8e5f0', textMuted: '#6b6789', textLight: '#9b97b0', border: '#e5e2f0', bgSurface: '#f8f7fc' },
-  },
-  {
-    name: 'Crimson',
-    colors: { primaryDark: '#1c1917', accent: '#dc2626', grey: '#e7e5e4', textMuted: '#78716c', textLight: '#a8a29e', border: '#e7e5e4', bgSurface: '#fafaf9' },
-  },
-  {
-    name: 'Sunset',
-    colors: { primaryDark: '#2d1b2e', accent: '#f43f5e', grey: '#f0e4e8', textMuted: '#7c6275', textLight: '#a8919e', border: '#eadce2', bgSurface: '#fdf6f8' },
-  },
-  {
-    name: 'Teal',
-    colors: { primaryDark: '#0f2b2b', accent: '#14b8a6', grey: '#d6e8e5', textMuted: '#4a7c76', textLight: '#80aba5', border: '#cce4e0', bgSurface: '#f0faf8' },
-  },
-  {
-    name: 'Slate',
-    colors: { primaryDark: '#1e293b', accent: '#475569', grey: '#e2e8f0', textMuted: '#64748b', textLight: '#94a3b8', border: '#cbd5e1', bgSurface: '#f1f5f9' },
-  },
-  {
-    name: 'Amber',
-    colors: { primaryDark: '#292118', accent: '#d97706', grey: '#eee8df', textMuted: '#806848', textLight: '#a89478', border: '#e8ddd0', bgSurface: '#fdf8f0' },
-  },
-  {
-    name: 'Midnight',
-    colors: { primaryDark: '#020617', accent: '#6366f1', grey: '#e0e1eb', textMuted: '#5b5d7a', textLight: '#8c8ea8', border: '#dddeed', bgSurface: '#f5f5fc' },
-  },
+/*
+ * Only the accent is applied, so a preset is a single colour. Multi-swatch
+ * palettes would advertise control over neutrals and surfaces that the theme
+ * tokens now own.
+ */
+const ACCENT_PRESETS: { name: string; accent: string }[] = [
+  { name: 'Default', accent: '#fb8500' },
+  { name: 'Ocean', accent: '#0ea5e9' },
+  { name: 'Forest', accent: '#16a34a' },
+  { name: 'Purple', accent: '#8b5cf6' },
+  { name: 'Crimson', accent: '#dc2626' },
+  { name: 'Rose', accent: '#f43f5e' },
+  { name: 'Teal', accent: '#14b8a6' },
+  { name: 'Slate', accent: '#475569' },
+  { name: 'Amber', accent: '#d97706' },
+  { name: 'Indigo', accent: '#6366f1' },
 ];
 
 const TABS = [
   { id: 'general', label: 'General', icon: Settings },
-  { id: 'colors', label: 'Color Palette', icon: Palette },
+  { id: 'colors', label: 'Accent', icon: Palette },
   { id: 'layout', label: 'Layout', icon: LayoutGrid },
 ] as const;
 
@@ -273,56 +248,45 @@ export default function BrandingTab() {
           <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h4 className="text-sm font-semibold">Color Palette</h4>
+                <h4 className="text-sm font-semibold">Accent colour</h4>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Customize the color scheme across the entire dashboard.
+                  Used for buttons, links and focus rings. Every other colour comes from
+                  the light or dark theme.
                 </p>
               </div>
-              <Button size="sm" variant="outline" onClick={() => setColors(DEFAULT_COLORS)}>
+              <Button size="sm" variant="outline" onClick={() => setColors({ ...colors, accent: DEFAULT_COLORS.accent })}>
                 Reset to Defaults
               </Button>
             </div>
 
-            {/* Preset palettes */}
-            <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-              {PRESETS.map((preset) => {
-                const isActive = Object.keys(preset.colors).every(
-                  (k) => colors[k as keyof ColorPalette] === preset.colors[k as keyof ColorPalette]
-                );
+            {/* Accent presets */}
+            <div className="mb-5 flex flex-wrap gap-2">
+              {ACCENT_PRESETS.map((preset) => {
+                const isActive = colors.accent.toLowerCase() === preset.accent.toLowerCase();
                 return (
                   <button
                     key={preset.name}
                     type="button"
-                    onClick={() => setColors(preset.colors)}
+                    onClick={() => setColors({ ...colors, accent: preset.accent })}
+                    title={preset.name}
+                    aria-label={preset.name}
+                    aria-pressed={isActive}
                     className={cn(
-                      'flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors',
+                      'flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors',
                       isActive
-                        ? 'border-primary bg-accent'
-                        : 'border-border bg-card hover:bg-accent',
+                        ? 'border-primary bg-accent font-medium text-foreground'
+                        : 'border-border bg-card text-muted-foreground hover:bg-accent',
                     )}
                   >
-                    <div className="flex gap-1">
-                      {/* Preview swatches render admin-chosen preset colours (user data,
-                          not design tokens), so the value must stay inline. */}
-                      <div className="h-4 w-4 rounded-sm border border-border" style={{ background: preset.colors.primaryDark }} />
-                      <div className="h-4 w-4 rounded-sm border border-border" style={{ background: preset.colors.accent }} />
-                      <div className="h-4 w-4 rounded-sm border border-border" style={{ background: preset.colors.textMuted }} />
-                      <div className="h-4 w-4 rounded-sm border border-border" style={{ background: preset.colors.bgSurface }} />
-                    </div>
-                    <span className={cn('text-xs', isActive ? 'font-medium text-foreground' : 'text-muted-foreground')}>
-                      {preset.name}
-                    </span>
+                    {/* The swatch shows an admin-chosen colour, so it stays inline. */}
+                    <span
+                      className="h-4 w-4 rounded-full border border-border"
+                      style={{ background: preset.accent }}
+                    />
+                    {preset.name}
                   </button>
                 );
               })}
-            </div>
-
-            {/* Color preview bar */}
-            <div className="mb-5 flex h-8 overflow-hidden rounded-lg border border-border">
-              {COLOR_META.map(({ key }) => (
-                /* Live preview of the admin-chosen colour value (user data, not a token). */
-                <div key={key} className="flex-1" style={{ background: colors[key] }} title={key} />
-              ))}
             </div>
 
             {/* Color grid */}

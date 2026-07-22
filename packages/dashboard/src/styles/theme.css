@@ -5,6 +5,32 @@
  */
 @import "tailwindcss";
 
+@layer base {
+  /*
+   * Tailwind v4's Preflight sets `cursor: default` on buttons, so every button,
+   * tab and menu item stops feeling clickable. Restore the pointer for anything
+   * genuinely interactive, while leaving disabled controls alone.
+   */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='tab']:not([aria-disabled='true']),
+  [role='menuitem'],
+  [role='option'],
+  a[href],
+  label[for],
+  summary,
+  select:not(:disabled),
+  [type='checkbox']:not(:disabled),
+  [type='radio']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+}
+
 /* `dark` is a class the ThemeProvider toggles, not a media query. */
 @custom-variant dark (&:where(.dark, .dark *));
 
