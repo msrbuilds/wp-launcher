@@ -7,6 +7,20 @@
 
 @layer base {
   /*
+   * Tailwind v4 defaults an un-coloured `border` to `currentColor`, so bare
+   * `border` utilities (shadcn's Card, and any component that omits
+   * `border-border`) inherited the element's text colour — a near-white edge on
+   * dark cards, a heavy edge on light ones, immune to the --border token.
+   * Default every border to the themed token; explicit `border-<colour>`
+   * classes (e.g. border-input, border-primary) still win.
+   */
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+
+  /*
    * Tailwind v4's Preflight sets `cursor: default` on buttons, so every button,
    * tab and menu item stops feeling clickable. Restore the pointer for anything
    * genuinely interactive, while leaving disabled controls alone.
