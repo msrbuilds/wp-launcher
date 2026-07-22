@@ -1,21 +1,9 @@
 /*
- * Tailwind is imported WITHOUT preflight on purpose.
- *
- * Preflight resets base element styles, which would break every page still
- * rendered by the legacy index.css during the redesign migration. It is added
- * back in Phase C, in the same change that deletes index.css.
+ * Every page is now token-based, so the legacy stylesheet is gone and Preflight
+ * is enabled. During the migration it was deliberately omitted: it resets base
+ * element styles and would have broken every page still rendered by index.css.
  */
-/*
- * `legacy` is declared first so it has the LOWEST precedence. index.css is
- * imported into it rather than loaded from main.tsx, because unlayered CSS
- * beats every layered rule regardless of specificity — leaving it unlayered
- * meant `a { color: var(--orange) }` and `* { padding: 0 }` silently defeated
- * every Tailwind utility in the new shell.
- */
-@layer legacy, theme, base, components, utilities;
-@import "../index.css" layer(legacy);
-@import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/utilities.css" layer(utilities);
+@import "tailwindcss";
 
 /* `dark` is a class the ThemeProvider toggles, not a media query. */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -69,32 +57,6 @@
   --border: oklch(0.31 0.02 265);
   --input: oklch(0.31 0.02 265);
   --ring: oklch(0.72 0.17 55);
-}
-
-/*
- * Bridge for pages still styled by index.css, deleted in Phase C along with it.
- *
- * `--white` and `--prussian-blue` are always used as a contrasting pair —
- * white text on prussian backgrounds, prussian text on white ones. Flipping
- * both together in dark mode therefore preserves every pairing, where remapping
- * either one alone would produce same-on-same text somewhere.
- */
-:root {
-  --white: oklch(1 0 0);
-  --prussian-blue: oklch(0.21 0.03 265);
-  --grey: oklch(0.92 0.006 265);
-  --text-muted: oklch(0.55 0.02 265);
-  --text-light: oklch(0.65 0.02 265);
-  --bg-surface: oklch(0.97 0.005 265);
-}
-
-.dark {
-  --white: oklch(0.23 0.02 265);
-  --prussian-blue: oklch(0.97 0.005 265);
-  --grey: oklch(0.31 0.02 265);
-  --text-muted: oklch(0.68 0.02 265);
-  --text-light: oklch(0.58 0.02 265);
-  --bg-surface: oklch(0.19 0.02 265);
 }
 
 @theme inline {

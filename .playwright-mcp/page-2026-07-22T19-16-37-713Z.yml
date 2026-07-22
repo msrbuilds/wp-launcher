@@ -1,0 +1,201 @@
+- generic [ref=f5e8]:
+  - complementary [ref=f5e9]:
+    - generic [ref=f5e11]:
+      - navigation [ref=f5e15]:
+        - list [ref=f5e18]:
+          - listitem [ref=f5e19]:
+            - link [ref=f5e304] [cursor=pointer]:
+              - /url: /
+          - listitem [ref=f5e27]:
+            - link [ref=f5e310] [cursor=pointer]:
+              - /url: /sites
+          - listitem [ref=f5e33]:
+            - link [ref=f5e314] [cursor=pointer]:
+              - /url: /sites/new
+          - listitem [ref=f5e37]:
+            - link [ref=f5e316] [cursor=pointer]:
+              - /url: /blueprints
+        - list [ref=f5e46]:
+          - listitem [ref=f5e47]:
+            - link [ref=f5e321] [cursor=pointer]:
+              - /url: /clients
+          - listitem [ref=f5e55]:
+            - link [ref=f5e327] [cursor=pointer]:
+              - /url: /projects
+          - listitem [ref=f5e60]:
+            - link [ref=f5e330] [cursor=pointer]:
+              - /url: /invoices
+        - list [ref=f5e68]:
+          - listitem [ref=f5e69]:
+            - link [ref=f5e334] [cursor=pointer]:
+              - /url: /monitoring
+          - listitem [ref=f5e74]:
+            - link [ref=f5e337] [cursor=pointer]:
+              - /url: /analytics
+          - listitem [ref=f5e79]:
+            - link [ref=f5e340] [cursor=pointer]:
+              - /url: /productivity
+        - list [ref=f5e87]:
+          - listitem [ref=f5e88]:
+            - link [ref=f5e344] [cursor=pointer]:
+              - /url: /sync
+        - list [ref=f5e98]:
+          - listitem [ref=f5e99]:
+            - link [ref=f5e350] [cursor=pointer]:
+              - /url: /features
+          - listitem [ref=f5e105]:
+            - link [ref=f5e354] [cursor=pointer]:
+              - /url: /branding
+          - listitem [ref=f5e114]:
+            - link [ref=f5e361] [cursor=pointer]:
+              - /url: /users
+          - listitem [ref=f5e129]:
+            - link [ref=f5e374] [cursor=pointer]:
+              - /url: /system
+      - generic [ref=f5e135]: 2.3.1
+  - generic [ref=f5e138]:
+    - banner [ref=f5e139]:
+      - button "Toggle sidebar" [active] [ref=f5e140]
+      - generic [ref=f5e141]: Overview
+      - generic [ref=f5e142]:
+        - 'button "Theme: dark" [ref=f5e143]'
+        - button "hello@msrbuilds.com" [ref=f5e144]
+    - main [ref=f5e145]:
+      - generic [ref=f5e147]:
+        - generic [ref=f5e148]:
+          - link "New Site" [ref=f5e149] [cursor=pointer]:
+            - /url: /create
+          - link "New Template" [ref=f5e153] [cursor=pointer]:
+            - /url: /create-template
+          - link "My Sites" [ref=f5e157] [cursor=pointer]:
+            - /url: /sites
+          - link "Templates" [ref=f5e161] [cursor=pointer]:
+            - /url: /products
+          - link "Mailbox" [ref=f5e165] [cursor=pointer]:
+            - /url: http://localhost:8025
+        - generic [ref=f5e169]:
+          - generic [ref=f5e170]:
+            - generic [ref=f5e171]: "4"
+            - generic [ref=f5e172]: Active Sites
+          - generic [ref=f5e173]:
+            - generic [ref=f5e174]: "20"
+            - generic [ref=f5e175]: Total Created
+          - generic [ref=f5e176]:
+            - generic [ref=f5e177]: "1"
+            - generic [ref=f5e178]: Clients
+          - generic [ref=f5e179]:
+            - generic [ref=f5e180]: "1"
+            - generic [ref=f5e181]: Projects
+          - generic [ref=f5e182]:
+            - generic [ref=f5e183]: "0"
+            - generic [ref=f5e184]: Invoices
+        - generic [ref=f5e185]:
+          - generic [ref=f5e186]:
+            - generic [ref=f5e187]:
+              - heading "Recent Sites" [level=3] [ref=f5e188]
+              - link "View all" [ref=f5e189] [cursor=pointer]:
+                - /url: /sites
+            - generic [ref=f5e190]:
+              - generic [ref=f5e191]:
+                - generic [ref=f5e194]:
+                  - link "quiet-edge-f710c6" [ref=f5e196] [cursor=pointer]:
+                    - /url: http://quiet-edge-f710c6.localhost
+                  - generic [ref=f5e197]: _default
+                - generic [ref=f5e198]:
+                  - generic [ref=f5e199]: expired
+                  - generic [ref=f5e200]: 1d ago
+              - generic [ref=f5e201]:
+                - generic [ref=f5e204]:
+                  - link "wplrestricton--deleted-1784660615039" [ref=f5e206] [cursor=pointer]:
+                    - /url: http://wplrestricton.localhost
+                  - generic [ref=f5e207]: _default
+                - generic [ref=f5e208]:
+                  - generic [ref=f5e209]: expired
+                  - generic [ref=f5e210]: 1d ago
+              - generic [ref=f5e211]:
+                - generic [ref=f5e214]:
+                  - link "wplrestrictoff--deleted-1784660614833" [ref=f5e216] [cursor=pointer]:
+                    - /url: http://wplrestrictoff.localhost
+                  - generic [ref=f5e217]: _default
+                - generic [ref=f5e218]:
+                  - generic [ref=f5e219]: expired
+                  - generic [ref=f5e220]: 1d ago
+              - generic [ref=f5e221]:
+                - generic [ref=f5e224]:
+                  - link "blue-hill-0d844a--deleted-1784382348397" [ref=f5e226] [cursor=pointer]:
+                    - /url: http://blue-hill-0d844a.localhost
+                  - generic [ref=f5e227]: ecommerce
+                - generic [ref=f5e228]:
+                  - generic [ref=f5e229]: expired
+                  - generic [ref=f5e230]: 4d ago
+              - generic [ref=f5e231]:
+                - generic [ref=f5e234]:
+                  - link "block-theme--deleted-1783034346215" [ref=f5e236] [cursor=pointer]:
+                    - /url: http://block-theme.localhost
+                  - generic [ref=f5e237]: ecommerce
+                - generic [ref=f5e238]:
+                  - generic [ref=f5e239]: expired
+                  - generic [ref=f5e240]: 52d ago
+          - generic [ref=f5e241]:
+            - heading "Recent Activity" [level=3] [ref=f5e242]
+            - generic [ref=f5e243]:
+              - generic [ref=f5e244]:
+                - generic [ref=f5e245]:
+                  - generic [ref=f5e246]: created
+                  - link "quiet-edge-f710c6" [ref=f5e248] [cursor=pointer]:
+                    - /url: http://quiet-edge-f710c6.localhost
+                - generic [ref=f5e249]: 1d ago
+              - generic [ref=f5e250]:
+                - generic [ref=f5e251]:
+                  - generic [ref=f5e252]: deleted
+                  - link "wplrestricton" [ref=f5e254] [cursor=pointer]:
+                    - /url: http://wplrestricton.localhost
+                - generic [ref=f5e255]: 1d ago
+              - generic [ref=f5e256]:
+                - generic [ref=f5e257]:
+                  - generic [ref=f5e258]: deleted
+                  - link "wplrestrictoff" [ref=f5e260] [cursor=pointer]:
+                    - /url: http://wplrestrictoff.localhost
+                - generic [ref=f5e261]: 1d ago
+              - generic [ref=f5e262]:
+                - generic [ref=f5e263]:
+                  - generic [ref=f5e264]: created
+                  - link "wplrestricton" [ref=f5e266] [cursor=pointer]:
+                    - /url: http://wplrestricton.localhost
+                - generic [ref=f5e267]: 1d ago
+              - generic [ref=f5e268]:
+                - generic [ref=f5e269]:
+                  - generic [ref=f5e270]: created
+                  - link "wplrestrictoff" [ref=f5e272] [cursor=pointer]:
+                    - /url: http://wplrestrictoff.localhost
+                - generic [ref=f5e273]: 1d ago
+              - generic [ref=f5e274]:
+                - generic [ref=f5e275]:
+                  - generic [ref=f5e276]: deleted
+                  - link "blue-hill-0d844a" [ref=f5e278] [cursor=pointer]:
+                    - /url: http://blue-hill-0d844a.localhost
+                - generic [ref=f5e279]: 4d ago
+              - generic [ref=f5e280]:
+                - generic [ref=f5e281]:
+                  - generic [ref=f5e282]: created
+                  - link "blue-hill-0d844a" [ref=f5e284] [cursor=pointer]:
+                    - /url: http://blue-hill-0d844a.localhost
+                - generic [ref=f5e285]: 4d ago
+              - generic [ref=f5e286]:
+                - generic [ref=f5e287]:
+                  - generic [ref=f5e288]: deleted
+                  - link "frost-edge-14fe46" [ref=f5e290] [cursor=pointer]:
+                    - /url: http://frost-edge-14fe46.localhost
+                - generic [ref=f5e291]: 20d ago
+              - generic [ref=f5e292]:
+                - generic [ref=f5e293]:
+                  - generic [ref=f5e294]: deleted
+                  - link "frost-cove-08a2b0" [ref=f5e296] [cursor=pointer]:
+                    - /url: http://frost-cove-08a2b0.localhost
+                - generic [ref=f5e297]: 20d ago
+              - generic [ref=f5e298]:
+                - generic [ref=f5e299]:
+                  - generic [ref=f5e300]: deleted
+                  - link "pearl-cove-6071ad" [ref=f5e302] [cursor=pointer]:
+                    - /url: http://pearl-cove-6071ad.localhost
+                - generic [ref=f5e303]: 20d ago

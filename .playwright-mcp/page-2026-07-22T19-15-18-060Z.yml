@@ -1,0 +1,4 @@
+- generic [ref=f3e4]:
+  - heading "Sign in required" [level=2] [ref=f3e5]
+  - paragraph [ref=f3e6]: Log in to access this panel.
+  - button "Go to login" [ref=f3e7]
