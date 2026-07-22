@@ -4,6 +4,12 @@ import fs from 'fs';
 import { config } from '../config';
 import { runPanelMigration } from './migrations/panel-v3';
 import { runRolesMigration } from './migrations/roles-v3';
+import {
+  mergeBlueprintDirectories,
+  renameProductsTable,
+  renameProductIdColumns,
+  repointRenamedBlueprints,
+} from './migrations/blueprints-v3';
 
 let db: Database.Database;
 
@@ -55,6 +61,12 @@ export function __setDbForTesting(instance: Database.Database | null): void {
 }
 
 function initSchema(db: Database.Database): void {
+  // Must run before the DDL below: that block creates indexes on blueprint_id,
+  // which on an upgraded database does not exist until these renames happen.
+  // Both are no-ops on a fresh database, where the tables aren't there yet.
+  renameProductsTable(db);
+  renameProductIdColumns(db);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -109,7 +121,7 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_site_logs_created_at ON site_logs(created_at);
     CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
 
-    CREATE TABLE IF NOT EXISTS products (
+    CREATE TABLE IF NOT EXISTS blueprints (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       config TEXT NOT NULL,
@@ -415,6 +427,16 @@ function initSchema(db: Database.Database): void {
 
   // Normalise roles and elect an owner from any pre-existing admin.
   runRolesMigration(db);
+
+  // Blueprints: the table and column renames already ran at the top of this
+  // function; the config files merge here.
+  const merge = mergeBlueprintDirectories({
+    products: config.legacyProductConfigsDir,
+    templates: config.legacyTemplateConfigsDir,
+    blueprints: config.blueprintConfigsDir,
+  });
+  // Any product displaced by a name collision takes its sites with it.
+  repointRenamedBlueprints(db, merge.renamed);
 
   const migrationMarker = path.join(config.dataDir, '.panel-migration-v3');
   if (!fs.existsSync(migrationMarker)) {

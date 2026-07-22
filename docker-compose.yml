@@ -95,6 +95,7 @@ services:
       - "${API_PORT:-3737}:3737"
     volumes:
       - ./data:/app/data
+      - ./blueprints:/app/blueprints
       - ./products:/app/products
       - ./templates:/app/templates
       - ./product-assets:/app/product-assets
@@ -127,6 +128,8 @@ services:
       - MAX_SITES_PER_USER=${MAX_SITES_PER_USER:-3}
       - CARD_LAYOUT=${CARD_LAYOUT:-full}
       - DATA_DIR=/app/data
+      - BLUEPRINT_CONFIGS_DIR=/app/blueprints
+      # Legacy dirs, read once by the blueprints migration then unused.
       - PRODUCT_CONFIGS_DIR=/app/products
       - TEMPLATE_CONFIGS_DIR=/app/templates
     labels:

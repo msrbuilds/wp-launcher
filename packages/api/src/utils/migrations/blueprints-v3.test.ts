@@ -225,3 +225,32 @@ describe('repointRenamedBlueprints', () => {
     db.close();
   });
 });
+
+describe('renameProductsTable — leftover products table', () => {
+  it('drops an empty products table once blueprints exists', () => {
+    const db = createTestDb();
+    db.prepare('CREATE TABLE blueprints (id TEXT PRIMARY KEY, name TEXT NOT NULL, config TEXT NOT NULL)').run();
+    db.prepare('CREATE TABLE products (id TEXT PRIMARY KEY, name TEXT NOT NULL, config TEXT NOT NULL)').run();
+
+    renameProductsTable(db);
+
+    const names = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[])
+      .map((r) => r.name);
+    expect(names).not.toContain('products');
+    db.close();
+  });
+
+  it('keeps a non-empty products table rather than discarding configs', () => {
+    const db = createTestDb();
+    db.prepare('CREATE TABLE blueprints (id TEXT PRIMARY KEY, name TEXT NOT NULL, config TEXT NOT NULL)').run();
+    db.prepare('CREATE TABLE products (id TEXT PRIMARY KEY, name TEXT NOT NULL, config TEXT NOT NULL)').run();
+    db.prepare("INSERT INTO products (id, name, config) VALUES ('keep', 'Keep', '{}')").run();
+
+    renameProductsTable(db);
+
+    const names = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[])
+      .map((r) => r.name);
+    expect(names).toContain('products');
+    db.close();
+  });
+});

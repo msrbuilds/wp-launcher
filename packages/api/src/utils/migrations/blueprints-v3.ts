@@ -80,7 +80,16 @@ function hasTable(db: Database.Database, name: string): boolean {
 }
 
 export function renameProductsTable(db: Database.Database): void {
-  if (hasTable(db, 'blueprints')) return;
+  if (hasTable(db, 'blueprints')) {
+    // A products table can reappear if an older schema definition recreated it
+    // after the rename. It is dead weight once blueprints exists; drop it, but
+    // only when empty so no configuration is ever discarded.
+    if (hasTable(db, 'products')) {
+      const { c } = db.prepare('SELECT COUNT(*) AS c FROM products').get() as { c: number };
+      if (c === 0) db.prepare('DROP TABLE products').run();
+    }
+    return;
+  }
   if (hasTable(db, 'products')) {
     db.prepare('ALTER TABLE products RENAME TO blueprints').run();
     return;
