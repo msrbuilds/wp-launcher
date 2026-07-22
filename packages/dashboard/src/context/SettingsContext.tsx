@@ -140,13 +140,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         root.style.setProperty('--primary', colors.accent);
         root.style.setProperty('--ring', colors.accent);
         root.style.setProperty('--primary-foreground', readableForeground(colors.accent));
-        // Legacy variables, still read by the unconverted pages in index.css.
-        root.style.setProperty('--prussian-blue', colors.primaryDark);
+        // --orange is the accent legacy pages use; the rest of the legacy
+        // variables are defined per-theme in styles/theme.css. Setting them
+        // inline here would win over the .dark block and break dark mode.
         root.style.setProperty('--orange', colors.accent);
-        root.style.setProperty('--grey', colors.grey);
-        root.style.setProperty('--text-muted', colors.textMuted);
-        root.style.setProperty('--text-light', colors.textLight);
-        root.style.setProperty('--bg-surface', colors.bgSurface);
         setSettings({
           appMode: data.appMode || 'agency',
           cardLayout: branding.cardLayout || data.cardLayout || 'full',

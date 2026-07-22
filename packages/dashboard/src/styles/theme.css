@@ -65,6 +65,32 @@
   --ring: oklch(0.72 0.17 55);
 }
 
+/*
+ * Bridge for pages still styled by index.css, deleted in Phase C along with it.
+ *
+ * `--white` and `--prussian-blue` are always used as a contrasting pair —
+ * white text on prussian backgrounds, prussian text on white ones. Flipping
+ * both together in dark mode therefore preserves every pairing, where remapping
+ * either one alone would produce same-on-same text somewhere.
+ */
+:root {
+  --white: oklch(1 0 0);
+  --prussian-blue: oklch(0.21 0.03 265);
+  --grey: oklch(0.92 0.006 265);
+  --text-muted: oklch(0.55 0.02 265);
+  --text-light: oklch(0.65 0.02 265);
+  --bg-surface: oklch(0.97 0.005 265);
+}
+
+.dark {
+  --white: oklch(0.23 0.02 265);
+  --prussian-blue: oklch(0.97 0.005 265);
+  --grey: oklch(0.31 0.02 265);
+  --text-muted: oklch(0.68 0.02 265);
+  --text-light: oklch(0.58 0.02 265);
+  --bg-surface: oklch(0.19 0.02 265);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
