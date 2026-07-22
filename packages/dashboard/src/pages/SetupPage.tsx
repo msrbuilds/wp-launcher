@@ -1,14 +1,19 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordStrengthMeter } from '../components/PasswordStrengthMeter';
+import { evaluatePassword } from '@/lib/password-strength';
 import { apiFetch } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 
 const REDIRECT_DELAY_MS = 2500;
+// The owner account is the panel's root of authority, so hold it to a higher
+// bar than member passwords.
+const MIN_OWNER_PASSWORD = 12;
 
 export default function SetupPage() {
   const navigate = useNavigate();
@@ -22,16 +27,25 @@ export default function SetupPage() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const mismatch = confirm.length > 0 && confirm !== password;
+  const matches = confirm.length > 0 && confirm === password;
+  const strongEnough = password.length >= MIN_OWNER_PASSWORD && evaluatePassword(password).ok;
+  const canSubmit = strongEnough && matches && email.length > 0 && !saving;
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
 
-    if (password !== confirm) {
-      setError('Passwords do not match');
+    if (password.length < MIN_OWNER_PASSWORD) {
+      setError(`Password must be at least ${MIN_OWNER_PASSWORD} characters`);
       return;
     }
-    if (password.length < 12) {
-      setError('Password must be at least 12 characters');
+    if (!evaluatePassword(password).ok) {
+      setError('Choose a stronger password');
+      return;
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match');
       return;
     }
 
@@ -130,9 +144,11 @@ export default function SetupPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={12}
+            minLength={MIN_OWNER_PASSWORD}
             autoComplete="new-password"
           />
+          <PasswordStrengthMeter password={password} />
+          <p className="text-xs text-muted-foreground">At least {MIN_OWNER_PASSWORD} characters.</p>
         </div>
 
         <div className="space-y-2">
@@ -143,12 +159,23 @@ export default function SetupPage() {
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
-            minLength={12}
+            minLength={MIN_OWNER_PASSWORD}
             autoComplete="new-password"
+            aria-invalid={mismatch}
           />
+          {mismatch && (
+            <span className="flex items-center gap-1 text-xs text-destructive">
+              <X className="h-3.5 w-3.5" /> Passwords don't match
+            </span>
+          )}
+          {matches && (
+            <span className="flex items-center gap-1 text-xs text-success">
+              <Check className="h-3.5 w-3.5" /> Passwords match
+            </span>
+          )}
         </div>
 
-        <Button className="w-full" type="submit" disabled={saving}>
+        <Button className="w-full" type="submit" disabled={!canSubmit}>
           {saving ? 'Creating owner…' : 'Create owner account'}
         </Button>
       </form>
