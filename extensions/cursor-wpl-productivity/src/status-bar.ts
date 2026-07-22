@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { fetchTodayStats, formatDuration } from '@wpl/heartbeat-core';
+import { fetchTodayStatsResult, formatDuration } from '@wpl/heartbeat-core';
 
 const REFRESH_INTERVAL_MS = 60 * 1000;
 
@@ -24,15 +24,35 @@ export class StatusBarManager {
   }
 
   private async refresh(): Promise<void> {
-    const stats = await fetchTodayStats(this.getApiUrl(), this.getApiKey());
-    if (stats) {
-      this.item.text = `$(clock) WPL: ${formatDuration(stats.totalSeconds)}`;
-    } else if (!this.getApiKey()) {
-      // Stats are admin-only; without a key the panel rejects the request.
+    const apiUrl = this.getApiUrl();
+    const apiKey = this.getApiKey();
+    const result = await fetchTodayStatsResult(apiUrl, apiKey);
+
+    if (result.ok) {
+      this.item.text = `$(clock) WPL: ${formatDuration(result.stats.totalSeconds)}`;
+      this.item.tooltip = 'WP Launcher Productivity — Click to open dashboard';
+      return;
+    }
+
+    // Say which failure it is. A single placeholder for every cause makes this
+    // impossible to diagnose from the status bar.
+    if (!apiKey.trim()) {
       this.item.text = '$(clock) WPL: set API key';
-      this.item.tooltip = 'Set wplProductivity.apiKey to your panel API key to show today’s total';
+      this.item.tooltip = `Set wplProductivity.apiKey to your panel's API_KEY.
+Panel: ${apiUrl}`;
+    } else if (result.reason === 'auth') {
+      this.item.text = '$(warning) WPL: key rejected';
+      this.item.tooltip = `The panel rejected this API key (HTTP ${result.status}).
+Panel: ${apiUrl}
+Check wplProductivity.apiKey matches API_KEY in the panel's .env.`;
+    } else if (result.reason === 'network') {
+      this.item.text = '$(debug-disconnect) WPL: offline';
+      this.item.tooltip = `Could not reach the panel at ${apiUrl}
+${result.detail ?? ''}`;
     } else {
-      this.item.text = '$(clock) WPL: --';
+      this.item.text = '$(warning) WPL: --';
+      this.item.tooltip = `Unexpected response from ${apiUrl} (HTTP ${result.status ?? '?'})
+${result.detail ?? ''}`;
     }
   }
 

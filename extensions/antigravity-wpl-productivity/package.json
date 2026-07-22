@@ -2,7 +2,7 @@
   "name": "wpl-productivity-antigravity",
   "displayName": "WPL Productivity Tracker for Antigravity",
   "description": "Track your coding time automatically in Google Antigravity. Sends heartbeats to WP Launcher for productivity monitoring \u2014 see time by language, project, editor, and more.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "msrbuilds",
   "license": "MIT",
   "icon": "icon.png",

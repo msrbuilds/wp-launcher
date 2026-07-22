@@ -2,7 +2,7 @@
   "name": "wpl-productivity",
   "displayName": "WPL Productivity Tracker",
   "description": "Track your coding time automatically. Sends heartbeats to WP Launcher for productivity monitoring \u2014 see time by language, project, editor, and more.",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "publisher": "msrbuilds",
   "license": "MIT",
   "icon": "icon.png",

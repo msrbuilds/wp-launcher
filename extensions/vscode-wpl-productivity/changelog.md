@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.7
+
+- The status bar now says why it cannot show a total: `key rejected` when the
+  panel refuses the API key, `offline` when the panel is unreachable, and
+  `set API key` when none is configured. Hover for the panel URL and details.
+- Whitespace around a pasted API key is now trimmed
+
 ## 0.2.6
 
 - Added `apiKey` setting. WP Launcher now requires an owner/admin caller for
