@@ -11,6 +11,22 @@
     <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
     <link rel="manifest" href="/site.webmanifest" />
+    <script>
+      // Applies the theme class before first paint so loading in dark mode
+      // does not flash white. Kept inline and dependency-free on purpose;
+      // the key is asserted against THEME_STORAGE_KEY in src/lib/theme.test.ts.
+      (function () {
+        try {
+          var stored = localStorage.getItem('wpl-theme');
+          var choice = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+          var dark = choice === 'dark' ||
+            (choice === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (e) {
+          /* private mode or storage disabled — fall back to light */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
