@@ -82,7 +82,7 @@ export default function LocalLaunchPage() {
 
   useEffect(() => {
     if (settingsLoading) return;
-    apiFetch('/api/templates')
+    apiFetch('/api/blueprints')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {
@@ -112,7 +112,7 @@ export default function LocalLaunchPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productId: selectedTemplate,
+          blueprintId: selectedTemplate,
           expiresIn: 'never',
           siteTitle,
           dbEngine,

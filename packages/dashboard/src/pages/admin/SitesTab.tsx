@@ -82,7 +82,7 @@ export default function SitesTab() {
             ) : sites.map((s) => (
               <tr key={s.id}>
                 <td>{s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer">{s.subdomain}</a> : s.subdomain}</td>
-                <td>{s.productId}</td>
+                <td>{s.blueprintId}</td>
                 <td><span className={`badge badge-${s.status}`}>{s.status}</span></td>
                 <td>{new Date(s.createdAt + 'Z').toLocaleString()}</td>
                 {statusFilter === 'running' && <td>{s.expiresAt ? new Date(s.expiresAt + 'Z').toLocaleString() : '—'}</td>}

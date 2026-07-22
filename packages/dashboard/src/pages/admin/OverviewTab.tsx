@@ -78,7 +78,7 @@ export default function OverviewTab() {
                       <div className="ov-site-name">
                         {s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="ov-site-link">{s.subdomain}</a> : s.subdomain}
                       </div>
-                      <div className="ov-site-product">{s.productId}</div>
+                      <div className="ov-site-product">{s.blueprintId}</div>
                     </div>
                   </div>
                   <div className="ov-site-right">

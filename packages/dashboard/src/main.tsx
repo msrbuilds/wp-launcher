@@ -37,9 +37,9 @@ import ProductivityPage from './pages/ProductivityPage';
 import './index.css';
 
 function LaunchRedirect() {
-  const { productId } = useParams();
-  if (productId) {
-    localStorage.setItem('pendingProductLaunch', productId);
+  const { blueprintId } = useParams();
+  if (blueprintId) {
+    localStorage.setItem('pendingProductLaunch', blueprintId);
   }
   return <Navigate to="/" replace />;
 }
@@ -86,7 +86,7 @@ function LocalRoutes() {
         <Route path="admin/branding" element={<Navigate to="/branding" replace />} />
         <Route path="admin/system" element={<Navigate to="/system" replace />} />
         <Route path="admin/bulk" element={<Navigate to="/bulk" replace />} />
-        <Route path="launch/:productId" element={<LaunchRedirect />} />
+        <Route path="launch/:blueprintId" element={<LaunchRedirect />} />
       </Route>
     </Routes>
   );
@@ -99,7 +99,7 @@ function AgencyRoutes() {
         <Route index element={<LaunchPage />} />
         <Route path="blueprints/new" element={<AdminRoute><BlueprintEditorPage /></AdminRoute>} />
         <Route path="create-product" element={<Navigate to="/blueprints/new" replace />} />
-        <Route path="launch/:productId" element={<LaunchRedirect />} />
+        <Route path="launch/:blueprintId" element={<LaunchRedirect />} />
         <Route path="sites" element={<SitesListPage />} />
         <Route path="login" element={<LoginPage />} />
         {/* Setup is a one-time route; once done it must not render at all. */}

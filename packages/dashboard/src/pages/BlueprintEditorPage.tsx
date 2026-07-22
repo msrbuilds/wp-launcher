@@ -128,14 +128,14 @@ export default function BlueprintEditorPage() {
     setSubmitting(true);
 
     try {
-      const productId = id.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-      if (!productId || !name) {
+      const blueprintId = id.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+      if (!blueprintId || !name) {
         throw new Error('Product ID and Name are required');
       }
 
       const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean);
       const configObj = {
-        id: productId,
+        id: blueprintId,
         name,
         ...(category && { category }),
         ...(tagsArray.length > 0 && { tags: tagsArray }),

@@ -63,7 +63,7 @@ export default function LaunchPage() {
   const [scheduling, setScheduling] = useState(false);
   const [scheduleMsg, setScheduleMsg] = useState('');
 
-  async function handleSchedule(productId: string) {
+  async function handleSchedule(blueprintId: string) {
     if (!scheduleDate || !scheduleTime) return;
     setScheduling(true);
     setScheduleMsg('');
@@ -72,7 +72,7 @@ export default function LaunchPage() {
       const res = await apiFetch('/api/sites/schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, scheduledAt }),
+        body: JSON.stringify({ blueprintId, scheduledAt }),
       });
       if (res.ok) {
         setScheduleMsg('Site scheduled successfully!');
@@ -116,7 +116,7 @@ export default function LaunchPage() {
     }
   }, [canLaunch]);
 
-  // Auto-launch pending product (from /launch/:productId URL)
+  // Auto-launch pending product (from /launch/:blueprintId URL)
   useEffect(() => {
     if (!canLaunch || step !== 'launch' || launchingId || result) return;
     if (products.length === 0) return; // wait for products to load
@@ -132,7 +132,7 @@ export default function LaunchPage() {
   useEffect(() => {
     if (settingsLoading) return;
     setFetchError('');
-    apiFetch(isLocal ? '/api/templates' : '/api/products')
+    apiFetch('/api/blueprints')
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setProducts(data);
@@ -183,8 +183,8 @@ export default function LaunchPage() {
     }
   }
 
-  async function handleLaunch(productId: string) {
-    setLaunchingId(productId);
+  async function handleLaunch(blueprintId: string) {
+    setLaunchingId(blueprintId);
     setError('');
     setResult(null);
     setSiteReady(true);
@@ -192,7 +192,7 @@ export default function LaunchPage() {
       const res = await apiFetch('/api/sites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, ...(expiresIn ? { expiresIn } : {}) }),
+        body: JSON.stringify({ blueprintId, ...(expiresIn ? { expiresIn } : {}) }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);

@@ -31,7 +31,7 @@ export interface SiteLog {
 export interface AdminSite {
   id: string;
   subdomain: string;
-  productId: string;
+  blueprintId: string;
   userId: string | null;
   url: string | null;
   status: string;

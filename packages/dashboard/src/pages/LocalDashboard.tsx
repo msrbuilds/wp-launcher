@@ -158,7 +158,7 @@ export default function LocalDashboard() {
                       <div className="panel-site-name">
                         {s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer">{s.subdomain}</a> : s.subdomain}
                       </div>
-                      <div className="panel-site-product">{s.productId}</div>
+                      <div className="panel-site-product">{s.blueprintId}</div>
                     </div>
                   </div>
                   <div className="panel-list-item-right">

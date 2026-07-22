@@ -9,7 +9,7 @@ import { apiFetch } from '../utils/api';
 interface Site {
   id: string;
   subdomain: string;
-  productId: string;
+  blueprintId: string;
   url: string;
   adminUrl: string;
   autoLoginUrl?: string;
@@ -745,7 +745,7 @@ export default function SitesListPage() {
   useEffect(() => { fetchSharedWithMe(); }, [canShare]);
 
   // Derive unique templates and statuses for filters
-  const templates = useMemo(() => [...new Set(sites.map((s) => s.productId))].sort(), [sites]);
+  const templates = useMemo(() => [...new Set(sites.map((s) => s.blueprintId))].sort(), [sites]);
   const statuses = useMemo(() => [...new Set(sites.map((s) => s.status))].sort(), [sites]);
 
   // Filtered sites
@@ -755,7 +755,7 @@ export default function SitesListPage() {
       const q = search.toLowerCase();
       result = result.filter((s) => s.subdomain.toLowerCase().includes(q) || s.url.toLowerCase().includes(q));
     }
-    if (filterTemplate) result = result.filter((s) => s.productId === filterTemplate);
+    if (filterTemplate) result = result.filter((s) => s.blueprintId === filterTemplate);
     if (filterStatus) result = result.filter((s) => s.status === filterStatus);
     return result;
   }, [sites, search, filterTemplate, filterStatus]);
@@ -870,7 +870,7 @@ export default function SitesListPage() {
                       {site.subdomain}
                     </a>
                   </td>
-                  <td><span className="site-card-product">{site.productId}</span></td>
+                  <td><span className="site-card-product">{site.blueprintId}</span></td>
                   <td className="site-table-date">{new Date(site.createdAt).toLocaleDateString()}</td>
                   <td>
                     {!isSiteReady(site) && site.status === 'running' ? (
@@ -2091,7 +2091,7 @@ export default function SitesListPage() {
                 </a>
               </h3>
               <div className="site-card-meta">
-                <span className="site-card-product">{site.productId}</span>
+                <span className="site-card-product">{site.blueprintId}</span>
                 {site.credentials && (
                   <span className="site-card-user">
                     <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">

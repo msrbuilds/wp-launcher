@@ -6,7 +6,7 @@ import { apiFetch } from '../../utils/api';
 
 interface BulkJob {
   id: string;
-  productId: string;
+  blueprintId: string;
   total: number;
   completed: number;
   failed: number;
@@ -20,7 +20,7 @@ export default function BulkTab() {
   const headers = useAdminHeaders();
   const isLocal = useIsLocalMode();
   const [products, setProducts] = useState<AdminProduct[]>([]);
-  const [productId, setProductId] = useState('');
+  const [blueprintId, setBlueprintId] = useState('');
   const [count, setCount] = useState(5);
   const [expiresIn, setExpiresIn] = useState('24h');
   const [prefix, setPrefix] = useState('');
@@ -29,10 +29,10 @@ export default function BulkTab() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    apiFetch(isLocal ? '/api/templates' : '/api/products').then((r) => r.json()).then((data) => {
+    apiFetch('/api/blueprints').then((r) => r.json()).then((data) => {
       if (Array.isArray(data)) {
         setProducts(data);
-        if (data.length > 0 && !productId) setProductId(data[0].id);
+        if (data.length > 0 && !blueprintId) setBlueprintId(data[0].id);
       }
     }).catch(() => {});
     apiFetch('/api/admin/bulk', { headers }).then((r) => r.json()).then((data) => {
@@ -61,7 +61,7 @@ export default function BulkTab() {
       const res = await apiFetch('/api/admin/bulk', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, count, expiresIn, subdomainPrefix: prefix || undefined }),
+        body: JSON.stringify({ blueprintId, count, expiresIn, subdomainPrefix: prefix || undefined }),
       });
       const data = await res.json();
       if (data.jobId) {
@@ -90,7 +90,7 @@ export default function BulkTab() {
           <div className="bk-form-grid">
             <div className="form-group bk-form-group-inline">
               <label>{isLocal ? 'Template' : 'Product'}</label>
-              <select value={productId} onChange={(e) => setProductId(e.target.value)} className="bk-select">
+              <select value={blueprintId} onChange={(e) => setBlueprintId(e.target.value)} className="bk-select">
                 {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>

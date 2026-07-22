@@ -19,7 +19,7 @@ export default function AnalyticsTab() {
   const headers = useAdminHeaders();
   const [range, setRange] = useState<7 | 30 | 90>(30);
   const [launches, setLaunches] = useState<{ date: string; count: number }[]>([]);
-  const [products, setProducts] = useState<{ productId: string; launches: number }[]>([]);
+  const [products, setProducts] = useState<{ blueprintId: string; launches: number }[]>([]);
   const [registrations, setRegistrations] = useState<{ date: string; count: number }[]>([]);
   const [summary, setSummary] = useState<{
     avgLifetimeHours: number | null;
@@ -99,7 +99,7 @@ export default function AnalyticsTab() {
             <BarChart data={products} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
-              <YAxis dataKey="productId" type="category" width={120} tick={{ fontSize: 12 }} />
+              <YAxis dataKey="blueprintId" type="category" width={120} tick={{ fontSize: 12 }} />
               <Tooltip />
               <Bar dataKey="launches" fill="#f59e0b" radius={[0, 4, 4, 0]} />
             </BarChart>
