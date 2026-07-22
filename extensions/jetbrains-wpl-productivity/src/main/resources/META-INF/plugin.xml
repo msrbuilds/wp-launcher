@@ -1,0 +1,35 @@
+<idea-plugin>
+    <id>com.msrbuilds.wpl-productivity</id>
+    <name>WP Launcher Productivity</name>
+    <vendor email="info@msrbuilds.com" url="https://wplauncher.msrbuilds.com">MSR Builds</vendor>
+    <description><![CDATA[
+        Track your coding time automatically across all JetBrains IDEs.<br>
+        Sends heartbeats to WP Launcher for productivity monitoring —
+        see time by language, project, editor, and more.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="git4idea-extensions.xml">Git4Idea</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService
+            serviceImplementation="com.msrbuilds.wplproductivity.HeartbeatService"/>
+        <applicationConfigurable
+            instance="com.msrbuilds.wplproductivity.SettingsConfigurable"
+            displayName="WP Launcher Productivity"
+            id="com.msrbuilds.wplproductivity.settings"/>
+        <statusBarWidgetFactory
+            implementation="com.msrbuilds.wplproductivity.WplStatusBarWidgetFactory"
+            id="WplProductivity"
+            order="after Position"/>
+    </extensions>
+
+    <applicationListeners>
+        <listener
+            class="com.msrbuilds.wplproductivity.HeartbeatDocumentListener"
+            topic="com.intellij.openapi.editor.event.DocumentListener"/>
+        <listener
+            class="com.msrbuilds.wplproductivity.HeartbeatFileEditorListener"
+            topic="com.intellij.openapi.fileEditor.FileEditorManagerListener"/>
+    </applicationListeners>
+</idea-plugin>

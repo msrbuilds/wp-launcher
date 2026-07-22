@@ -1,0 +1,7 @@
+{
+    // WP Launcher API URL
+    "api_url": "http://localhost:3737",
+
+    // Enable or disable productivity tracking
+    "enabled": true
+}

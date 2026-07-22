@@ -67,10 +67,16 @@ tests/
 # Docker
 docker-compose.override.yml
 
-# Extensions — only track installable/distributable files
-extensions/
-!extensions/dist/
-!extensions/dist/**
+# Extensions — track source and the shipped artifacts in extensions/dist/,
+# ignore per-package dependencies and build output.
+extensions/*/node_modules/
+extensions/*/dist/
+extensions/*/out/
+extensions/*/build/
+extensions/*/.vscode-test/
+# VSIXes are build output in a package root; the shipped copies live in
+# extensions/dist/ and stay tracked.
+extensions/*-wpl-productivity/*.vsix
 
 # Generated
 version.json

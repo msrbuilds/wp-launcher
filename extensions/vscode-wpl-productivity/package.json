@@ -1,0 +1,88 @@
+{
+  "name": "wpl-productivity",
+  "displayName": "WPL Productivity Tracker",
+  "description": "Track your coding time automatically. Sends heartbeats to WP Launcher for productivity monitoring \u2014 see time by language, project, editor, and more.",
+  "version": "0.2.6",
+  "publisher": "msrbuilds",
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/msrbuilds/wp-launcher"
+  },
+  "homepage": "https://wplauncher.msrbuilds.com",
+  "bugs": {
+    "url": "https://github.com/msrbuilds/wp-launcher/issues"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "productivity",
+    "time tracking",
+    "wakatime",
+    "coding time",
+    "wordpress",
+    "wp launcher"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "WP Launcher Productivity",
+      "properties": {
+        "wplProductivity.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:3737",
+          "description": "WP Launcher API URL (default: http://localhost:3737)"
+        },
+        "wplProductivity.heartbeatSecret": {
+          "type": "string",
+          "default": "",
+          "description": "Heartbeat secret for authenticating with WP Launcher (found in Dashboard > Productivity > Cloud Settings)"
+        },
+        "wplProductivity.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable productivity tracking"
+        },
+        "wplProductivity.apiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "API key for your WP Launcher panel. Required to display today's tracked time in the status bar (heartbeats do not need it). Find it in your panel's `.env` as `API_KEY`."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "wplProductivity.showStats",
+        "title": "WP Launcher: Show Today's Stats"
+      },
+      {
+        "command": "wplProductivity.toggleTracking",
+        "title": "WP Launcher: Toggle Tracking"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "typecheck": "tsc -p ./ --noEmit",
+    "package": "npm run build && npx @vscode/vsce package --no-dependencies",
+    "publish": "npm run build && npx @vscode/vsce publish --no-dependencies"
+  },
+  "dependencies": {
+    "@wpl/heartbeat-core": "file:../heartbeat-core"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.27.4",
+    "typescript": "^5.0.0"
+  }
+}
