@@ -5,7 +5,15 @@
  * rendered by the legacy index.css during the redesign migration. It is added
  * back in Phase C, in the same change that deletes index.css.
  */
-@layer theme, base, components, utilities;
+/*
+ * `legacy` is declared first so it has the LOWEST precedence. index.css is
+ * imported into it rather than loaded from main.tsx, because unlayered CSS
+ * beats every layered rule regardless of specificity — leaving it unlayered
+ * meant `a { color: var(--orange) }` and `* { padding: 0 }` silently defeated
+ * every Tailwind utility in the new shell.
+ */
+@layer legacy, theme, base, components, utilities;
+@import "../index.css" layer(legacy);
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 

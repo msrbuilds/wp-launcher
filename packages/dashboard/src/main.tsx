@@ -31,9 +31,9 @@ import ProjectDetailPage from './pages/admin/ProjectDetailPage';
 import InvoicesPage from './pages/admin/InvoicesPage';
 import InvoicePrintPage from './pages/admin/InvoicePrintPage';
 import ProductivityPage from './pages/ProductivityPage';
-// theme.css first: index.css must win any conflict while pages are unconverted.
+// theme.css imports index.css into a low-priority `legacy` layer; importing
+// index.css here as well would reintroduce it unlayered and override Tailwind.
 import './styles/theme.css';
-import './index.css';
 
 function LaunchRedirect() {
   const { blueprintId } = useParams();
