@@ -2,20 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
-import { useIsLocalMode } from '../../context/SettingsContext';
 import { apiFetch } from '../../utils/api';
 
-export default function ProductsTab() {
+export default function BlueprintsTab() {
   const headers = useAdminHeaders();
   const navigate = useNavigate();
-  const isLocal = useIsLocalMode();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const noun = isLocal ? 'template' : 'product';
-  const Noun = isLocal ? 'Template' : 'Product';
-  const apiBase = isLocal ? '/api/templates' : '/api/products';
+  const noun = 'blueprint';
+  const Noun = 'Blueprint';
+  const apiBase = '/api/blueprints';
 
   const fetchProducts = useCallback(() => {
     setLoading(true);
@@ -44,7 +42,7 @@ export default function ProductsTab() {
     <div className="card">
       <div className="pt-header">
         <h3 className="pt-title">{Noun}s ({products.length})</h3>
-        <button className="btn btn-primary btn-sm" onClick={() => navigate(isLocal ? '/create-template' : '/create-product')}>+ New {Noun}</button>
+        <button className="btn btn-primary btn-sm" onClick={() => navigate('/blueprints/new')}>+ New {Noun}</button>
       </div>
       {products.length === 0 ? (
         <p className="pt-empty">No {noun}s configured.</p>

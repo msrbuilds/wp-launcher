@@ -40,7 +40,7 @@ const HIDDEN_MENU_ITEMS = [
   { key: 'themes.php', label: 'Appearance' },
 ];
 
-export default function CreateProductPage() {
+export default function BlueprintEditorPage() {
   // Basic info
   const [id, setId] = useState('');
   const [name, setName] = useState('');
@@ -193,7 +193,7 @@ export default function CreateProductPage() {
       if (cardImageFile) formData.append('card_image', cardImageFile);
       if (cardIconFile) formData.append('card_icon', cardIconFile);
 
-      const res = await apiFetch('/api/products', {
+      const res = await apiFetch('/api/blueprints', {
         method: 'POST',
         body: formData,
       });
