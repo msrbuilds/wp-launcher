@@ -1,62 +1,59 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Plus, FileText, Globe, Package, Mail, Loader2 } from 'lucide-react';
 import { useAdminHeaders } from './admin/AdminLayout';
 import { useFeatures } from '../context/SettingsContext';
 import { Stats, AdminSite, SiteLog } from './admin/shared';
 import { apiFetch } from '../utils/api';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="card stat-card">
-      <div className="stat-card-value">{value}</div>
-      <div className="stat-card-label">{label}</div>
+    <div className="rounded-xl border border-border bg-card p-6">
+      <div className="text-3xl font-semibold tracking-tight text-card-foreground">{value}</div>
+      <div className="mt-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
     </div>
   );
 }
 
+/*
+ * These tints are deliberate decoration, not semantic tokens — the coloured
+ * shortcut tiles are a long-standing part of this dashboard's identity, so
+ * each keeps its own hue rather than collapsing into uniform cards. They carry
+ * explicit dark variants because a fixed palette colour cannot follow a theme
+ * the way a token does.
+ */
 const SHORTCUTS = [
-  {
-    to: '/create',
-    label: 'New Site',
-    icon: 'M12 4v16m8-8H4',
-    color: '#fb8500',
-    bg: 'rgba(251, 133, 0, 0.1)',
-    border: 'rgba(251, 133, 0, 0.3)',
-  },
-  {
-    to: '/create-template',
-    label: 'New Template',
-    icon: 'M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
-    color: '#8b5cf6',
-    bg: 'rgba(139, 92, 246, 0.1)',
-    border: 'rgba(139, 92, 246, 0.3)',
-  },
-  {
-    to: '/sites',
-    label: 'My Sites',
-    icon: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9',
-    color: '#2563eb',
-    bg: 'rgba(37, 99, 235, 0.1)',
-    border: 'rgba(37, 99, 235, 0.3)',
-  },
-  {
-    to: '/products',
-    label: 'Templates',
-    icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
-    color: '#059669',
-    bg: 'rgba(5, 150, 105, 0.1)',
-    border: 'rgba(5, 150, 105, 0.3)',
-  },
+  { to: '/sites/new', label: 'New Site', icon: Plus, tint: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400' },
+  { to: '/blueprints/new', label: 'New Blueprint', icon: FileText, tint: 'bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400' },
+  { to: '/sites', label: 'My Sites', icon: Globe, tint: 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' },
+  { to: '/blueprints', label: 'Blueprints', icon: Package, tint: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' },
 ];
 
 const MAIL_SHORTCUT = {
   href: 'http://localhost:8025',
   label: 'Mailbox',
-  icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
-  color: '#ec4899',
-  bg: 'rgba(236, 72, 153, 0.1)',
-  border: 'rgba(236, 72, 153, 0.3)',
+  icon: Mail,
+  tint: 'bg-pink-50 text-pink-600 dark:bg-pink-500/10 dark:text-pink-400',
 };
+
+const SHORTCUT_CLASSES =
+  'flex flex-col items-center justify-center gap-2 rounded-xl border border-border p-6 text-sm font-medium transition-opacity hover:opacity-80';
+
+function statusDotClass(status: string) {
+  if (status === 'running') return 'bg-primary';
+  if (status === 'error') return 'bg-destructive';
+  return 'bg-muted-foreground';
+}
+
+function statusBadgeVariant(status: string): 'default' | 'destructive' | 'secondary' {
+  if (status === 'running') return 'default';
+  if (status === 'error') return 'destructive';
+  return 'secondary';
+}
 
 export default function LocalDashboard() {
   const headers = useAdminHeaders();
@@ -104,31 +101,42 @@ export default function LocalDashboard() {
     return `${days}d ago`;
   };
 
-  if (loading) return <div className="card"><span className="spinner spinner-dark" /> Loading...</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading...
+      </div>
+    );
+  }
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* Shortcut Cards */}
-      <div className="local-shortcuts">
-        {SHORTCUTS.map((s) => (
-          <Link key={s.to} to={s.to} className="local-shortcut-card" style={{ '--sc-color': s.color, '--sc-bg': s.bg, '--sc-border': s.border } as React.CSSProperties}>
-            <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d={s.icon} />
-            </svg>
-            <span>{s.label}</span>
-          </Link>
-        ))}
-        <a href={MAIL_SHORTCUT.href} target="_blank" rel="noopener noreferrer" className="local-shortcut-card" style={{ '--sc-color': MAIL_SHORTCUT.color, '--sc-bg': MAIL_SHORTCUT.bg, '--sc-border': MAIL_SHORTCUT.border } as React.CSSProperties}>
-          <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d={MAIL_SHORTCUT.icon} />
-          </svg>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        {SHORTCUTS.map((s) => {
+          const Icon = s.icon;
+          return (
+            <Link key={s.to} to={s.to} className={cn(SHORTCUT_CLASSES, s.tint)}>
+              <Icon className="h-7 w-7" strokeWidth={1.5} />
+              <span>{s.label}</span>
+            </Link>
+          );
+        })}
+        <a
+          href={MAIL_SHORTCUT.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(SHORTCUT_CLASSES, MAIL_SHORTCUT.tint)}
+        >
+          <MAIL_SHORTCUT.icon className="h-7 w-7" strokeWidth={1.5} />
           <span>{MAIL_SHORTCUT.label}</span>
         </a>
       </div>
 
       {/* Stats */}
       {stats && (
-        <div className="stats-grid">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
           <StatCard label="Active Sites" value={stats.activeSites} />
           <StatCard label="Total Created" value={stats.totalSitesCreated} />
           {features.projects && projectStats && <>
@@ -140,30 +148,41 @@ export default function LocalDashboard() {
       )}
 
       {/* Recent Sites + Recent Activity */}
-      <div className="dashboard-panels">
-        <div className="card">
-          <div className="panel-header">
-            <h3 className="panel-title">Recent Sites</h3>
-            <Link to="/sites" className="panel-link">View all</Link>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-6">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h3 className="text-sm font-semibold text-card-foreground">Recent Sites</h3>
+            <Link to="/sites" className="text-xs font-medium text-primary hover:underline">
+              View all
+            </Link>
           </div>
           {recentSites.length === 0 ? (
-            <p className="panel-empty">No sites yet. <Link to="/create">Create one</Link></p>
+            <p className="text-sm text-muted-foreground">
+              No sites yet.{' '}
+              <Link to="/sites/new" className="text-primary hover:underline">Create one</Link>
+            </p>
           ) : (
-            <div className="panel-list">
+            <div className="divide-y divide-border">
               {recentSites.map((s) => (
-                <div key={s.id} className="panel-list-item">
-                  <div className="panel-list-item-left">
-                    <span className={`status-dot status-${s.status}`} />
-                    <div>
-                      <div className="panel-site-name">
-                        {s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer">{s.subdomain}</a> : s.subdomain}
+                <div key={s.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClass(s.status))} />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-card-foreground">
+                        {s.url ? (
+                          <a href={s.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                            {s.subdomain}
+                          </a>
+                        ) : (
+                          s.subdomain
+                        )}
                       </div>
-                      <div className="panel-site-product">{s.blueprintId}</div>
+                      <div className="truncate text-xs text-muted-foreground">{s.blueprintId}</div>
                     </div>
                   </div>
-                  <div className="panel-list-item-right">
-                    <span className={`badge badge-${s.status}`}>{s.status}</span>
-                    <div className="panel-time-ago">{timeAgo(s.createdAt)}</div>
+                  <div className="shrink-0 text-right">
+                    <Badge variant={statusBadgeVariant(s.status)}>{s.status}</Badge>
+                    <div className="mt-1 text-xs text-muted-foreground">{timeAgo(s.createdAt)}</div>
                   </div>
                 </div>
               ))}
@@ -171,21 +190,37 @@ export default function LocalDashboard() {
           )}
         </div>
 
-        <div className="card">
-          <h3 className="panel-title">Recent Activity</h3>
+        <div className="rounded-xl border border-border bg-card p-6">
+          <h3 className="mb-4 text-sm font-semibold text-card-foreground">Recent Activity</h3>
           {recentLogs.length === 0 ? (
-            <p className="panel-empty">No activity yet.</p>
+            <p className="text-sm text-muted-foreground">No activity yet.</p>
           ) : (
-            <div className="panel-list">
+            <div className="divide-y divide-border">
               {recentLogs.map((log) => (
-                <div key={log.id} className="panel-list-item">
-                  <div className="panel-list-item-left">
-                    <span className={`badge activity-badge ${log.action === 'created' ? 'badge-running' : log.action === 'error' ? 'badge-error' : 'badge-expired'}`}>{log.action}</span>
-                    <span className="activity-subdomain">
-                      {log.site_url ? <a href={log.site_url} target="_blank" rel="noopener noreferrer">{log.subdomain}</a> : log.subdomain}
+                <div key={log.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Badge
+                      variant={
+                        log.action === 'created'
+                          ? 'default'
+                          : log.action === 'error'
+                          ? 'destructive'
+                          : 'secondary'
+                      }
+                    >
+                      {log.action}
+                    </Badge>
+                    <span className="truncate text-sm text-card-foreground">
+                      {log.site_url ? (
+                        <a href={log.site_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                          {log.subdomain}
+                        </a>
+                      ) : (
+                        log.subdomain
+                      )}
                     </span>
                   </div>
-                  <span className="activity-time">{timeAgo(log.created_at)}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(log.created_at)}</span>
                 </div>
               ))}
             </div>

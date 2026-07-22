@@ -1,5 +1,9 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Check } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { apiFetch } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
@@ -59,60 +63,94 @@ export default function SetupPage() {
 
   if (done) {
     return (
-      <div className="su-wrap">
-        <div className="su-card card su-done">
-          <div className="su-check" aria-hidden="true">✓</div>
-          <h1 className="su-title">Your panel is ready</h1>
-          <p className="su-lead">
-            You are signed in as <strong>{email}</strong>. Any sites that already existed on this
-            install now belong to you.
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 text-center">
+          <div
+            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground"
+            aria-hidden="true"
+          >
+            <Check className="h-6 w-6" />
+          </div>
+          <h1 className="text-lg font-semibold text-card-foreground">Your panel is ready</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            You are signed in as <strong className="font-medium text-foreground">{email}</strong>.
+            Any sites that already existed on this install now belong to you.
           </p>
-          <button className="btn btn-primary" onClick={() => navigate('/', { replace: true })}>
+          <Button className="mt-4 w-full" onClick={() => navigate('/', { replace: true })}>
             Go to dashboard
-          </button>
-          <p className="su-redirect">Taking you there automatically…</p>
+          </Button>
+          <p className="mt-3 text-xs text-muted-foreground">Taking you there automatically…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="su-wrap">
-      <form className="su-card card" onSubmit={handleSubmit}>
-        <h1 className="su-title">Set up your panel</h1>
-        <p className="su-lead">This creates the owner account. It only happens once.</p>
-
-        {error && <div className="alert-error">{error}</div>}
-
-        <div className="form-group">
-          <label className="form-label" htmlFor="su-panel">Panel name</label>
-          <input id="su-panel" className="form-input" value={panelName}
-                 onChange={(e) => setPanelName(e.target.value)} required />
+    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <form
+        className="w-full max-w-sm space-y-4 rounded-xl border border-border bg-card p-6"
+        onSubmit={handleSubmit}
+      >
+        <div>
+          <h1 className="text-lg font-semibold text-card-foreground">Set up your panel</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This creates the owner account. It only happens once.
+          </p>
         </div>
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="su-email">Your email</label>
-          <input id="su-email" className="form-input" type="email" value={email}
-                 onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        <div className="space-y-2">
+          <Label htmlFor="su-panel">Panel name</Label>
+          <Input
+            id="su-panel"
+            value={panelName}
+            onChange={(e) => setPanelName(e.target.value)}
+            required
+          />
         </div>
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="su-password">Password</label>
-          <input id="su-password" className="form-input" type="password" value={password}
-                 onChange={(e) => setPassword(e.target.value)} required minLength={12}
-                 autoComplete="new-password" />
+        <div className="space-y-2">
+          <Label htmlFor="su-email">Your email</Label>
+          <Input
+            id="su-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="username"
+          />
         </div>
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="su-confirm">Confirm password</label>
-          <input id="su-confirm" className="form-input" type="password" value={confirm}
-                 onChange={(e) => setConfirm(e.target.value)} required minLength={12}
-                 autoComplete="new-password" />
+        <div className="space-y-2">
+          <Label htmlFor="su-password">Password</Label>
+          <Input
+            id="su-password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={12}
+            autoComplete="new-password"
+          />
         </div>
 
-        <button className="btn btn-primary" type="submit" disabled={saving}>
+        <div className="space-y-2">
+          <Label htmlFor="su-confirm">Confirm password</Label>
+          <Input
+            id="su-confirm"
+            type="password"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            required
+            minLength={12}
+            autoComplete="new-password"
+          />
+        </div>
+
+        <Button className="w-full" type="submit" disabled={saving}>
           {saving ? 'Creating owner…' : 'Create owner account'}
-        </button>
+        </Button>
       </form>
     </div>
   );

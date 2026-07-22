@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 interface SystemInfo {
   version: string;
@@ -16,7 +20,6 @@ interface SystemInfo {
   uptimeFormatted: string;
   memoryUsage: number;
   env: string;
-  appMode: string;
 }
 
 interface UpdateCheck {
@@ -139,90 +142,92 @@ export default function SystemTab() {
     return () => stopPolling();
   }, []);
 
-  if (loading) return <div className="card"><span className="spinner spinner-dark" /> Loading...</div>;
-  if (!info) return <div className="card">Failed to load system info.</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+      </div>
+    );
+  }
+  if (!info) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-6 text-sm text-card-foreground">
+        Failed to load system info.
+      </div>
+    );
+  }
 
   return (
-    <div>
+    <div className="flex flex-col gap-4">
       {/* Version Header */}
-      <div className="card sys-version-card">
+      <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-border bg-card p-6 text-card-foreground">
         <div>
-          <h3 className="sys-version-title">
+          <h3 className="flex flex-wrap items-baseline gap-2 text-base font-semibold">
             WP Launcher
-            <span className="sys-version-number">v{info.version}</span>
+            <span className="text-sm font-normal text-muted-foreground">v{info.version}</span>
           </h3>
           {info.commitMessage && (
-            <p className="sys-commit-msg">
+            <p className="mt-1 text-sm text-muted-foreground">
               Latest: {info.commitMessage}
             </p>
           )}
         </div>
-        <div className="sys-badges">
-          <span className={`badge ${info.env === 'production' ? 'badge-running' : 'badge-expired'}`}>
+        <div className="flex items-center gap-2">
+          <Badge variant={info.env === 'production' ? 'default' : 'secondary'}>
             {info.env}
-          </span>
-          <span className="badge sys-badge-mode">
-            {info.appMode}
-          </span>
+          </Badge>
         </div>
       </div>
 
       {/* Update Notification */}
       {update?.updateAvailable && (
-        <div className="sys-update-banner">
-          <div className="sys-update-info">
-            <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#b45309" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-            </svg>
+        <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-border bg-muted p-6 text-foreground">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground" />
             <div>
-              <strong className="sys-update-title">
+              <strong className="text-sm font-semibold">
                 Update Available: v{update.latestVersion}
                 {update.source === 'commit' && update.latestCommit && ` (${update.latestCommit})`}
               </strong>
-              <p className="sys-update-desc">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {update.source === 'commit' && update.message
                   ? `Latest: ${update.message}`
                   : `You are running v${update.currentVersion}. A newer version is available.`}
               </p>
             </div>
           </div>
-          <div className="sys-update-actions">
+          <div className="flex items-center gap-2">
             {update.releaseUrl && (
-              <a
-                href={update.releaseUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-sm btn-outline sys-btn-font-sm"
-              >
-                Release Notes
-              </a>
+              <Button asChild size="sm" variant="outline">
+                <a href={update.releaseUrl} target="_blank" rel="noopener noreferrer">
+                  Release Notes
+                </a>
+              </Button>
             )}
-            <button className="btn btn-sm btn-primary" onClick={triggerUpdate} disabled={triggering}>
-              {triggering ? <><span className="spinner spinner-sm" /> Updating...</> : 'Update Now'}
-            </button>
+            <Button size="sm" onClick={triggerUpdate} disabled={triggering}>
+              {triggering ? <><Loader2 className="h-3 w-3 animate-spin" /> Updating...</> : 'Update Now'}
+            </Button>
           </div>
         </div>
       )}
 
       {update && !update.updateAvailable && !update.error && (
-        <div className="sys-uptodate-banner">
-          <div className="sys-uptodate-info">
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="#16a34a" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            </svg>
-            <span className="sys-uptodate-text">You are running the latest version.</span>
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-card p-4 text-card-foreground">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-[18px] w-[18px] text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">You are running the latest version.</span>
           </div>
-          <button className="btn btn-sm btn-outline sys-btn-check" onClick={checkForUpdates} disabled={checking}>
+          <Button size="sm" variant="outline" onClick={checkForUpdates} disabled={checking}>
             {checking ? 'Checking...' : 'Check Again'}
-          </button>
+          </Button>
         </div>
       )}
 
       {/* System Details Grid */}
-      <div className="sys-details-grid">
+      <div className="grid gap-4 md:grid-cols-2">
         {/* Version Info */}
-        <div className="card">
-          <h4 className="sys-section-heading">Version Info</h4>
+        <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+          <h4 className="mb-3 text-sm font-semibold">Version Info</h4>
           <InfoRow label="Version" value={`v${info.version}`} />
           <InfoRow label="Branch" value={info.branch} />
           <InfoRow label="Commit" value={info.commit} mono />
@@ -231,8 +236,8 @@ export default function SystemTab() {
         </div>
 
         {/* Runtime Info */}
-        <div className="card">
-          <h4 className="sys-section-heading">Runtime</h4>
+        <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+          <h4 className="mb-3 text-sm font-semibold">Runtime</h4>
           <InfoRow label="Node.js" value={info.nodeVersion} />
           <InfoRow label="Platform" value={info.platform} />
           <InfoRow label="Uptime" value={info.uptimeFormatted} />
@@ -242,51 +247,51 @@ export default function SystemTab() {
 
       {/* Update Progress / Log Viewer */}
       {showLog && (
-        <div className="card sys-card-spaced">
-          <div className="sys-log-header">
-            <h4 className="sys-section-heading--no-margin">
+        <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h4 className="flex items-center gap-2 text-sm font-semibold">
               Update Log
-              {updateStatus?.status === 'in_progress' && <span className="spinner spinner-sm sys-spinner-inline" />}
+              {updateStatus?.status === 'in_progress' && <Loader2 className="h-3 w-3 animate-spin" />}
             </h4>
-            <div className="sys-log-actions">
+            <div className="flex items-center gap-2">
               {updateStatus?.status === 'completed' && (
-                <span className="badge badge-running sys-badge-font-sm">Completed</span>
+                <Badge variant="default">Completed</Badge>
               )}
               {updateStatus?.status === 'failed' && (
-                <span className="badge badge-expired sys-badge-font-sm">Failed</span>
+                <Badge variant="destructive">Failed</Badge>
               )}
               {updateStatus?.status === 'in_progress' && (
-                <span className="badge sys-badge-in-progress">In Progress</span>
+                <Badge variant="secondary">In Progress</Badge>
               )}
-              <button className="btn btn-sm btn-outline sys-btn-hide" onClick={() => setShowLog(false)}>
+              <Button size="sm" variant="outline" onClick={() => setShowLog(false)}>
                 Hide
-              </button>
+              </Button>
             </div>
           </div>
 
           {updateStatus?.status === 'completed' && (
-            <div className="sys-status-success">
+            <div className="mb-3 rounded-lg border border-border bg-muted p-4 text-sm text-foreground">
               Update completed successfully! {updateStatus.previousVersion && updateStatus.newVersion && (
                 <>v{updateStatus.previousVersion} → v{updateStatus.newVersion}. </>
               )}
-              <button className="btn btn-sm btn-primary sys-btn-font-xs sys-btn-inline" onClick={() => window.location.reload()}>
+              <Button size="xs" className="ml-2" onClick={() => window.location.reload()}>
                 Refresh Page
-              </button>
+              </Button>
             </div>
           )}
 
           {updateStatus?.status === 'failed' && (
-            <div className="sys-status-failed">
+            <div className="mb-3 rounded-lg border border-border bg-muted p-4 text-sm text-destructive">
               Update failed. {updateStatus.error && <span>{updateStatus.error}</span>}
-              <div className="sys-retry-row">
-                <button className="btn btn-sm btn-primary sys-btn-font-xs" onClick={triggerUpdate} disabled={triggering}>Retry</button>
+              <div className="mt-2">
+                <Button size="xs" onClick={triggerUpdate} disabled={triggering}>Retry</Button>
               </div>
             </div>
           )}
 
           <pre
             ref={logRef}
-            className="sys-log-terminal"
+            className="max-h-96 overflow-auto rounded-lg border border-border bg-muted p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground"
           >
             {updateLog || 'Waiting for output...'}
           </pre>
@@ -294,26 +299,26 @@ export default function SystemTab() {
       )}
 
       {/* Manual Update Instructions */}
-      {<div className="card">
-        <h4 className="sys-section-heading">
+      <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+        <h4 className="text-sm font-semibold">
           Manual Update (SSH)
         </h4>
-        <p className="sys-manual-desc">
+        <p className="mt-1 text-sm text-muted-foreground">
           You can also update manually via SSH:
         </p>
-        <div className="sys-manual-code">
-          <div><span className="sys-cmd-accent">wpl</span> update</div>
+        <div className="mt-3 rounded-lg border border-border bg-muted p-4 font-mono text-sm text-muted-foreground">
+          <div><span className="text-primary">wpl</span> update</div>
         </div>
-      </div>}
+      </div>
     </div>
   );
 }
 
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="sys-info-row">
-      <span className="sys-info-label">{label}</span>
-      <span className={mono ? 'sys-info-value--mono' : 'sys-info-value'}>{value}</span>
+    <div className="flex items-center justify-between gap-4 border-b border-border py-2 last:border-b-0">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className={cn('text-sm text-foreground', mono && 'font-mono')}>{value}</span>
     </div>
   );
 }

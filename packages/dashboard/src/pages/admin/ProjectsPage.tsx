@@ -1,18 +1,56 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { useAdminHeaders } from './AdminLayout';
-import { useIsLocalMode } from '../../context/SettingsContext';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Project } from './shared';
 import { apiFetch } from '../../utils/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const STATUS_OPTIONS = ['active', 'completed', 'on-hold', 'archived'] as const;
 const STATUS_LABELS: Record<string, string> = { active: 'Active', completed: 'Completed', 'on-hold': 'On Hold', archived: 'Archived' };
 
+const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
+  active: 'default',
+  completed: 'secondary',
+  'on-hold': 'outline',
+  archived: 'outline',
+};
+
+// Radix Select forbids an empty-string item value, so the "no client" choice is
+// carried by this sentinel and mapped back to '' before it reaches form state.
+const NO_CLIENT = '__none__';
+
 export default function ProjectsPage() {
   const headers = useAdminHeaders();
   const navigate = useNavigate();
-  const isLocal = useIsLocalMode();
   const [projects, setProjects] = useState<Project[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -84,85 +122,142 @@ export default function ProjectsPage() {
   }
 
   if (loading && projects.length === 0) {
-    return <div className="card"><span className="spinner spinner-dark" /> Loading projects...</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading projects...
+      </div>
+    );
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
-  const detailBase = isLocal ? '/projects' : '/admin/projects';
+  const detailBase = '/projects';
 
   return (
-    <div className="pj-page">
-      <div className="card">
-        <div className="pj-header">
-          <h3 className="pj-title">Projects ({total})</h3>
-          <button className="btn btn-primary btn-sm" onClick={openCreate}>+ New Project</button>
+    <div>
+      <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-base font-semibold">Projects ({total})</h3>
+          <Button size="sm" onClick={openCreate}>+ New Project</Button>
         </div>
-        <div className="pj-status-filters">
-          <button className={`btn btn-xs ${!statusFilter ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setStatusFilter(''); setPage(0); }}>All</button>
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Button
+            size="xs"
+            variant={!statusFilter ? 'default' : 'secondary'}
+            onClick={() => { setStatusFilter(''); setPage(0); }}
+          >
+            All
+          </Button>
           {STATUS_OPTIONS.map(s => (
-            <button key={s} className={`btn btn-xs ${statusFilter === s ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setStatusFilter(s); setPage(0); }}>{STATUS_LABELS[s]}</button>
+            <Button
+              key={s}
+              size="xs"
+              variant={statusFilter === s ? 'default' : 'secondary'}
+              onClick={() => { setStatusFilter(s); setPage(0); }}
+            >
+              {STATUS_LABELS[s]}
+            </Button>
           ))}
         </div>
         {projects.length === 0 ? (
-          <p className="pj-empty">No projects found.</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">No projects found.</p>
         ) : (
-          <div className="pj-table-wrap">
-            <table className="pj-table">
-              <thead><tr><th>Name</th><th>Client</th><th>Status</th><th>Sites</th><th>Created</th><th>Actions</th></tr></thead>
-              <tbody>
-                {projects.map(p => (
-                  <tr key={p.id}>
-                    <td><a className="pj-link" onClick={() => navigate(`${detailBase}/${p.id}`)}>{p.name}</a></td>
-                    <td>{p.clientName || '—'}</td>
-                    <td><span className={`badge badge-${p.status}`}>{STATUS_LABELS[p.status] || p.status}</span></td>
-                    <td>{p.siteCount || 0}</td>
-                    <td>{new Date(p.created_at + 'Z').toLocaleDateString()}</td>
-                    <td className="pj-actions">
-                      <button className="btn btn-secondary btn-xs" onClick={() => openEdit(p)}>Edit</button>
-                      <button className="btn btn-danger btn-xs" onClick={() => handleDelete(p.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Client</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Sites</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projects.map(p => (
+                <TableRow key={p.id}>
+                  <TableCell>
+                    <button
+                      type="button"
+                      className="font-medium text-primary underline-offset-4 hover:underline"
+                      onClick={() => navigate(`${detailBase}/${p.id}`)}
+                    >
+                      {p.name}
+                    </button>
+                  </TableCell>
+                  <TableCell>{p.clientName || '—'}</TableCell>
+                  <TableCell>
+                    <Badge variant={STATUS_VARIANTS[p.status] || 'secondary'}>
+                      {STATUS_LABELS[p.status] || p.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{p.siteCount || 0}</TableCell>
+                  <TableCell>{new Date(p.created_at + 'Z').toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="secondary" size="xs" onClick={() => openEdit(p)}>Edit</Button>
+                      <Button variant="destructive" size="xs" onClick={() => handleDelete(p.id)}>Delete</Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
         <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
       </div>
 
-      {showModal && (
-        <div className="lp-modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="lp-modal-card" onClick={e => e.stopPropagation()}>
-            <h3 className="lp-modal-title">{editing ? 'Edit Project' : 'New Project'}</h3>
-            {error && <div className="alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
-            <div className="form-group">
-              <label>Name *</label>
-              <input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Edit Project' : 'New Project'}</DialogTitle>
+          </DialogHeader>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="project-name">Name *</Label>
+              <Input id="project-name" className="rounded-lg" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
             </div>
-            <div className="form-group">
-              <label>Client</label>
-              <select className="form-input" value={form.client_id} onChange={e => setForm({ ...form, client_id: e.target.value })}>
-                <option value="">— No Client —</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+            <div className="grid gap-2">
+              <Label htmlFor="project-client">Client</Label>
+              <Select
+                value={form.client_id || NO_CLIENT}
+                onValueChange={v => setForm({ ...form, client_id: v === NO_CLIENT ? '' : v })}
+              >
+                <SelectTrigger id="project-client" className="w-full rounded-lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_CLIENT}>— No Client —</SelectItem>
+                  {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="form-group">
-              <label>Description</label>
-              <textarea className="form-input" rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+            <div className="grid gap-2">
+              <Label htmlFor="project-description">Description</Label>
+              <Textarea id="project-description" className="rounded-lg" rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
             </div>
-            <div className="form-group">
-              <label>Status</label>
-              <select className="form-input" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
-                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-              </select>
-            </div>
-            <div className="lp-modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+            <div className="grid gap-2">
+              <Label htmlFor="project-status">Status</Label>
+              <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
+                <SelectTrigger id="project-status" className="w-full rounded-lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

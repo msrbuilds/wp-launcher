@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Download, Loader2 } from 'lucide-react';
 import { useFeatures } from '../context/SettingsContext';
 import { apiFetch } from '../utils/api';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface Connection {
   id: string;
@@ -53,9 +59,9 @@ export default function SyncPage() {
 
   if (!features.siteSync) {
     return (
-      <div className="card sync-disabled">
-        <h3>Site Sync</h3>
-        <p>Enable the Site Sync feature in Features settings to push/pull site content between your local sites and remote WordPress installations.</p>
+      <div className="rounded-xl border border-border bg-card p-6">
+        <h3 className="text-sm font-semibold text-card-foreground">Site Sync</h3>
+        <p className="mt-2 text-sm text-muted-foreground">Enable the Site Sync feature in Features settings to push/pull site content between your local sites and remote WordPress installations.</p>
       </div>
     );
   }
@@ -159,137 +165,164 @@ export default function SyncPage() {
     return `${Math.floor(h / 24)}d ago`;
   }
 
+  const siteItemClass = (selected: boolean) => cn(
+    'flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors',
+    selected ? 'border-primary bg-accent' : 'border-border hover:bg-accent/50',
+  );
+
   return (
-    <div className="sync-page">
-      <h2>Site Sync</h2>
-      <p className="sync-subtitle">
-        Push and pull site content between your local WP Launcher sites and remote WordPress installations.
-        Install the <strong>WP Launcher Connector</strong> plugin on the remote site, then add it as a connection.
-      </p>
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">Site Sync</h2>
+        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+          Push and pull site content between your local WP Launcher sites and remote WordPress installations.
+          Install the <strong className="font-medium text-foreground">WP Launcher Connector</strong> plugin on the remote site, then add it as a connection.
+        </p>
+      </div>
 
       {/* Plugin download */}
-      <div className="card sync-plugin-card">
-        <div className="sync-plugin-row">
-          <div className="sync-plugin-info">
-            <strong>WP Launcher Connector</strong>
-            <span className="sync-plugin-desc">Install this plugin on any WordPress site to enable sync. After activation, find the API key under Tools → WP Launcher Sync.</span>
+      <div className="rounded-xl border border-border bg-card p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <strong className="text-sm font-semibold text-card-foreground">WP Launcher Connector</strong>
+            <span className="max-w-2xl text-sm text-muted-foreground">Install this plugin on any WordPress site to enable sync. After activation, find the API key under Tools → WP Launcher Sync.</span>
           </div>
-          <a href="/api/sync/connector-plugin" download className="btn btn-sm btn-primary sync-plugin-btn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
-            Download Plugin
-          </a>
+          <Button asChild size="sm">
+            <a href="/api/sync/connector-plugin" download>
+              <Download className="h-3.5 w-3.5" />
+              Download Plugin
+            </a>
+          </Button>
         </div>
       </div>
 
       {/* Connections */}
-      <div className="card">
-        <div className="sync-col-header">
-          <h3>WordPress Connections</h3>
-          <button className="btn btn-sm btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
+      <div className="rounded-xl border border-border bg-card p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-card-foreground">WordPress Connections</h3>
+          <Button size="sm" onClick={() => setShowAddForm(!showAddForm)}>
             {showAddForm ? 'Cancel' : '+ Add Site'}
-          </button>
+          </Button>
         </div>
         {showAddForm && (
-          <div className="sync-add-form">
-            <h4>Connect a WordPress Site</h4>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 0.75rem' }}>
-              Install &amp; activate the <strong>WP Launcher Connector</strong> plugin, then find credentials under <em>Tools → WP Launcher Sync</em>.
+          <div className="mt-4 rounded-lg border border-border bg-muted/40 p-4">
+            <h4 className="text-sm font-semibold text-card-foreground">Connect a WordPress Site</h4>
+            <p className="mt-1 mb-3 text-xs text-muted-foreground">
+              Install &amp; activate the <strong className="font-medium text-foreground">WP Launcher Connector</strong> plugin, then find credentials under <em>Tools → WP Launcher Sync</em>.
             </p>
-            <div className="sync-form-fields">
-              <div className="sync-form-field"><label>Name</label><input placeholder="My Live Site" value={addName} onChange={e => setAddName(e.target.value)} /></div>
-              <div className="sync-form-field"><label>WordPress URL</label><input placeholder="https://example.com" value={addUrl} onChange={e => setAddUrl(e.target.value)} /></div>
-              <div className="sync-form-field"><label>Connector API Key</label><input type="password" placeholder="From plugin settings" value={addKey} onChange={e => setAddKey(e.target.value)} /></div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="sync-add-name">Name</Label>
+                <Input id="sync-add-name" placeholder="My Live Site" value={addName} onChange={e => setAddName(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="sync-add-url">WordPress URL</Label>
+                <Input id="sync-add-url" placeholder="https://example.com" value={addUrl} onChange={e => setAddUrl(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="sync-add-key">Connector API Key</Label>
+                <Input id="sync-add-key" type="password" placeholder="From plugin settings" value={addKey} onChange={e => setAddKey(e.target.value)} />
+              </div>
             </div>
-            <div className="sync-form-actions">
-              <button className="btn btn-primary btn-sm" onClick={handleAddConnection} disabled={addLoading || !addName || !addUrl || !addKey}>
-                {addLoading ? <><span className="spinner spinner-sm" /> Connecting...</> : 'Connect'}
-              </button>
-              {connMsg && <span style={{ fontSize: '0.8rem', color: '#dc2626' }}>{connMsg}</span>}
+            <div className="mt-3 flex items-center gap-3">
+              <Button size="sm" onClick={handleAddConnection} disabled={addLoading || !addName || !addUrl || !addKey}>
+                {addLoading ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Connecting...</> : 'Connect'}
+              </Button>
+              {connMsg && <span className="text-xs text-destructive">{connMsg}</span>}
             </div>
           </div>
         )}
         {connections.length === 0 && !showAddForm ? (
-          <div className="sync-empty">No WordPress sites connected. Add one to start syncing.</div>
+          <div className="mt-4 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">No WordPress sites connected. Add one to start syncing.</div>
         ) : (
-          <div className="sync-connections-list">
+          <div className="mt-4 space-y-2">
             {connections.map(c => (
-              <div key={c.id} className="sync-conn-item">
-                <div className="sync-conn-info">
-                  <div className="sync-conn-name">{c.name}</div>
-                  <div className="sync-conn-url">{c.url}{testResults[c.id]?.siteName ? ` · ${testResults[c.id].siteName}` : ''}</div>
+              <div key={c.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-card-foreground">{c.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">{c.url}{testResults[c.id]?.siteName ? ` · ${testResults[c.id].siteName}` : ''}</div>
                 </div>
-                <span className={`sync-conn-status ${c.status}`}>{testResults[c.id]?.status === 'testing' ? 'testing...' : c.status}</span>
-                <div className="sync-conn-actions">
-                  <button className="btn btn-xs btn-secondary" onClick={() => handleTestConnection(c.id)}>Test</button>
-                  <button className="btn btn-xs btn-danger-outline" onClick={() => handleDeleteConnection(c.id)}>Remove</button>
+                <Badge variant={c.status === 'connected' ? 'default' : c.status === 'error' ? 'destructive' : 'secondary'}>
+                  {testResults[c.id]?.status === 'testing' ? 'testing...' : c.status}
+                </Badge>
+                <div className="flex gap-2">
+                  <Button size="xs" variant="secondary" onClick={() => handleTestConnection(c.id)}>Test</Button>
+                  <Button size="xs" variant="outline" className="text-destructive" onClick={() => handleDeleteConnection(c.id)}>Remove</Button>
                 </div>
               </div>
             ))}
           </div>
         )}
         {Object.entries(testResults).map(([id, r]) =>
-          r.error ? <div key={id} style={{ fontSize: '0.8rem', color: '#dc2626', marginTop: '0.5rem' }}>Error: {r.error}</div> : null
+          r.error ? <div key={id} className="mt-2 text-xs text-destructive">Error: {r.error}</div> : null
         )}
       </div>
 
       {/* Sync Panel */}
       {connections.length > 0 && localSites.length > 0 && (
-        <div className="card" style={{ marginTop: '1.25rem' }}>
-          <h3 style={{ marginBottom: '0.75rem' }}>Sync Content</h3>
+        <div className="rounded-xl border border-border bg-card p-6">
+          <h3 className="mb-3 text-sm font-semibold text-card-foreground">Sync Content</h3>
 
-          <div className="sync-columns">
+          <div className="grid items-start gap-4 lg:grid-cols-[1fr_auto_1fr]">
             <div>
-              <div className="sync-col-header">
-                <h3>Local Site</h3>
-                <span className="sync-col-badge local">WP Launcher</span>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-card-foreground">Local Site</h3>
+                <Badge variant="secondary">WP Launcher</Badge>
               </div>
-              <div className="sync-site-list">
+              <div className="space-y-2">
                 {localSites.map(s => (
-                  <div key={s.id} className={`sync-site-item ${selectedLocal === s.id ? 'selected' : ''}`} onClick={() => setSelectedLocal(s.id)}>
-                    <input type="radio" className="sync-site-radio" checked={selectedLocal === s.id} readOnly />
-                    <div className="sync-site-info">
-                      <div className="sync-site-name">{s.subdomain}</div>
-                      <div className="sync-site-url">{s.url}</div>
+                  <div key={s.id} className={siteItemClass(selectedLocal === s.id)} onClick={() => setSelectedLocal(s.id)}>
+                    <input type="radio" className="accent-primary" checked={selectedLocal === s.id} readOnly />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-card-foreground">{s.subdomain}</div>
+                      <div className="truncate text-xs text-muted-foreground">{s.url}</div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="sync-arrow-col">
-              <button className="sync-arrow-btn push" disabled={!canSync} onClick={() => handleSync('push')} title="Push local site content to the remote WordPress site">
+            <div className="flex flex-row justify-center gap-2 lg:flex-col lg:pt-10">
+              <Button variant="secondary" disabled={!canSync} onClick={() => handleSync('push')} title="Push local site content to the remote WordPress site">
                 Push →
-              </button>
-              <button className="sync-arrow-btn pull" disabled={!canSync} onClick={() => handleSync('pull')} title="Pull remote WordPress site content to local">
+              </Button>
+              <Button variant="secondary" disabled={!canSync} onClick={() => handleSync('pull')} title="Pull remote WordPress site content to local">
                 ← Pull
-              </button>
+              </Button>
             </div>
 
             <div>
-              <div className="sync-col-header">
-                <h3>Remote Site</h3>
-                <span className="sync-col-badge remote">WordPress</span>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-card-foreground">Remote Site</h3>
+                <Badge variant="outline">WordPress</Badge>
               </div>
-              <div className="sync-site-list">
+              <div className="space-y-2">
                 {connections.filter(c => c.status === 'connected').map(c => (
-                  <div key={c.id} className={`sync-site-item ${selectedConn === c.id ? 'selected' : ''}`} onClick={() => setSelectedConn(c.id)}>
-                    <input type="radio" className="sync-site-radio" checked={selectedConn === c.id} readOnly />
-                    <div className="sync-site-info">
-                      <div className="sync-site-name">{c.name}</div>
-                      <div className="sync-site-url">{c.url}</div>
+                  <div key={c.id} className={siteItemClass(selectedConn === c.id)} onClick={() => setSelectedConn(c.id)}>
+                    <input type="radio" className="accent-primary" checked={selectedConn === c.id} readOnly />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-card-foreground">{c.name}</div>
+                      <div className="truncate text-xs text-muted-foreground">{c.url}</div>
                     </div>
                   </div>
                 ))}
                 {connections.filter(c => c.status === 'connected').length === 0 && (
-                  <div className="sync-empty">No connected sites. Test your connections above.</div>
+                  <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">No connected sites. Test your connections above.</div>
                 )}
               </div>
             </div>
           </div>
 
           {syncStatus && (
-            <div className={`sync-status-bar ${syncStatus.status === 'completed' ? 'completed' : syncStatus.status === 'error' ? 'error' : 'in-progress'}`} style={{ marginTop: '1rem' }}>
-              {syncStatus.status !== 'completed' && syncStatus.status !== 'error' && <span className="spinner spinner-sm" />}
+            <div className={cn(
+              'mt-4 flex items-center gap-2 rounded-lg border p-3 text-sm',
+              syncStatus.status === 'error'
+                ? 'border-destructive/40 text-destructive'
+                : syncStatus.status === 'completed'
+                  ? 'border-primary/40 text-foreground'
+                  : 'border-border text-muted-foreground',
+            )}>
+              {syncStatus.status !== 'completed' && syncStatus.status !== 'error' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               <span>
                 {syncStatus.direction === 'push' ? '↑ Push' : '↓ Pull'}:{' '}
                 {statusLabels[syncStatus.status] || syncStatus.status}
@@ -302,16 +335,16 @@ export default function SyncPage() {
 
       {/* History */}
       {history.length > 0 && (
-        <div className="card sync-history" style={{ marginTop: '1.25rem' }}>
-          <h3>Recent Sync History</h3>
-          <div className="sync-history-list">
+        <div className="rounded-xl border border-border bg-card p-6">
+          <h3 className="text-sm font-semibold text-card-foreground">Recent Sync History</h3>
+          <div className="mt-3 space-y-2">
             {history.slice(0, 10).map(h => (
-              <div key={h.id} className="sync-history-item">
-                <span className={`sync-history-dir ${h.direction}`}>{h.direction === 'push' ? '↑ Push' : '↓ Pull'}</span>
-                <span className={`sync-history-status ${h.status === 'completed' ? 'completed' : h.status === 'error' ? 'error' : 'in-progress'}`}>{h.status}</span>
-                {h.remote_site_url && <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{h.remote_site_url}</span>}
-                {h.error && <span style={{ color: '#dc2626', fontSize: '0.75rem' }}>{h.error}</span>}
-                <span className="sync-history-time">{timeAgo(h.started_at)}</span>
+              <div key={h.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3">
+                <span className="text-xs font-medium text-card-foreground">{h.direction === 'push' ? '↑ Push' : '↓ Pull'}</span>
+                <Badge variant={h.status === 'error' ? 'destructive' : h.status === 'completed' ? 'default' : 'secondary'}>{h.status}</Badge>
+                {h.remote_site_url && <span className="truncate text-xs text-muted-foreground">{h.remote_site_url}</span>}
+                {h.error && <span className="text-xs text-destructive">{h.error}</span>}
+                <span className="ml-auto text-xs text-muted-foreground">{timeAgo(h.started_at)}</span>
               </div>
             ))}
           </div>

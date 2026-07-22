@@ -1,4 +1,16 @@
+import { Plus, X } from 'lucide-react';
 import type { ThemeEntry } from '../types/product';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface ThemeRepeaterProps {
   themes: ThemeEntry[];
@@ -23,23 +35,33 @@ export default function ThemeRepeater({ themes, onChange, removeThemes, onRemove
   }
 
   return (
-    <div className="tmpl-section-body">
+    <div className="flex flex-col gap-4">
       {themes.map((theme, i) => (
-        <div key={i} className="tmpl-repeater-item">
-          <div className="tmpl-repeater-row">
-            <div className="form-group theme-repeater-source">
-              <label>Source</label>
-              <select value={theme.source} onChange={(e) => updateTheme(i, { source: e.target.value as any })}>
-                <option value="wordpress.org">WordPress.org</option>
-                <option value="url">URL</option>
-                <option value="local">Upload Zip</option>
-              </select>
+        <div key={i} className="rounded-xl border border-border bg-muted/30 p-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end">
+            <div className="flex flex-col gap-2 md:w-48">
+              <Label htmlFor={`theme-source-${i}`}>Source</Label>
+              <Select
+                value={theme.source}
+                onValueChange={(value) => updateTheme(i, { source: value as any })}
+              >
+                <SelectTrigger id={`theme-source-${i}`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="wordpress.org">WordPress.org</SelectItem>
+                  <SelectItem value="url">URL</SelectItem>
+                  <SelectItem value="local">Upload Zip</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="form-group theme-repeater-content">
+
+            <div className="flex flex-1 flex-col gap-2">
               {theme.source === 'wordpress.org' && (
                 <>
-                  <label>Theme Slug</label>
-                  <input
+                  <Label htmlFor={`theme-slug-${i}`}>Theme Slug</Label>
+                  <Input
+                    id={`theme-slug-${i}`}
                     type="text"
                     value={theme.slug || ''}
                     onChange={(e) => updateTheme(i, { slug: e.target.value })}
@@ -49,8 +71,9 @@ export default function ThemeRepeater({ themes, onChange, removeThemes, onRemove
               )}
               {theme.source === 'url' && (
                 <>
-                  <label>Download URL</label>
-                  <input
+                  <Label htmlFor={`theme-url-${i}`}>Download URL</Label>
+                  <Input
+                    id={`theme-url-${i}`}
                     type="url"
                     value={theme.url || ''}
                     onChange={(e) => updateTheme(i, { url: e.target.value })}
@@ -60,43 +83,63 @@ export default function ThemeRepeater({ themes, onChange, removeThemes, onRemove
               )}
               {theme.source === 'local' && (
                 <>
-                  <label>Zip File</label>
-                  <input
+                  <Label htmlFor={`theme-file-${i}`}>Zip File</Label>
+                  <Input
+                    id={`theme-file-${i}`}
                     type="file"
                     accept=".zip"
+                    className="py-1.5"
                     onChange={(e) => {
                       const file = e.target.files?.[0] || null;
                       updateTheme(i, { file, filename: file?.name });
                     }}
                   />
-                  {theme.filename && <span className="form-hint">{theme.filename}</span>}
+                  {theme.filename && (
+                    <span className="text-xs text-muted-foreground">{theme.filename}</span>
+                  )}
                 </>
               )}
             </div>
-            <div className="tmpl-repeater-actions">
-              <label className="tmpl-toggle-wrap">
-                <input
-                  type="checkbox"
+
+            <div className="flex items-center gap-4 md:pb-2">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id={`theme-activate-${i}`}
                   checked={theme.activate}
-                  onChange={(e) => updateTheme(i, { activate: e.target.checked })}
+                  onCheckedChange={(checked) => updateTheme(i, { activate: checked })}
                 />
-                <span className="tmpl-toggle" />
-                <span className="tmpl-toggle-label">Activate</span>
-              </label>
-              <button type="button" className="btn btn-danger btn-xs tmpl-remove-btn" onClick={() => removeTheme(i)} title="Remove">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
+                <Label htmlFor={`theme-activate-${i}`} className="text-sm font-normal">
+                  Activate
+                </Label>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-destructive"
+                onClick={() => removeTheme(i)}
+                title="Remove"
+              >
+                <X />
+                <span className="sr-only">Remove theme</span>
+              </Button>
             </div>
           </div>
         </div>
       ))}
-      <button type="button" className="btn btn-secondary btn-sm" onClick={addTheme}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+
+      <Button type="button" variant="secondary" size="sm" className="self-start" onClick={addTheme}>
+        <Plus />
         Add Theme
-      </button>
-      <div className="form-group theme-repeater-remove-section">
-        <label>Remove Default Themes <span className="theme-repeater-label-hint">(comma-separated slugs)</span></label>
-        <input
+      </Button>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="theme-remove-defaults">
+          Remove Default Themes{' '}
+          <span className="font-normal text-muted-foreground">(comma-separated slugs)</span>
+        </Label>
+        <Input
+          id="theme-remove-defaults"
           type="text"
           value={removeThemes}
           onChange={(e) => onRemoveThemesChange(e.target.value)}

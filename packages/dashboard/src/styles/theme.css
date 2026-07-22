@@ -37,6 +37,10 @@
   --accent-foreground: oklch(0.21 0.03 265);
   --destructive: oklch(0.58 0.22 27);
   --destructive-foreground: oklch(0.99 0 0);
+  /* Success is a first-class state: "saved", "up to date", "running". Without
+     it these read as either muted or brand-coloured, which loses the meaning. */
+  --success: oklch(0.62 0.15 150);
+  --success-foreground: oklch(0.99 0 0);
   --border: oklch(0.92 0.006 265);
   --input: oklch(0.92 0.006 265);
   --ring: oklch(0.72 0.17 55);
@@ -60,6 +64,8 @@
   --accent-foreground: oklch(0.97 0.005 265);
   --destructive: oklch(0.62 0.2 27);
   --destructive-foreground: oklch(0.99 0 0);
+  --success: oklch(0.7 0.15 150);
+  --success-foreground: oklch(0.18 0.02 265);
   --border: oklch(0.31 0.02 265);
   --input: oklch(0.31 0.02 265);
   --ring: oklch(0.72 0.17 55);
@@ -108,6 +114,8 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

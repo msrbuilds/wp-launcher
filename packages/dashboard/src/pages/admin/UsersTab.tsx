@@ -1,8 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Loader2 } from 'lucide-react';
 import { User, PaginatedResponse, PAGE_SIZE } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { apiFetch } from '../../utils/api';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 export default function UsersTab() {
   const headers = useAdminHeaders();
@@ -54,72 +65,81 @@ export default function UsersTab() {
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
-  if (loading && users.length === 0) return <div className="card"><span className="spinner spinner-dark" /> Loading...</div>;
+  if (loading && users.length === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+      </div>
+    );
+  }
 
   return (
-    <div className="card">
-      <h3 className="ut-title">Users ({total})</h3>
-      <div className="ut-table-wrap">
-        <table className="ut-table">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Verified</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => {
-              const isSystem = u.id === 'admin' || u.id === 'local-user';
-              return (
-                <tr key={u.id}>
-                  <td>
-                    {u.email}
-                    {isSystem && <span className="ut-system-label">(system)</span>}
-                  </td>
-                  <td>
-                    <span className={`badge ${u.role === 'admin' ? 'badge-running' : 'ut-badge-user'}`}>
-                      {u.role || 'user'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`badge ${u.verified ? 'badge-running' : 'badge-error'}`}>{u.verified ? 'Yes' : 'No'}</span>
-                  </td>
-                  <td>{new Date(u.createdAt).toLocaleString()}</td>
-                  <td>
-                    <div className="ut-actions">
-                      {!isSystem && (
-                        <>
-                          {u.role === 'admin' ? (
-                            <button
-                              className="btn btn-sm ut-btn-demote"
-                              onClick={() => handleRoleChange(u.id, 'user')}
-                              disabled={roleUpdating === u.id}
-                            >
-                              {roleUpdating === u.id ? '...' : 'Demote'}
-                            </button>
-                          ) : (
-                            <button
-                              className="btn btn-sm btn-primary"
-                              onClick={() => handleRoleChange(u.id, 'admin')}
-                              disabled={roleUpdating === u.id}
-                            >
-                              {roleUpdating === u.id ? '...' : 'Promote'}
-                            </button>
-                          )}
-                          <button className="btn btn-sm btn-danger" onClick={() => handleDelete(u.id)}>Delete</button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+    <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+      <h3 className="mb-4 text-base font-semibold">Users ({total})</h3>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Email</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Verified</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {users.map((u) => {
+            const isSystem = u.id === 'admin' || u.id === 'local-user';
+            return (
+              <TableRow key={u.id}>
+                <TableCell>
+                  {u.email}
+                  {isSystem && <span className="ml-2 text-xs text-muted-foreground">(system)</span>}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>
+                    {u.role || 'user'}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={u.verified ? 'default' : 'destructive'}>
+                    {u.verified ? 'Yes' : 'No'}
+                  </Badge>
+                </TableCell>
+                <TableCell>{new Date(u.createdAt).toLocaleString()}</TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!isSystem && (
+                      <>
+                        {u.role === 'admin' ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRoleChange(u.id, 'user')}
+                            disabled={roleUpdating === u.id}
+                          >
+                            {roleUpdating === u.id ? '...' : 'Demote'}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => handleRoleChange(u.id, 'admin')}
+                            disabled={roleUpdating === u.id}
+                          >
+                            {roleUpdating === u.id ? '...' : 'Promote'}
+                          </Button>
+                        )}
+                        <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}>
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
       <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
     </div>
   );

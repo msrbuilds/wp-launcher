@@ -1,3 +1,5 @@
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function Pagination({
   page,
@@ -27,30 +29,46 @@ export default function Pagination({
   }
 
   return (
-    <div className="pagination">
-      <span className="pagination-info">
+    <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
+      <span className="text-xs text-muted-foreground">
         {start}–{end} of {total}
       </span>
-      <div className="pagination-controls">
-        <button disabled={page === 0} onClick={() => onPageChange(page - 1)}>
-          ‹
-        </button>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="icon"
+          disabled={page === 0}
+          onClick={() => onPageChange(page - 1)}
+          aria-label="Previous page"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
         {buttons.map((b, i) =>
           b === '...' ? (
-            <span key={`ellipsis-${i}`} className="pg-ellipsis">…</span>
+            <span key={`ellipsis-${i}`} className="px-2 text-sm text-muted-foreground">
+              …
+            </span>
           ) : (
-            <button
+            <Button
               key={b}
-              className={b === page ? 'active' : ''}
+              variant={b === page ? 'default' : 'outline'}
+              size="icon"
               onClick={() => onPageChange(b)}
+              aria-current={b === page ? 'page' : undefined}
             >
               {b + 1}
-            </button>
+            </Button>
           ),
         )}
-        <button disabled={page >= totalPages - 1} onClick={() => onPageChange(page + 1)}>
-          ›
-        </button>
+        <Button
+          variant="outline"
+          size="icon"
+          disabled={page >= totalPages - 1}
+          onClick={() => onPageChange(page + 1)}
+          aria-label="Next page"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );

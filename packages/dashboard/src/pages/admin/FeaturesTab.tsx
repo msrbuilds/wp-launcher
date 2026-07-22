@@ -1,8 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Loader2 } from 'lucide-react';
 import { FEATURE_META } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { useSettings } from '../../context/SettingsContext';
 import { apiFetch } from '../../utils/api';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 
 interface Webhook {
   id: string;
@@ -122,17 +129,23 @@ export default function FeaturesTab() {
     setNewEvents(prev => prev.includes(event) ? prev.filter(e => e !== event) : [...prev, event]);
   }
 
-  if (loading) return <div className="card"><span className="spinner spinner-dark" /> Loading...</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+      </div>
+    );
+  }
 
   return (
     <>
-      <div className="card">
-        <h3 className="ft-heading">Feature Modules</h3>
-        <p className="ft-subtext">
+      <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+        <h3 className="text-base font-semibold">Feature Modules</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
           Enable or disable features for regular users. Admins always have access to all features.
         </p>
 
-        <div className="ft-feature-list">
+        <div className="mt-4 flex flex-col gap-2">
           {FEATURE_META.map((f) => {
             // Every feature is toggleable. `hint` is advisory only: it warns
             // when this install cannot fully deliver the feature yet.
@@ -142,52 +155,45 @@ export default function FeaturesTab() {
                 : f.requires === 'smtp' && !smtpConfigured
                   ? 'Needs email configured'
                   : '';
+            const enabled = !!features[f.key];
             return (
               <div
                 key={f.key}
-                className="ft-feature-row"
-                style={{
-                  background: features[f.key] ? '#f0fdf4' : '#fafafa',
-                }}
+                className={cn(
+                  'flex items-center justify-between gap-4 rounded-lg border border-border p-4',
+                  enabled ? 'bg-accent' : 'bg-muted',
+                )}
               >
                 <div>
-                  <div className="ft-feature-label">
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
                     {f.label}
-                    {hint && <span className="ft-agency-badge" title={hint}>{hint}</span>}
+                    {hint && (
+                      <Badge variant="outline" title={hint}>
+                        {hint}
+                      </Badge>
+                    )}
                   </div>
-                  <div className="ft-feature-desc">{f.description}</div>
+                  <div className="mt-1 text-sm text-muted-foreground">{f.description}</div>
                 </div>
-                <label className="ft-toggle-label">
-                  <input
-                    type="checkbox"
-                    checked={!!features[f.key]}
-                    onChange={(e) => setFeatures((prev) => ({ ...prev, [f.key]: e.target.checked }))}
-                    className="ft-toggle-input"
-                  />
-                  <span
-                    className="ft-toggle-track"
-                    style={{
-                      cursor: 'pointer',
-                      background: features[f.key] ? '#22c55e' : '#cbd5e1',
-                    }}
-                  >
-                    <span
-                      className="ft-toggle-knob"
-                      style={{ left: features[f.key] ? '23px' : '3px' }}
-                    />
-                  </span>
-                </label>
+                <Switch
+                  id={`feature-${f.key}`}
+                  aria-label={f.label}
+                  checked={enabled}
+                  onCheckedChange={(checked) =>
+                    setFeatures((prev) => ({ ...prev, [f.key]: checked }))
+                  }
+                />
               </div>
             );
           })}
         </div>
 
-        <div className="ft-actions">
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? <><span className="spinner" /> Saving...</> : 'Save Changes'}
-          </button>
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : 'Save Changes'}
+          </Button>
           {msg && (
-            <span className={`ft-msg ${msg.startsWith('Failed') ? 'ft-msg-error' : 'ft-msg-success'}`}>
+            <span className={cn('text-sm', msg.startsWith('Failed') ? 'text-destructive' : 'text-muted-foreground')}>
               {msg}
             </span>
           )}
@@ -196,67 +202,71 @@ export default function FeaturesTab() {
 
       {/* Webhooks Management — shown when webhooks feature is enabled */}
       {features.webhooks && (
-        <div className="card ft-webhooks-card">
-          <h3 className="ft-heading">Webhook Endpoints</h3>
-          <p className="ft-subtext">
+        <div className="mt-4 rounded-xl border border-border bg-card p-6 text-card-foreground">
+          <h3 className="text-base font-semibold">Webhook Endpoints</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
             Configure HTTP endpoints that receive notifications when site events occur. Payloads are signed with HMAC-SHA256.
           </p>
 
           {/* Add new webhook form */}
-          <div className="ft-webhook-form">
-            <div className="ft-webhook-form-title">Add Webhook</div>
+          <div className="mt-4 rounded-lg border border-border bg-muted p-4">
+            <div className="text-sm font-medium text-foreground">Add Webhook</div>
 
-            <div className="ft-form-fields">
-              <div>
-                <label className="ft-field-label">Endpoint URL</label>
-                <input
+            <div className="mt-3 flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="webhook-url">Endpoint URL</Label>
+                <Input
                   type="url"
                   id="webhook-url"
                   name="webhook-url"
                   placeholder="https://example.com/webhook"
                   value={newUrl}
                   onChange={(e) => setNewUrl(e.target.value)}
-                  className="ft-text-input"
                 />
               </div>
 
-              <div>
-                <label className="ft-field-label-events">Events</label>
-                <div className="ft-events-row">
+              <div className="flex flex-col gap-2">
+                <Label>Events</Label>
+                <div className="flex flex-wrap gap-2">
                   {ALL_EVENTS.map(event => (
-                    <button
+                    <Button
                       key={event}
                       type="button"
+                      size="sm"
+                      variant={newEvents.includes(event) ? 'default' : 'outline'}
                       onClick={() => toggleEvent(event)}
-                      className={`ft-event-btn ${newEvents.includes(event) ? 'ft-event-btn-active' : 'ft-event-btn-inactive'}`}
                     >
                       {event}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
 
-              <div>
-                <label className="ft-field-label">
-                  Secret <span className="ft-secret-hint">(optional — auto-generated if blank)</span>
-                </label>
-                <input
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="webhook-secret">
+                  Secret
+                  <span className="font-normal text-muted-foreground">(optional — auto-generated if blank)</span>
+                </Label>
+                <Input
                   type="text"
                   id="webhook-secret"
                   name="webhook-secret"
                   placeholder="Leave blank to auto-generate"
                   value={newSecret}
                   onChange={(e) => setNewSecret(e.target.value)}
-                  className="ft-text-input"
                 />
               </div>
 
-              <div className="ft-actions">
-                <button className="btn btn-primary btn-sm" onClick={handleAddWebhook} disabled={addingWebhook || !newUrl || newEvents.length === 0}>
-                  {addingWebhook ? <><span className="spinner spinner-sm" /> Adding...</> : 'Add Webhook'}
-                </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  size="sm"
+                  onClick={handleAddWebhook}
+                  disabled={addingWebhook || !newUrl || newEvents.length === 0}
+                >
+                  {addingWebhook ? <><Loader2 className="h-3 w-3 animate-spin" /> Adding...</> : 'Add Webhook'}
+                </Button>
                 {webhookMsg && (
-                  <span className={`ft-msg ${webhookMsg.startsWith('Failed') ? 'ft-msg-error' : 'ft-msg-success'}`}>
+                  <span className={cn('text-sm', webhookMsg.startsWith('Failed') ? 'text-destructive' : 'text-muted-foreground')}>
                     {webhookMsg}
                   </span>
                 )}
@@ -266,50 +276,53 @@ export default function FeaturesTab() {
 
           {/* Existing webhooks list */}
           {webhooksLoading ? (
-            <div className="ft-loading-center"><span className="spinner spinner-dark" /> Loading webhooks...</div>
+            <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading webhooks...
+            </div>
           ) : webhooks.length === 0 ? (
-            <div className="ft-empty-state">
+            <div className="mt-4 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
               No webhooks configured yet. Add one above.
             </div>
           ) : (
-            <div className="ft-webhook-list">
+            <div className="mt-4 flex flex-col gap-2">
               {webhooks.map(wh => (
                 <div
                   key={wh.id}
-                  className="ft-webhook-item"
-                  style={{
-                    background: wh.active ? '#fff' : '#f9fafb',
-                    opacity: wh.active ? 1 : 0.6,
-                  }}
+                  className={cn(
+                    'flex flex-wrap items-start justify-between gap-4 rounded-lg border border-border p-4',
+                    wh.active ? 'bg-card' : 'bg-muted opacity-60',
+                  )}
                 >
-                  <div className="ft-webhook-info">
-                    <div className="ft-webhook-url">{wh.url}</div>
-                    <div className="ft-webhook-events">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-foreground">{wh.url}</div>
+                    <div className="mt-2 flex flex-wrap gap-1">
                       {wh.events.split(',').map(ev => (
-                        <span key={ev} className="ft-event-tag">
+                        <Badge key={ev} variant="secondary">
                           {ev.trim()}
-                        </span>
+                        </Badge>
                       ))}
                     </div>
-                    <div className="ft-webhook-meta">
-                      Secret: <code className="ft-webhook-secret">{wh.secret ? wh.secret.substring(0, 8) + '...' : 'none'}</code>
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Secret: <code className="rounded bg-muted px-1 py-0.5 font-mono">{wh.secret ? wh.secret.substring(0, 8) + '...' : 'none'}</code>
                       {' · '}Added {new Date(wh.created_at).toLocaleDateString()}
                     </div>
                   </div>
-                  <div className="ft-webhook-actions">
-                    <button
-                      className={`btn btn-xs ${wh.active ? 'btn-secondary' : 'btn-primary'}`}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="xs"
+                      variant={wh.active ? 'secondary' : 'default'}
                       onClick={() => handleToggleWebhook(wh.id, !wh.active)}
                       title={wh.active ? 'Pause' : 'Activate'}
                     >
                       {wh.active ? 'Pause' : 'Activate'}
-                    </button>
-                    <button
-                      className="btn btn-danger-outline btn-xs"
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="destructive"
                       onClick={() => handleDeleteWebhook(wh.id)}
                     >
                       Delete
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}

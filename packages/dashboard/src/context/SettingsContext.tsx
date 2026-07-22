@@ -75,7 +75,6 @@ const DEFAULT_BRANDING: Branding = {
 };
 
 interface Settings {
-  appMode: 'local' | 'agency';
   cardLayout: 'full' | 'compact';
   baseDomain: string;
   features: FeatureFlags;
@@ -91,7 +90,6 @@ interface Settings {
 }
 
 const SettingsContext = createContext<Settings>({
-  appMode: 'agency',
   cardLayout: 'full',
   baseDomain: 'localhost',
   features: DEFAULT_FEATURES,
@@ -108,8 +106,7 @@ const SettingsContext = createContext<Settings>({
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<Omit<Settings, 'refresh'>>({
-    appMode: 'agency',
-    cardLayout: 'full',
+      cardLayout: 'full',
     baseDomain: 'localhost',
     features: DEFAULT_FEATURES,
     branding: DEFAULT_BRANDING,
@@ -145,7 +142,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         // inline here would win over the .dark block and break dark mode.
         root.style.setProperty('--orange', colors.accent);
         setSettings({
-          appMode: data.appMode || 'agency',
           cardLayout: branding.cardLayout || data.cardLayout || 'full',
           baseDomain: data.baseDomain || 'localhost',
           features: { ...DEFAULT_FEATURES, ...(data.features || {}) },
@@ -177,10 +173,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
 export function useSettings() {
   return useContext(SettingsContext);
-}
-
-export function useIsLocalMode() {
-  return useContext(SettingsContext).appMode === 'local';
 }
 
 export function useFeatures(): FeatureFlags {

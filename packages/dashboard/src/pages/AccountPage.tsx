@@ -1,4 +1,8 @@
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/api';
 
@@ -37,21 +41,21 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="card auth-card account-card">
-      <h2 className="account-title">Account</h2>
+    <div className="mx-auto w-full max-w-lg rounded-xl border border-border bg-card p-6">
+      <h2 className="text-lg font-semibold text-card-foreground">Account</h2>
 
-      <div className="account-info">
-        <p>
-          Logged in as <strong>{user?.email}</strong>
-        </p>
-      </div>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Logged in as <strong className="font-medium text-foreground">{user?.email}</strong>
+      </p>
 
-      <h3 className="account-section-title">Change Password</h3>
+      <Separator className="my-6" />
 
-      <form onSubmit={handleChangePassword}>
-        <div className="form-group">
-          <label htmlFor="currentPassword">Current Password</label>
-          <input
+      <h3 className="text-sm font-medium text-card-foreground">Change Password</h3>
+
+      <form onSubmit={handleChangePassword} className="mt-4 space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="currentPassword">Current Password</Label>
+          <Input
             id="currentPassword"
             type="password"
             value={currentPassword}
@@ -60,9 +64,9 @@ export default function AccountPage() {
           />
         </div>
 
-        <div className="form-group">
-          <label htmlFor="newPassword">New Password</label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="newPassword">New Password</Label>
+          <Input
             id="newPassword"
             type="password"
             value={newPassword}
@@ -72,16 +76,16 @@ export default function AccountPage() {
           />
         </div>
 
-        {error && <div className="alert-error">{error}</div>}
-        {message && <div className="alert-success">{message}</div>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {message && <p className="text-sm text-primary">{message}</p>}
 
-        <div className="account-actions">
-          <button className="btn btn-primary" type="submit" disabled={loading}>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" disabled={loading}>
             {loading ? 'Updating...' : 'Update Password'}
-          </button>
-          <button className="btn btn-danger" type="button" onClick={logout}>
+          </Button>
+          <Button variant="destructive" type="button" onClick={logout}>
             Log Out
-          </button>
+          </Button>
         </div>
       </form>
     </div>

@@ -1,13 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Loader2 } from 'lucide-react';
 import { SiteLog, PaginatedResponse, PAGE_SIZE } from './shared';
 import { useAdminHeaders } from './AdminLayout';
-import { useIsLocalMode } from '../../context/SettingsContext';
 import Pagination from './Pagination';
 import { apiFetch } from '../../utils/api';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 export default function LogsTab() {
   const headers = useAdminHeaders();
-  const isLocal = useIsLocalMode();
   const [logs, setLogs] = useState<SiteLog[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -25,39 +33,54 @@ export default function LogsTab() {
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
-  if (loading && logs.length === 0) return <div className="card"><span className="spinner spinner-dark" /> Loading...</div>;
+  if (loading && logs.length === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+      </div>
+    );
+  }
 
   return (
-    <div className="card">
-      <h3 className="lg-title">Site Logs ({total})</h3>
-      <div className="lg-table-wrap">
-        <table className="lg-table">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Action</th>
-              {!isLocal && <th>User</th>}
-              <th>Site</th>
-              <th>{isLocal ? 'Template' : 'Product'}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((log) => (
-              <tr key={log.id}>
-                <td>{new Date(log.created_at).toLocaleString()}</td>
-                <td>
-                  <span className={`badge ${log.action === 'created' ? 'badge-running' : 'badge-expired'}`}>{log.action}</span>
-                </td>
-                {!isLocal && <td>{log.user_email || '—'}</td>}
-                <td>
-                  {log.site_url ? <a href={log.site_url} target="_blank" rel="noopener noreferrer">{log.subdomain}</a> : log.subdomain}
-                </td>
-                <td>{log.product_id}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+      <h3 className="mb-4 text-base font-semibold">Site Logs ({total})</h3>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Time</TableHead>
+            <TableHead>Action</TableHead>
+            <TableHead>User</TableHead>
+            <TableHead>Site</TableHead>
+            <TableHead>Blueprint</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {logs.map((log) => (
+            <TableRow key={log.id}>
+              <TableCell>{new Date(log.created_at).toLocaleString()}</TableCell>
+              <TableCell>
+                <Badge variant={log.action === 'created' ? 'default' : 'secondary'}>{log.action}</Badge>
+              </TableCell>
+              <TableCell>{log.user_email || '—'}</TableCell>
+              <TableCell>
+                {log.site_url ? (
+                  <a
+                    href={log.site_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    {log.subdomain}
+                  </a>
+                ) : (
+                  log.subdomain
+                )}
+              </TableCell>
+              <TableCell>{log.product_id}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
       <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
     </div>
   );

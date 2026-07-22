@@ -1,8 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Loader2, Plus } from 'lucide-react';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 export default function BlueprintsTab() {
   const headers = useAdminHeaders();
@@ -36,45 +46,72 @@ export default function BlueprintsTab() {
     finally { setDeleting(null); fetchProducts(); }
   }
 
-  if (loading && products.length === 0) return <div className="card"><span className="spinner spinner-dark" /> Loading...</div>;
+  if (loading && products.length === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading...
+      </div>
+    );
+  }
 
   return (
-    <div className="card">
-      <div className="pt-header">
-        <h3 className="pt-title">{Noun}s ({products.length})</h3>
-        <button className="btn btn-primary btn-sm" onClick={() => navigate('/blueprints/new')}>+ New {Noun}</button>
+    <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-base font-semibold">{Noun}s ({products.length})</h3>
+        <Button size="sm" onClick={() => navigate('/blueprints/new')}>
+          <Plus />
+          New {Noun}
+        </Button>
       </div>
+
       {products.length === 0 ? (
-        <p className="pt-empty">No {noun}s configured.</p>
+        <p className="py-6 text-center text-sm text-muted-foreground">No {noun}s configured.</p>
       ) : (
-        <div className="pt-table-wrap">
-          <table className="pt-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Database</th>
-                <th>Description</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((p) => (
-                <tr key={p.id}>
-                  <td><code>{p.id}</code></td>
-                  <td>{p.name}</td>
-                  <td>{p.database || 'sqlite'}</td>
-                  <td className="pt-desc-cell">{p.branding?.description || '—'}</td>
-                  <td>
-                    <button className="btn btn-sm btn-danger" onClick={() => handleDelete(p.id, p.name)} disabled={deleting === p.id}>
-                      {deleting === p.id ? <><span className="spinner" /> Deleting...</> : 'Delete'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>ID</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Database</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {products.map((p) => (
+              <TableRow key={p.id}>
+                <TableCell>
+                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                    {p.id}
+                  </code>
+                </TableCell>
+                <TableCell className="font-medium">{p.name}</TableCell>
+                <TableCell className="text-muted-foreground">{p.database || 'sqlite'}</TableCell>
+                <TableCell className="max-w-xs truncate whitespace-normal text-muted-foreground">
+                  {p.branding?.description || '—'}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(p.id, p.name)}
+                    disabled={deleting === p.id}
+                  >
+                    {deleting === p.id ? (
+                      <>
+                        <Loader2 className="animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      'Delete'
+                    )}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </div>
   );

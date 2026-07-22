@@ -1,4 +1,8 @@
 import { useRef } from 'react';
+import { ImageIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 interface ImageUploadProps {
   label: string;
@@ -23,27 +27,37 @@ export default function ImageUpload({ label, hint, preview, onFileSelect, onClea
   }
 
   return (
-    <div className="form-group">
-      <label>{label}</label>
-      {hint && <span className="form-hint imgupload-hint">{hint}</span>}
-      <input ref={inputRef} type="file" accept="image/*" onChange={handleChange} className="imgupload-file-input" />
-      <div
-        className={`tmpl-image-upload ${className || ''}`}
+    <div className="flex flex-1 flex-col gap-2">
+      <div className="flex flex-col gap-0.5">
+        <Label>{label}</Label>
+        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+      </div>
+
+      <input ref={inputRef} type="file" accept="image/*" onChange={handleChange} className="hidden" />
+
+      <button
+        type="button"
         onClick={() => inputRef.current?.click()}
+        className={cn(
+          'flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-border bg-muted/40 transition-colors hover:border-ring hover:bg-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+          'aspect-[3/2]',
+          className,
+        )}
       >
         {preview ? (
-          <img src={preview} alt={`${label} preview`} className="imgupload-preview-img" />
+          <img src={preview} alt={`${label} preview`} className="h-full w-full object-cover" />
         ) : (
-          <div className="tmpl-image-placeholder">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            <span>Click to upload</span>
+          <div className="flex flex-col items-center gap-2 p-4 text-muted-foreground">
+            <ImageIcon className="h-8 w-8" strokeWidth={1.5} />
+            <span className="text-xs">Click to upload</span>
           </div>
         )}
-      </div>
+      </button>
+
       {preview && (
-        <button type="button" className="btn btn-secondary btn-xs imgupload-remove-btn" onClick={handleClear}>
+        <Button type="button" variant="secondary" size="xs" className="self-start" onClick={handleClear}>
           Remove
-        </button>
+        </Button>
       )}
     </div>
   );

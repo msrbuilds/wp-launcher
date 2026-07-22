@@ -1,7 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Check, ChevronDown, ChevronUp, Copy, Loader2 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { apiFetch } from '../utils/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Template {
   id: string;
@@ -36,6 +50,60 @@ const PHP_OPTIONS = [
   { label: 'PHP 8.2', value: '8.2' },
   { label: 'PHP 8.1', value: '8.1' },
   { label: 'PHP 7.4 (legacy — WP 6.1)', value: '7.4' },
+];
+
+const MEMORY_LIMIT_OPTIONS = [
+  { label: '128 MB', value: '128M' },
+  { label: '256 MB', value: '256M' },
+  { label: '512 MB', value: '512M' },
+  { label: '1 GB', value: '1G' },
+  { label: '2 GB', value: '2G' },
+  { label: 'Unlimited', value: '-1' },
+];
+
+const UPLOAD_MAX_OPTIONS = [
+  { label: '2 MB', value: '2M' },
+  { label: '16 MB', value: '16M' },
+  { label: '64 MB', value: '64M' },
+  { label: '128 MB', value: '128M' },
+  { label: '256 MB', value: '256M' },
+  { label: '512 MB', value: '512M' },
+  { label: '1 GB', value: '1G' },
+  { label: '2 GB', value: '2G' },
+  { label: 'Unlimited', value: '0' },
+];
+
+const POST_MAX_OPTIONS = [
+  { label: '8 MB', value: '8M' },
+  { label: '16 MB', value: '16M' },
+  { label: '64 MB', value: '64M' },
+  { label: '128 MB', value: '128M' },
+  { label: '256 MB', value: '256M' },
+  { label: '512 MB', value: '512M' },
+  { label: '1 GB', value: '1G' },
+  { label: '2 GB', value: '2G' },
+  { label: 'Unlimited', value: '0' },
+];
+
+const EXEC_TIME_OPTIONS = [
+  { label: '30s', value: '30' },
+  { label: '60s', value: '60' },
+  { label: '120s', value: '120' },
+  { label: '300s', value: '300' },
+  { label: '600s', value: '600' },
+  { label: 'Unlimited', value: '0' },
+];
+
+const INPUT_VARS_OPTIONS = [
+  { label: '1,000', value: '1000' },
+  { label: '3,000', value: '3000' },
+  { label: '5,000', value: '5000' },
+  { label: '10,000', value: '10000' },
+];
+
+const DISPLAY_ERRORS_OPTIONS = [
+  { label: 'On', value: 'On' },
+  { label: 'Off', value: 'Off' },
 ];
 
 export default function LocalLaunchPage() {
@@ -79,6 +147,7 @@ export default function LocalLaunchPage() {
   const [result, setResult] = useState<SiteResult | null>(null);
   const [error, setError] = useState('');
   const [provisionProgress, setProvisionProgress] = useState(0);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (settingsLoading) return;
@@ -176,6 +245,12 @@ export default function LocalLaunchPage() {
     setStep('result');
   }
 
+  function copyToClipboard(key: string, text: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey((current) => (current === key ? null : current)), 1500);
+  }
+
   // Provisioning step
   if (step === 'provisioning' && result) {
     const stageText = provisionProgress < 20
@@ -189,74 +264,69 @@ export default function LocalLaunchPage() {
       : 'Done!';
 
     return (
-      <div className="card site-result">
-        <span className="spinner spinner-hero" />
-        <h3>Setting up your site...</h3>
-        <p className="llp-stage-text">
-          {stageText}
-        </p>
-        <div className="progress-bar-track">
-          <div className="progress-bar-fill-real" style={{ width: `${provisionProgress}%` }} />
-        </div>
-        <p className="llp-progress-pct">
-          {provisionProgress}%
-        </p>
+      <div className="mx-auto max-w-xl rounded-xl border border-border bg-card p-6 text-center">
+        <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
+        <h3 className="mt-4 text-lg font-semibold text-card-foreground">Setting up your site...</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{stageText}</p>
+        <Progress value={provisionProgress} className="mt-6" />
+        <p className="mt-2 text-xs font-medium text-muted-foreground">{provisionProgress}%</p>
       </div>
     );
   }
 
   // Result step
   if (step === 'result' && result) {
-    function copyToClipboard(text: string, e: React.MouseEvent) {
-      navigator.clipboard.writeText(text);
-      const btn = e.currentTarget as HTMLButtonElement;
-      btn.classList.add('copied');
-      setTimeout(() => btn.classList.remove('copied'), 1500);
-    }
+    const rows: { key: string; label: string; value: string; link?: boolean }[] = [
+      { key: 'url', label: 'Site URL', value: result.url, link: true },
+      { key: 'adminUrl', label: 'Admin URL', value: result.adminUrl, link: true },
+      { key: 'username', label: 'Username', value: result.credentials.username },
+      { key: 'password', label: 'Password', value: result.credentials.password },
+    ];
 
     return (
-      <div className="card site-result">
-        <div className="result-icon">&#10003;</div>
-        <h3>Your site is ready!</h3>
+      <div className="mx-auto max-w-xl rounded-xl border border-border bg-card p-6 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <Check className="h-6 w-6" />
+        </div>
+        <h3 className="mt-4 text-lg font-semibold text-card-foreground">Your site is ready!</h3>
 
-        <div className="cred-rows">
-          <div className="cred-row">
-            <span className="cred-label">Site URL</span>
-            <span className="cred-value">
-              <a href={result.url} target="_blank" rel="noopener noreferrer">{result.url}</a>
-            </span>
-            <button className="cred-copy" onClick={(e) => copyToClipboard(result.url, e)} title="Copy">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
-          </div>
-          <div className="cred-row">
-            <span className="cred-label">Admin URL</span>
-            <span className="cred-value">
-              <a href={result.adminUrl} target="_blank" rel="noopener noreferrer">{result.adminUrl}</a>
-            </span>
-            <button className="cred-copy" onClick={(e) => copyToClipboard(result.adminUrl, e)} title="Copy">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
-          </div>
-          <div className="cred-row">
-            <span className="cred-label">Username</span>
-            <span className="cred-value"><code>{result.credentials.username}</code></span>
-            <button className="cred-copy" onClick={(e) => copyToClipboard(result.credentials.username, e)} title="Copy">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
-          </div>
-          <div className="cred-row">
-            <span className="cred-label">Password</span>
-            <span className="cred-value"><code>{result.credentials.password}</code></span>
-            <button className="cred-copy" onClick={(e) => copyToClipboard(result.credentials.password, e)} title="Copy">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-            </button>
-          </div>
+        <div className="mt-6 divide-y divide-border rounded-lg border border-border text-left">
+          {rows.map((row) => (
+            <div key={row.key} className="flex items-center gap-3 px-4 py-3">
+              <span className="w-24 shrink-0 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                {row.label}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm text-card-foreground">
+                {row.link ? (
+                  <a
+                    href={row.value}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    {row.value}
+                  </a>
+                ) : (
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                    {row.value}
+                  </code>
+                )}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                title="Copy"
+                onClick={() => copyToClipboard(row.key, row.value)}
+              >
+                {copiedKey === row.key ? <Check /> : <Copy />}
+              </Button>
+            </div>
+          ))}
         </div>
 
-        <div className="llp-result-actions">
-          <button
-            className="btn btn-primary btn-lg"
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Button
+            size="lg"
             onClick={async () => {
               try {
                 const res = await apiFetch(`/api/sites/${result.id}/autologin`, {
@@ -274,10 +344,14 @@ export default function LocalLaunchPage() {
             }}
           >
             One Click Login
-          </button>
-          <button className="btn btn-secondary btn-lg" onClick={() => { setResult(null); setStep('configure'); }}>
+          </Button>
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={() => { setResult(null); setStep('configure'); }}
+          >
             Create Another
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -285,97 +359,109 @@ export default function LocalLaunchPage() {
 
   // Configure step (main form)
   return (
-    <div className="local-launch-form">
-      <div className="card llp-form-card">
-        <h3 className="llp-form-title">Create a WordPress Site</h3>
-        <div className="form-columns">
-          <div className="form-col">
-            <div className="form-group">
-              <label htmlFor="siteTitle">Site Title</label>
-              <input
+    <div className="mx-auto max-w-3xl">
+      <div className="rounded-xl border border-border bg-card p-6">
+        <h3 className="text-lg font-semibold text-card-foreground">Create a WordPress Site</h3>
+
+        <div className="mt-6 grid gap-6 sm:grid-cols-2">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="siteTitle">Site Title</Label>
+              <Input
                 id="siteTitle"
                 type="text"
                 value={siteTitle}
                 onChange={(e) => setSiteTitle(e.target.value)}
                 placeholder="My WordPress Site"
+                className="rounded-lg"
               />
             </div>
-            <div className="form-group">
-              <label htmlFor="template">Template</label>
-              <select
-                id="template"
-                value={selectedTemplate}
-                onChange={(e) => setSelectedTemplate(e.target.value)}
-              >
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
+            <div className="space-y-2">
+              <Label htmlFor="template">Template</Label>
+              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                <SelectTrigger id="template" className="w-full rounded-lg">
+                  <SelectValue placeholder="Select a template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="form-group">
-              <label htmlFor="dbEngine">Database</label>
-              <select
-                id="dbEngine"
-                value={dbEngine}
-                onChange={(e) => setDbEngine(e.target.value)}
-              >
-                {DB_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+            <div className="space-y-2">
+              <Label htmlFor="dbEngine">Database</Label>
+              <Select value={dbEngine} onValueChange={setDbEngine}>
+                <SelectTrigger id="dbEngine" className="w-full rounded-lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DB_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="form-group">
-              <label htmlFor="phpVersion">PHP Version</label>
-              <select
-                id="phpVersion"
-                value={phpVersion}
-                onChange={(e) => setPhpVersion(e.target.value)}
-              >
-                {PHP_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
+            <div className="space-y-2">
+              <Label htmlFor="phpVersion">PHP Version</Label>
+              <Select value={phpVersion} onValueChange={setPhpVersion}>
+                <SelectTrigger id="phpVersion" className="w-full rounded-lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PHP_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-          <div className="form-col">
-            <div className="form-group">
-              <label htmlFor="adminUser">Username</label>
-              <input
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="adminUser">Username</Label>
+              <Input
                 id="adminUser"
                 type="text"
                 value={adminUser}
                 onChange={(e) => setAdminUser(e.target.value)}
                 placeholder="admin"
+                className="rounded-lg"
               />
             </div>
-            <div className="form-group">
-              <label htmlFor="adminPassword">Password</label>
-              <input
+            <div className="space-y-2">
+              <Label htmlFor="adminPassword">Password</Label>
+              <Input
                 id="adminPassword"
                 type="text"
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
                 placeholder="admin"
+                className="rounded-lg"
               />
             </div>
-            <div className="form-group">
-              <label htmlFor="adminEmail">Admin Email</label>
-              <input
+            <div className="space-y-2">
+              <Label htmlFor="adminEmail">Admin Email</Label>
+              <Input
                 id="adminEmail"
                 type="email"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
                 placeholder="admin@localhost.test"
+                className="rounded-lg"
               />
             </div>
-            <div className="form-group">
-              <label htmlFor="subdomain">Subdomain <span className="llp-optional-hint">(optional)</span></label>
-              <input
+            <div className="space-y-2">
+              <Label htmlFor="subdomain">
+                Subdomain <span className="font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
                 id="subdomain"
                 type="text"
                 value={subdomain}
                 onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                 placeholder="my-site (auto-generated if empty)"
+                className="rounded-lg"
               />
             </div>
           </div>
@@ -383,122 +469,141 @@ export default function LocalLaunchPage() {
 
         {/* Direct File Access toggle (only when SITES_HOST_PATH is configured) */}
         {sitesHostPath && (
-          <div className="llp-file-access-toggle">
-            <label className="llp-toggle-row">
-              <div className={`llp-toggle-switch${directFileAccess ? ' llp-toggle-switch--on' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={directFileAccess}
-                  onChange={(e) => setDirectFileAccess(e.target.checked)}
-                />
-                <span className="llp-toggle-thumb" />
-              </div>
-              <div className="llp-toggle-text">
-                <span className="llp-toggle-label">Direct File Access</span>
-                <span className="llp-toggle-hint">Sync plugins &amp; themes to host for editing in VS Code</span>
-              </div>
-            </label>
+          <div className="mt-6 flex items-start gap-3 rounded-lg border border-border p-4">
+            <Switch
+              id="directFileAccess"
+              checked={directFileAccess}
+              onCheckedChange={setDirectFileAccess}
+              className="mt-0.5"
+            />
+            <div className="grid gap-1">
+              <Label htmlFor="directFileAccess">Direct File Access</Label>
+              <span className="text-xs text-muted-foreground">
+                Sync plugins &amp; themes to host for editing in VS Code
+              </span>
+            </div>
           </div>
         )}
 
         {/* PHP Configuration (collapsible) */}
-        <div className="llp-php-config-section">
+        <div className="mt-6 rounded-lg border border-border">
           <button
             type="button"
             onClick={() => setShowPhpConfig(!showPhpConfig)}
-            className="llp-php-config-toggle"
+            className="flex w-full items-center justify-between gap-2 rounded-lg px-4 py-3 text-sm font-medium text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           >
             <span>PHP Configuration</span>
-            <span className="llp-php-config-arrow">{showPhpConfig ? '\u25B2' : '\u25BC'}</span>
+            {showPhpConfig
+              ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           </button>
           {showPhpConfig && (
-            <div className="llp-php-config-panel">
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Memory Limit</label>
-                  <select value={phpMemoryLimit} onChange={(e) => setPhpMemoryLimit(e.target.value)}>
-                    <option value="128M">128 MB</option>
-                    <option value="256M">256 MB</option>
-                    <option value="512M">512 MB</option>
-                    <option value="1G">1 GB</option>
-                    <option value="2G">2 GB</option>
-                    <option value="-1">Unlimited</option>
-                  </select>
+            <div className="space-y-4 border-t border-border p-4">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="phpMemoryLimit">Memory Limit</Label>
+                  <Select value={phpMemoryLimit} onValueChange={setPhpMemoryLimit}>
+                    <SelectTrigger id="phpMemoryLimit" className="w-full rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MEMORY_LIMIT_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="form-group">
-                  <label>Upload Max Filesize</label>
-                  <select value={phpUploadMaxFilesize} onChange={(e) => setPhpUploadMaxFilesize(e.target.value)}>
-                    <option value="2M">2 MB</option>
-                    <option value="16M">16 MB</option>
-                    <option value="64M">64 MB</option>
-                    <option value="128M">128 MB</option>
-                    <option value="256M">256 MB</option>
-                    <option value="512M">512 MB</option>
-                    <option value="1G">1 GB</option>
-                    <option value="2G">2 GB</option>
-                    <option value="0">Unlimited</option>
-                  </select>
+                <div className="space-y-2">
+                  <Label htmlFor="phpUploadMaxFilesize">Upload Max Filesize</Label>
+                  <Select value={phpUploadMaxFilesize} onValueChange={setPhpUploadMaxFilesize}>
+                    <SelectTrigger id="phpUploadMaxFilesize" className="w-full rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UPLOAD_MAX_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="form-group">
-                  <label>Post Max Size</label>
-                  <select value={phpPostMaxSize} onChange={(e) => setPhpPostMaxSize(e.target.value)}>
-                    <option value="8M">8 MB</option>
-                    <option value="16M">16 MB</option>
-                    <option value="64M">64 MB</option>
-                    <option value="128M">128 MB</option>
-                    <option value="256M">256 MB</option>
-                    <option value="512M">512 MB</option>
-                    <option value="1G">1 GB</option>
-                    <option value="2G">2 GB</option>
-                    <option value="0">Unlimited</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Max Execution Time</label>
-                  <select value={phpMaxExecutionTime} onChange={(e) => setPhpMaxExecutionTime(e.target.value)}>
-                    <option value="30">30s</option>
-                    <option value="60">60s</option>
-                    <option value="120">120s</option>
-                    <option value="300">300s</option>
-                    <option value="600">600s</option>
-                    <option value="0">Unlimited</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Max Input Vars</label>
-                  <select value={phpMaxInputVars} onChange={(e) => setPhpMaxInputVars(e.target.value)}>
-                    <option value="1000">1,000</option>
-                    <option value="3000">3,000</option>
-                    <option value="5000">5,000</option>
-                    <option value="10000">10,000</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Display Errors</label>
-                  <select value={phpDisplayErrors} onChange={(e) => setPhpDisplayErrors(e.target.value)}>
-                    <option value="On">On</option>
-                    <option value="Off">Off</option>
-                  </select>
+                <div className="space-y-2">
+                  <Label htmlFor="phpPostMaxSize">Post Max Size</Label>
+                  <Select value={phpPostMaxSize} onValueChange={setPhpPostMaxSize}>
+                    <SelectTrigger id="phpPostMaxSize" className="w-full rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {POST_MAX_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <div className="form-group llp-extensions-group">
-                <label>PHP Extensions <span className="llp-extensions-hint">(click to toggle)</span></label>
-                <div className="llp-extensions-grid">
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="phpMaxExecutionTime">Max Execution Time</Label>
+                  <Select value={phpMaxExecutionTime} onValueChange={setPhpMaxExecutionTime}>
+                    <SelectTrigger id="phpMaxExecutionTime" className="w-full rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EXEC_TIME_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phpMaxInputVars">Max Input Vars</Label>
+                  <Select value={phpMaxInputVars} onValueChange={setPhpMaxInputVars}>
+                    <SelectTrigger id="phpMaxInputVars" className="w-full rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INPUT_VARS_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phpDisplayErrors">Display Errors</Label>
+                  <Select value={phpDisplayErrors} onValueChange={setPhpDisplayErrors}>
+                    <SelectTrigger id="phpDisplayErrors" className="w-full rounded-lg">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DISPLAY_ERRORS_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  PHP Extensions{' '}
+                  <span className="font-normal text-muted-foreground">(click to toggle)</span>
+                </Label>
+                <div className="flex flex-wrap gap-2">
                   {AVAILABLE_EXTENSIONS.map((ext) => {
                     const active = phpExtensions.includes(ext.value);
                     return (
-                      <button
+                      <Button
                         key={ext.value}
                         type="button"
+                        size="sm"
+                        variant={active ? 'default' : 'outline'}
+                        className="rounded-lg"
                         onClick={() => setPhpExtensions(
                           active ? phpExtensions.filter((e) => e !== ext.value) : [...phpExtensions, ext.value]
                         )}
-                        className={`llp-ext-btn ${active ? 'llp-ext-btn--active' : 'llp-ext-btn--inactive'}`}
                       >
                         {ext.label}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
@@ -507,18 +612,24 @@ export default function LocalLaunchPage() {
           )}
         </div>
 
-        {error && <div className="alert-error llp-error">{error}</div>}
-        <button
-          className="btn btn-primary btn-lg llp-submit"
+        {error && (
+          <Alert variant="destructive" className="mt-6">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <Button
+          size="lg"
+          className="mt-6 w-full rounded-lg"
           onClick={handleCreate}
           disabled={creating || !selectedTemplate}
         >
           {creating ? (
-            <><span className="spinner" /> Creating...</>
+            <><Loader2 className="animate-spin" /> Creating...</>
           ) : (
             'Create Site'
           )}
-        </button>
+        </Button>
       </div>
     </div>
   );

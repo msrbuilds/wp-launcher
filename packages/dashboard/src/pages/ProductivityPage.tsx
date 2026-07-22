@@ -1,10 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAdminHeaders } from './admin/AdminLayout';
 import { apiFetch } from '../utils/api';
+import { useTheme } from '../context/ThemeContext';
 import {
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
+import { AlertCircle, Blocks, Loader2, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { EDITOR_COLORS } from '@/lib/editor-colors';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+} from '@/components/ui/table';
 
 // ── Interfaces ──
 
@@ -92,58 +108,94 @@ function formatHour(hour: number): string {
   return `${hour - 12}pm`;
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
+/**
+ * Recharts takes colours as props, so they cannot come from Tailwind classes.
+ * Read the resolved design tokens off the document instead, and recompute them
+ * whenever the theme flips so the charts follow light/dark.
+ */
+function readChartTokens() {
+  if (typeof window === 'undefined') {
+    return { grid: '', axis: '', tooltipBg: '', tooltipBorder: '', tooltipText: '', series: [] as string[] };
+  }
+  const css = getComputedStyle(document.documentElement);
+  const v = (name: string) => css.getPropertyValue(name).trim();
+  const primary = v('--primary');
+  // Derive a small categorical palette by rotating the hue of the primary token
+  // rather than hardcoding colour literals.
+  const match = primary.match(/oklch\(\s*([\d.]+%?)\s+([\d.]+)\s+([\d.]+)/i);
+  const series = match
+    ? Array.from({ length: 6 }, (_, i) => `oklch(${match[1]} ${match[2]} ${(Number(match[3]) + i * 47) % 360})`)
+    : Array.from({ length: 6 }, () => primary);
+  return {
+    grid: v('--border'),
+    axis: v('--muted-foreground'),
+    tooltipBg: v('--popover'),
+    tooltipBorder: v('--border'),
+    tooltipText: v('--popover-foreground'),
+    series,
+  };
+}
 
-const EDITOR_COLORS: Record<string, string> = {
-  vscode: '#007ACC',
-  cursor: '#00E5A0',
-  windsurf: '#6C5CE7',
-  antigravity: '#4285F4',
-  sublime: '#FF9800',
-  phpstorm: '#B845FC',
-  webstorm: '#00CDD7',
-  pycharm: '#21D789',
-  intellij: '#FC801D',
-  goland: '#00ACC1',
-  rider: '#DD1265',
-  clion: '#21D789',
-  rubymine: '#FC801D',
-  datagrip: '#22D88F',
-  'android-studio': '#3DDC84',
-  jetbrains: '#FC801D',
-};
-const chartTooltipStyle = {
-  backgroundColor: 'rgba(255,255,255,0.95)',
-  border: '1px solid #e2e8f0',
-  borderRadius: '6px',
-  fontSize: '0.8rem',
-};
+// Token-only stand-in for the old per-item hex palette: successive rows step
+// down in primary opacity so bars stay distinguishable in both themes.
+const BAR_SHADES = [
+  'bg-primary',
+  'bg-primary/85',
+  'bg-primary/70',
+  'bg-primary/55',
+  'bg-primary/40',
+  'bg-primary/30',
+];
+
+// Written out in full so Tailwind's scanner sees every class literally.
+const BAR_INDICATORS = [
+  '[&>[data-slot=progress-indicator]]:bg-primary',
+  '[&>[data-slot=progress-indicator]]:bg-primary/85',
+  '[&>[data-slot=progress-indicator]]:bg-primary/70',
+  '[&>[data-slot=progress-indicator]]:bg-primary/55',
+  '[&>[data-slot=progress-indicator]]:bg-primary/40',
+  '[&>[data-slot=progress-indicator]]:bg-primary/30',
+];
+
+const barShade = (i: number) => BAR_SHADES[i % BAR_SHADES.length];
+const barIndicator = (i: number) => BAR_INDICATORS[i % BAR_INDICATORS.length];
 
 // ── Breakdown Bar Component (WakaTime-style horizontal bars) ──
 
-function BreakdownList({ items, label, colorMap }: { items: { name: string; seconds: number }[]; label: string; colorMap?: Record<string, string> }) {
-  if (items.length === 0) return <div className="pd-empty">No {label.toLowerCase()} data</div>;
+function BreakdownList({
+  items,
+  label,
+  colorMap,
+}: {
+  items: { name: string; seconds: number }[];
+  label: string;
+  /** Optional brand colours (e.g. editors). Falls back to the token ramp. */
+  colorMap?: Record<string, string>;
+}) {
+  if (items.length === 0) return <div className="py-4 text-sm text-muted-foreground">No {label.toLowerCase()} data</div>;
   const max = items[0]?.seconds || 1;
   const total = items.reduce((s, i) => s + i.seconds, 0) || 1;
-  const getColor = (name: string, i: number) => colorMap?.[name.toLowerCase()] || COLORS[i % COLORS.length];
   return (
-    <div className="pd-breakdown-list">
+    <div className="space-y-3">
       {items.map((item, i) => (
-        <div key={item.name} className="pd-breakdown-item">
-          <div className="pd-breakdown-row">
-            <span className="pd-breakdown-name">
-              <span className="pd-breakdown-dot" style={{ backgroundColor: getColor(item.name, i) }} />
-              {item.name}
-            </span>
-            <span className="pd-breakdown-time">{formatDuration(item.seconds)}</span>
-            <span className="pd-breakdown-pct">{Math.round((item.seconds / total) * 100)}%</span>
-          </div>
-          <div className="pd-bar pd-bar-sm">
-            <div
-              className="pd-bar-fill"
-              style={{ width: `${Math.round((item.seconds / max) * 100)}%`, backgroundColor: getColor(item.name, i) }}
+        <div key={item.name}>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="flex min-w-0 flex-1 items-center gap-2 text-card-foreground">
+              <span
+              className={cn('h-2 w-2 shrink-0 rounded-full', !colorMap?.[item.name.toLowerCase()] && barShade(i))}
+              // Brand colour when we have one — see lib/editor-colors.ts for why
+              // these stay literal rather than becoming tokens.
+              style={colorMap?.[item.name.toLowerCase()] ? { background: colorMap[item.name.toLowerCase()] } : undefined}
             />
+              <span className="truncate">{item.name}</span>
+            </span>
+            <span className="shrink-0 text-xs text-muted-foreground">{formatDuration(item.seconds)}</span>
+            <span className="w-9 shrink-0 text-right text-xs text-muted-foreground">{Math.round((item.seconds / total) * 100)}%</span>
           </div>
+          <Progress
+            className={cn('mt-1.5 h-1.5', barIndicator(i))}
+            value={Math.round((item.seconds / max) * 100)}
+          />
         </div>
       ))}
     </div>
@@ -198,6 +250,7 @@ const INTEGRATIONS: Integration[] = [
 
 export default function ProductivityPage() {
   const headers = useAdminHeaders();
+  const { resolved } = useTheme();
   const [todayStats, setTodayStats] = useState<TodayStats | null>(null);
   const [rangeStats, setRangeStats] = useState<TodayStats | null>(null);
   const [dailyTotals, setDailyTotals] = useState<DailyTotal[]>([]);
@@ -226,6 +279,15 @@ export default function ProductivityPage() {
   // Goal editing
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalHours, setGoalHours] = useState(6);
+
+  const chart = useMemo(() => readChartTokens(), [resolved]);
+  const chartTooltipStyle = useMemo(() => ({
+    backgroundColor: chart.tooltipBg,
+    border: `1px solid ${chart.tooltipBorder}`,
+    borderRadius: '0.5rem',
+    color: chart.tooltipText,
+    fontSize: '0.8rem',
+  }), [chart]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -361,78 +423,99 @@ export default function ProductivityPage() {
   }));
 
   if (loading) {
-    return <div className="pd-loading"><div className="spinner" /></div>;
+    return (
+      <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" /> Loading...
+      </div>
+    );
   }
 
+  const microLabel = 'text-[11px] font-medium uppercase tracking-wider text-muted-foreground';
+  const statCard = 'rounded-xl border border-border bg-card p-6';
+
   return (
-    <div className="pd-page">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="pd-header">
-        <div className="pd-header-left">
-          <h2 className="pd-title">Productivity</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-xl font-semibold text-foreground">Productivity</h2>
           {cloudConfig.cloud_url && (
-            <span className="pd-cloud-badge">
-              <span className="pd-live-dot" />
+            <span className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="h-2 w-2 rounded-full bg-primary" />
               Synced {cloudConfig.last_synced_at ? new Date(cloudConfig.last_synced_at).toLocaleString() : 'never'}
             </span>
           )}
         </div>
-        <div className="pd-header-actions">
-          <div className="pd-source-toggle">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 rounded-lg border border-border p-0.5">
             {['all', 'editor', 'wordpress'].map(s => (
               <button
                 key={s}
-                className={`pd-toggle-btn ${sourceFilter === s ? 'active' : ''}`}
+                className={cn(
+                  'rounded-md px-3 py-1 text-xs font-medium transition-colors',
+                  sourceFilter === s
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                )}
                 onClick={() => setSourceFilter(s)}
               >
                 {s === 'all' ? 'All' : s === 'editor' ? 'Coding' : 'WordPress'}
               </button>
             ))}
           </div>
-          <select className="pd-days-select" value={days} onChange={e => setDays(Number(e.target.value))}>
-            <option value={7}>7 days</option>
-            <option value={14}>14 days</option>
-            <option value={30}>30 days</option>
-          </select>
-          <button className="btn btn-secondary btn-sm" onClick={() => setShowIntegrations(!showIntegrations)}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: -2 }}>
-              <rect x="4" y="4" width="16" height="16" rx="2" /><rect x="9" y="9" width="6" height="6" /><path d="M15 2v2M15 20v2M2 15h2M20 15h2M9 2v2M9 20v2M2 9h2M20 9h2" />
-            </svg>
+          <Select value={String(days)} onValueChange={v => setDays(Number(v))}>
+            <SelectTrigger size="sm" className="w-[120px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">7 days</SelectItem>
+              <SelectItem value="14">14 days</SelectItem>
+              <SelectItem value="30">30 days</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="secondary" size="sm" onClick={() => setShowIntegrations(!showIntegrations)}>
+            <Blocks className="h-3.5 w-3.5" />
             Integrations
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Integrations Panel */}
       {showIntegrations && (
-        <div className="pd-integrations-panel">
-          <div className="pd-integrations-header">
+        <div className={statCard}>
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="pd-section-title">Editor Integrations</h3>
-              <p className="pd-integrations-desc">Install extensions to track coding time from your favorite editors. All data flows to your local WP Launcher dashboard.</p>
+              <h3 className="text-sm font-semibold text-card-foreground">Editor Integrations</h3>
+              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Install extensions to track coding time from your favorite editors. All data flows to your local WP Launcher dashboard.</p>
             </div>
-            <button className="pd-close-btn" onClick={() => setShowIntegrations(false)}>&times;</button>
+            <Button variant="ghost" size="icon-sm" onClick={() => setShowIntegrations(false)} aria-label="Close">
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-          <div className="pd-integrations-grid">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {INTEGRATIONS.map(ext => (
-              <div key={ext.name} className={`pd-integration-card ${ext.status}`}>
-                {ext.status === 'coming-soon' && (
-                  <span className="pd-integration-badge">Soon</span>
+              <div
+                key={ext.name}
+                className={cn(
+                  'relative flex items-center gap-3 rounded-lg border border-border p-3',
+                  ext.status === 'coming-soon' && 'opacity-60',
                 )}
-                <div className="pd-integration-icon">
-                  <img src={ext.icon} alt={ext.name} width="32" height="32" />
+              >
+                {ext.status === 'coming-soon' && (
+                  <Badge variant="outline" className="absolute right-2 top-2 text-[10px]">Soon</Badge>
+                )}
+                <img src={ext.icon} alt={ext.name} width="32" height="32" className="h-8 w-8 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-card-foreground">{ext.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">{ext.description}</div>
                 </div>
-                <div className="pd-integration-info">
-                  <div className="pd-integration-name">{ext.name}</div>
-                  <div className="pd-integration-desc">{ext.description}</div>
-                </div>
-                <div className="pd-integration-action">
+                <div className="shrink-0">
                   {ext.status === 'available' && ext.installUrl && (
-                    <a href={ext.installUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm">Install</a>
+                    <Button asChild size="sm">
+                      <a href={ext.installUrl} target="_blank" rel="noopener noreferrer">Install</a>
+                    </Button>
                   )}
-                  {ext.status === 'built-in' && (
-                    <span className="badge badge-green">Built-in</span>
-                  )}
+                  {ext.status === 'built-in' && <Badge variant="secondary">Built-in</Badge>}
                 </div>
               </div>
             ))}
@@ -441,86 +524,82 @@ export default function ProductivityPage() {
       )}
 
       {!isCloudLinked && (
-        <div className="pd-notice">
-          <div className="pd-notice-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
+        <div className={cn(statCard, 'flex flex-wrap items-center gap-4')}>
+          <AlertCircle className="h-5 w-5 shrink-0 text-muted-foreground" />
+          <div className="min-w-[16rem] flex-1">
+            <strong className="text-sm font-semibold text-card-foreground">Account not linked</strong>
+            <p className="mt-1 text-sm text-muted-foreground">Connect your WP Launcher cloud account to start tracking productivity. Heartbeats from editors and WordPress sites will not be recorded until an account is linked.</p>
           </div>
-          <div className="pd-notice-content">
-            <strong>Account not linked</strong>
-            <p>Connect your WP Launcher cloud account to start tracking productivity. Heartbeats from editors and WordPress sites will not be recorded until an account is linked.</p>
-          </div>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowCloud(true)}>
+          <Button size="sm" onClick={() => setShowCloud(true)}>
             Connect Account
-          </button>
+          </Button>
         </div>
       )}
 
-      {error && <div className="alert-error">{error}</div>}
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Stats Grid — 5 cards */}
-      <div className="pd-stats-grid">
-        <div className="pd-stat-card">
-          <div className="pd-stat-label">Today</div>
-          <div className="pd-stat-value">{formatDuration(todaySeconds)}</div>
-          <div className="pd-stat-sub">{todayStats?.heartbeatCount || 0} heartbeats</div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className={statCard}>
+          <div className={microLabel}>Today</div>
+          <div className="mt-1 text-2xl font-semibold text-card-foreground">{formatDuration(todaySeconds)}</div>
+          <div className="mt-1 text-xs text-muted-foreground">{todayStats?.heartbeatCount || 0} heartbeats</div>
         </div>
 
-        <div className="pd-stat-card">
-          <div className="pd-stat-label">
+        <div className={statCard}>
+          <div className={cn(microLabel, 'flex items-center justify-between gap-2')}>
             Goal
-            <button className="pd-goal-edit-btn" onClick={() => setEditingGoal(!editingGoal)}>
+            <button className="text-[11px] font-medium normal-case text-primary hover:underline" onClick={() => setEditingGoal(!editingGoal)}>
               {editingGoal ? 'cancel' : 'edit'}
             </button>
           </div>
-          <div className="pd-stat-value">{goalPercent}%</div>
-          <div className="pd-bar">
-            <div className="pd-bar-fill" style={{ width: `${goalPercent}%`, backgroundColor: goalPercent >= 100 ? '#10b981' : '#3b82f6' }} />
-          </div>
-          <div className="pd-stat-sub">{formatDuration(todaySeconds)} / {formatDuration(goalSeconds)}</div>
+          <div className="mt-1 text-2xl font-semibold text-card-foreground">{goalPercent}%</div>
+          <Progress className="mt-2" value={goalPercent} />
+          <div className="mt-1 text-xs text-muted-foreground">{formatDuration(todaySeconds)} / {formatDuration(goalSeconds)}</div>
           {editingGoal && (
-            <div className="pd-goal-edit">
-              <input type="number" min={1} max={24} value={goalHours} onChange={e => setGoalHours(Number(e.target.value))} className="pd-goal-input" />
-              <span>hrs</span>
-              <button className="btn btn-primary btn-sm" onClick={saveGoal}>Save</button>
+            <div className="mt-3 flex items-center gap-2">
+              <Input type="number" min={1} max={24} value={goalHours} onChange={e => setGoalHours(Number(e.target.value))} className="h-8 w-20" />
+              <span className="text-xs text-muted-foreground">hrs</span>
+              <Button size="sm" onClick={saveGoal}>Save</Button>
             </div>
           )}
         </div>
 
-        <div className="pd-stat-card">
-          <div className="pd-stat-label">Daily Average</div>
-          <div className="pd-stat-value">{formatDuration(weeklyAvg)}</div>
-          <div className="pd-stat-sub">over {days} days</div>
+        <div className={statCard}>
+          <div className={microLabel}>Daily Average</div>
+          <div className="mt-1 text-2xl font-semibold text-card-foreground">{formatDuration(weeklyAvg)}</div>
+          <div className="mt-1 text-xs text-muted-foreground">over {days} days</div>
         </div>
 
-        <div className="pd-stat-card">
-          <div className="pd-stat-label">Best Day</div>
-          <div className="pd-stat-value">{summary?.bestDay.seconds ? formatDuration(summary.bestDay.seconds) : '—'}</div>
-          <div className="pd-stat-sub">{summary?.bestDay.date ? formatShortDate(summary.bestDay.date) : '—'}</div>
+        <div className={statCard}>
+          <div className={microLabel}>Best Day</div>
+          <div className="mt-1 text-2xl font-semibold text-card-foreground">{summary?.bestDay.seconds ? formatDuration(summary.bestDay.seconds) : '—'}</div>
+          <div className="mt-1 text-xs text-muted-foreground">{summary?.bestDay.date ? formatShortDate(summary.bestDay.date) : '—'}</div>
         </div>
 
-        <div className="pd-stat-card">
-          <div className="pd-stat-label">Streak</div>
-          <div className="pd-stat-value">{todayStats?.streak || 0}</div>
-          <div className="pd-stat-sub">day{(todayStats?.streak || 0) !== 1 ? 's' : ''} in a row</div>
+        <div className={statCard}>
+          <div className={microLabel}>Streak</div>
+          <div className="mt-1 text-2xl font-semibold text-card-foreground">{todayStats?.streak || 0}</div>
+          <div className="mt-1 text-xs text-muted-foreground">day{(todayStats?.streak || 0) !== 1 ? 's' : ''} in a row</div>
         </div>
       </div>
 
       {/* Time Split */}
       {sourceFilter === 'all' && (editorSeconds > 0 || wpSeconds > 0) && (
-        <div className="pd-split-card">
-          <div className="pd-split-bar">
-            <div className="pd-split-segment pd-split-editor" style={{ width: `${(editorSeconds / totalSourceSeconds) * 100}%` }} />
-            <div className="pd-split-segment pd-split-wordpress" style={{ width: `${(wpSeconds / totalSourceSeconds) * 100}%` }} />
-          </div>
-          <div className="pd-split-labels">
-            <span className="pd-split-label">
-              <span className="pd-dot" style={{ backgroundColor: '#3b82f6' }} />
+        <div className={statCard}>
+          {/* Indicator = coding share, remaining track = WordPress share */}
+          <Progress className="bg-primary/25" value={Math.round((editorSeconds / totalSourceSeconds) * 100)} />
+          <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-primary" />
               Coding: {formatDuration(editorSeconds)} ({Math.round((editorSeconds / totalSourceSeconds) * 100)}%)
             </span>
-            <span className="pd-split-label">
-              <span className="pd-dot" style={{ backgroundColor: '#f59e0b' }} />
+            <span className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-primary/25" />
               WordPress: {formatDuration(wpSeconds)} ({Math.round((wpSeconds / totalSourceSeconds) * 100)}%)
             </span>
           </div>
@@ -528,30 +607,30 @@ export default function ProductivityPage() {
       )}
 
       {/* Daily Activity Chart */}
-      <div className="pd-chart-card">
-        <h3 className="pd-chart-title">Daily Activity</h3>
+      <div className={statCard}>
+        <h3 className="mb-3 text-sm font-semibold text-card-foreground">Daily Activity</h3>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={barData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} label={{ value: 'min', position: 'insideTopLeft', offset: -5, style: { fontSize: 10, fill: '#9ca3af' } }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+            <XAxis dataKey="date" tick={{ fontSize: 11, fill: chart.axis }} stroke={chart.grid} />
+            <YAxis tick={{ fontSize: 11, fill: chart.axis }} stroke={chart.grid} label={{ value: 'min', position: 'insideTopLeft', offset: -5, style: { fontSize: 10, fill: chart.axis } }} />
             <Tooltip contentStyle={chartTooltipStyle} formatter={(value: unknown) => `${value} min`} />
-            <Legend />
+            <Legend wrapperStyle={{ fontSize: '0.75rem', color: chart.axis }} />
             {sourceFilter !== 'wordpress' && (
-              <Bar dataKey="editor" name="Coding" fill="#3b82f6" stackId="a" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="editor" name="Coding" fill={chart.series[0]} stackId="a" radius={[2, 2, 0, 0]} />
             )}
             {sourceFilter !== 'editor' && (
-              <Bar dataKey="wordpress" name="WordPress" fill="#f59e0b" stackId="a" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="wordpress" name="WordPress" fill={chart.series[2]} stackId="a" radius={[2, 2, 0, 0]} />
             )}
           </BarChart>
         </ResponsiveContainer>
       </div>
 
       {/* Breakdown Grid — WakaTime-style panels */}
-      <div className="pd-breakdown-grid">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Projects / Sites */}
-        <div className="pd-breakdown-card">
-          <h3 className="pd-chart-title">
+        <div className={statCard}>
+          <h3 className="mb-3 text-sm font-semibold text-card-foreground">
             {sourceFilter === 'wordpress' ? 'Sites' : sourceFilter === 'editor' ? 'Projects' : 'Projects & Sites'}
           </h3>
           <BreakdownList
@@ -561,8 +640,8 @@ export default function ProductivityPage() {
         </div>
 
         {/* Categories (WordPress activities) */}
-        <div className="pd-breakdown-card">
-          <h3 className="pd-chart-title">
+        <div className={statCard}>
+          <h3 className="mb-3 text-sm font-semibold text-card-foreground">
             {sourceFilter === 'editor' ? 'Languages' : sourceFilter === 'wordpress' ? 'Activities' : 'Categories'}
           </h3>
           {sourceFilter === 'editor' ? (
@@ -587,8 +666,8 @@ export default function ProductivityPage() {
         </div>
 
         {/* Editors */}
-        <div className="pd-breakdown-card">
-          <h3 className="pd-chart-title">Editors</h3>
+        <div className={statCard}>
+          <h3 className="mb-3 text-sm font-semibold text-card-foreground">Editors</h3>
           <BreakdownList
             label="editor"
             colorMap={EDITOR_COLORS}
@@ -597,8 +676,8 @@ export default function ProductivityPage() {
         </div>
 
         {/* WP Screens */}
-        <div className="pd-breakdown-card">
-          <h3 className="pd-chart-title">WordPress Screens</h3>
+        <div className={statCard}>
+          <h3 className="mb-3 text-sm font-semibold text-card-foreground">WordPress Screens</h3>
           <BreakdownList
             label="screen"
             items={screenData.map(s => ({ name: s.screen, seconds: s.totalSeconds }))}
@@ -607,29 +686,29 @@ export default function ProductivityPage() {
       </div>
 
       {/* Hourly Activity + Weekday Activity side by side */}
-      <div className="pd-charts-grid">
-        <div className="pd-chart-card">
-          <h3 className="pd-chart-title">Activity by Hour</h3>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className={statCard}>
+          <h3 className="mb-3 text-sm font-semibold text-card-foreground">Activity by Hour</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={hourlyBarData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="hour" tick={{ fontSize: 9 }} interval={2} />
-              <YAxis tick={{ fontSize: 10 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+              <XAxis dataKey="hour" tick={{ fontSize: 9, fill: chart.axis }} stroke={chart.grid} interval={2} />
+              <YAxis tick={{ fontSize: 10, fill: chart.axis }} stroke={chart.grid} />
               <Tooltip contentStyle={chartTooltipStyle} formatter={(value: unknown) => `${value} min`} />
-              <Bar dataKey="minutes" fill="#8b5cf6" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="minutes" fill={chart.series[3]} radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="pd-chart-card">
-          <h3 className="pd-chart-title">Weekdays</h3>
+        <div className={statCard}>
+          <h3 className="mb-3 text-sm font-semibold text-card-foreground">Weekdays</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={weekdayData.map(d => ({ day: d.day.slice(0, 3), avg: Math.round(d.avgSeconds / 60) }))} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" tick={{ fontSize: 10 }} />
-              <YAxis type="category" dataKey="day" tick={{ fontSize: 11 }} width={35} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+              <XAxis type="number" tick={{ fontSize: 10, fill: chart.axis }} stroke={chart.grid} />
+              <YAxis type="category" dataKey="day" tick={{ fontSize: 11, fill: chart.axis }} stroke={chart.grid} width={35} />
               <Tooltip contentStyle={chartTooltipStyle} formatter={(value: unknown) => `${value} min avg`} />
-              <Bar dataKey="avg" fill="#10b981" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="avg" fill={chart.series[1]} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -637,104 +716,117 @@ export default function ProductivityPage() {
 
       {/* Activity Summary Card */}
       {summary && (
-        <div className="pd-summary-row">
-          <div className="pd-summary-item">
-            <span className="pd-summary-num">{activeProjects}</span>
-            <span className="pd-summary-label">Active Sites</span>
+        <div className={cn(statCard, 'grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5')}>
+          <div className="flex flex-col gap-1">
+            <span className="text-2xl font-semibold text-card-foreground">{activeProjects}</span>
+            <span className={microLabel}>Active Sites</span>
           </div>
-          <div className="pd-summary-item">
-            <span className="pd-summary-num">{summary.writeCount}</span>
-            <span className="pd-summary-label">Saves / Publishes</span>
+          <div className="flex flex-col gap-1">
+            <span className="text-2xl font-semibold text-card-foreground">{summary.writeCount}</span>
+            <span className={microLabel}>Saves / Publishes</span>
           </div>
-          <div className="pd-summary-item">
-            <span className="pd-summary-num">{rangeStats?.heartbeatCount || 0}</span>
-            <span className="pd-summary-label">Heartbeats</span>
+          <div className="flex flex-col gap-1">
+            <span className="text-2xl font-semibold text-card-foreground">{rangeStats?.heartbeatCount || 0}</span>
+            <span className={microLabel}>Heartbeats</span>
           </div>
-          <div className="pd-summary-item">
-            <span className="pd-summary-num">{rangeStats?.byCategory.length || 0}</span>
-            <span className="pd-summary-label">Activity Types</span>
+          <div className="flex flex-col gap-1">
+            <span className="text-2xl font-semibold text-card-foreground">{rangeStats?.byCategory.length || 0}</span>
+            <span className={microLabel}>Activity Types</span>
           </div>
-          <div className="pd-summary-item">
-            <span className="pd-summary-num">{screenData.length}</span>
-            <span className="pd-summary-label">Screens Visited</span>
+          <div className="flex flex-col gap-1">
+            <span className="text-2xl font-semibold text-card-foreground">{screenData.length}</span>
+            <span className={microLabel}>Screens Visited</span>
           </div>
         </div>
       )}
 
       {/* Cloud Connection */}
-      <div className="pd-section">
-        <div className="pd-section-header">
-          <h3 className="pd-section-title">Cloud Sync</h3>
-          <button className="btn btn-secondary btn-sm" onClick={() => setShowCloud(!showCloud)}>
+      <div className={statCard}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-card-foreground">Cloud Sync</h3>
+          <Button variant="secondary" size="sm" onClick={() => setShowCloud(!showCloud)}>
             {showCloud ? 'Hide' : 'Configure'}
-          </button>
+          </Button>
         </div>
 
         {showCloud && (
-          <div className="pd-cloud-panel">
+          <div className="mt-4">
             {cloudConfig.cloud_url ? (
-              <div className="pd-cloud-connected">
-                <div className="pd-cloud-info">
-                  <p><strong>Cloud URL:</strong> {cloudConfig.cloud_url}</p>
-                  <p><strong>API Key:</strong> {cloudConfig.cloud_api_key}</p>
-                  <p><strong>Last Synced:</strong> {cloudConfig.last_synced_at ? new Date(cloudConfig.last_synced_at).toLocaleString() : 'Never'}</p>
+              <div className="space-y-4">
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p><strong className="font-medium text-card-foreground">Cloud URL:</strong> {cloudConfig.cloud_url}</p>
+                  <p><strong className="font-medium text-card-foreground">API Key:</strong> {cloudConfig.cloud_api_key}</p>
+                  <p><strong className="font-medium text-card-foreground">Last Synced:</strong> {cloudConfig.last_synced_at ? new Date(cloudConfig.last_synced_at).toLocaleString() : 'Never'}</p>
                   {cloudConfig.heartbeat_secret && (
-                    <div className="pd-secret-row">
-                      <p><strong>VS Code Secret:</strong></p>
-                      <div className="pd-secret-copy">
-                        <code className="pd-secret-value">{cloudConfig.heartbeat_secret}</code>
-                        <button className="btn btn-sm" title="Copy secret" onClick={() => { navigator.clipboard.writeText(cloudConfig.heartbeat_secret!); }}>Copy</button>
+                    <div className="pt-2">
+                      <p><strong className="font-medium text-card-foreground">VS Code Secret:</strong></p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <code className="rounded-lg bg-muted px-2 py-1 font-mono text-xs text-foreground">{cloudConfig.heartbeat_secret}</code>
+                        <Button size="sm" variant="secondary" title="Copy secret" onClick={() => { navigator.clipboard.writeText(cloudConfig.heartbeat_secret!); }}>Copy</Button>
                       </div>
-                      <p className="pd-secret-hint">Paste this into VS Code Settings &gt; WP Launcher Productivity &gt; Heartbeat Secret</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Paste this into VS Code Settings &gt; WP Launcher Productivity &gt; Heartbeat Secret</p>
                     </div>
                   )}
                 </div>
-                <div className="pd-cloud-actions">
-                  <button className="btn btn-primary btn-sm" onClick={triggerSync} disabled={syncing}>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={triggerSync} disabled={syncing}>
                     {syncing ? 'Syncing...' : 'Sync Now'}
-                  </button>
-                  <button className="btn btn-danger btn-sm" onClick={disconnectCloud}>Disconnect</button>
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={disconnectCloud}>Disconnect</Button>
                 </div>
                 {syncMsg && (
-                  <div className={`pd-sync-msg ${syncMsg.includes('failed') ? 'pd-sync-error' : 'pd-sync-success'}`}>
+                  <div className={cn('text-sm', syncMsg.includes('failed') ? 'text-destructive' : 'text-muted-foreground')}>
                     {syncMsg}
                   </div>
                 )}
                 {syncLogs.length > 0 && (
-                  <div className="pd-sync-log">
-                    <h4>Recent Syncs</h4>
-                    <table className="pd-table pd-table-sm">
-                      <thead>
-                        <tr><th>Time</th><th>Count</th><th>Status</th><th>Error</th></tr>
-                      </thead>
-                      <tbody>
-                        {syncLogs.map(log => (
-                          <tr key={log.id}>
-                            <td>{new Date(log.completed_at + 'Z').toLocaleString()}</td>
-                            <td>{log.heartbeats_count}</td>
-                            <td><span className={`badge ${log.status === 'success' ? 'badge-green' : 'badge-red'}`}>{log.status}</span></td>
-                            <td className="pd-error-cell">{log.error || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div>
+                    <h4 className="text-sm font-semibold text-card-foreground">Recent Syncs</h4>
+                    <div className="mt-2 overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Time</TableHead>
+                            <TableHead>Count</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Error</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {syncLogs.map(log => (
+                            <TableRow key={log.id}>
+                              <TableCell>{new Date(log.completed_at + 'Z').toLocaleString()}</TableCell>
+                              <TableCell>{log.heartbeats_count}</TableCell>
+                              <TableCell>
+                                <Badge variant={log.status === 'success' ? 'default' : 'destructive'}>{log.status}</Badge>
+                              </TableCell>
+                              <TableCell className="max-w-[16rem] truncate text-muted-foreground">{log.error || '—'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="pd-cloud-setup">
-                <div className="form-group">
-                  <label className="form-label">API Key</label>
-                  <input className="form-input" placeholder="wpl_xxxxxxxxxx" value={cloudApiKey} onChange={e => setCloudApiKey(e.target.value)} />
+              <div className="max-w-md space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="pd-cloud-key">API Key</Label>
+                  <Input id="pd-cloud-key" placeholder="wpl_xxxxxxxxxx" value={cloudApiKey} onChange={e => setCloudApiKey(e.target.value)} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Device Name (optional)</label>
-                  <input className="form-input" placeholder="My Laptop" value={deviceName} onChange={e => setDeviceName(e.target.value)} />
+                <div className="space-y-1.5">
+                  <Label htmlFor="pd-device-name">Device Name (optional)</Label>
+                  <Input id="pd-device-name" placeholder="My Laptop" value={deviceName} onChange={e => setDeviceName(e.target.value)} />
                 </div>
-                {connectError && <div className="alert-error">{connectError}</div>}
-                <button className="btn btn-primary" onClick={connectCloud} disabled={!cloudApiKey || connecting}>
+                {connectError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{connectError}</AlertDescription>
+                  </Alert>
+                )}
+                <Button onClick={connectCloud} disabled={!cloudApiKey || connecting}>
                   {connecting ? 'Verifying...' : 'Connect'}
-                </button>
+                </Button>
               </div>
             )}
           </div>

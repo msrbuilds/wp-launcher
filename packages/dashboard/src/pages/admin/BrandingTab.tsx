@@ -1,7 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
+import { Image as ImageIcon, LayoutGrid, Loader2, Palette, Settings } from 'lucide-react';
 import { useSettings, ColorPalette } from '../../context/SettingsContext';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const DEFAULT_COLORS: ColorPalette = {
   primaryDark: '#14213d',
@@ -67,9 +73,9 @@ const PRESETS: { name: string; colors: ColorPalette }[] = [
 ];
 
 const TABS = [
-  { id: 'general', label: 'General', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z' },
-  { id: 'colors', label: 'Color Palette', icon: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' },
-  { id: 'layout', label: 'Layout', icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z' },
+  { id: 'general', label: 'General', icon: Settings },
+  { id: 'colors', label: 'Color Palette', icon: Palette },
+  { id: 'layout', label: 'Layout', icon: LayoutGrid },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
@@ -177,223 +183,265 @@ export default function BrandingTab() {
     }
   }
 
-  if (loading) return <div className="card"><span className="spinner spinner-dark" /> Loading...</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+      </div>
+    );
+  }
 
   return (
     <div>
       {/* Header */}
-      <div className="br-header">
-        <h3 className="br-title">Site Branding</h3>
-        <p className="br-subtitle">
+      <div className="mb-4">
+        <h3 className="text-base font-semibold text-foreground">Site Branding</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
           Customize the dashboard appearance — logo, identity, colors, and layout.
         </p>
       </div>
 
-      {/* Tab bar */}
-      <div className="br-tab-bar">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`br-tab-btn ${activeTab === tab.id ? 'br-tab-btn--active' : 'br-tab-btn--inactive'}`}
-          >
-            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d={tab.icon} />
-            </svg>
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabId)}>
+        <TabsList className="mb-4">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <TabsTrigger key={tab.id} value={tab.id}>
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
 
-      {/* Tab content */}
-      {activeTab === 'general' && (
-        <div className="card">
-          {/* Logo */}
-          <div className="br-logo-section">
-            <label className="br-label">Logo</label>
-            <div className="br-logo-row">
-              <div className="br-logo-preview">
-                {logoUrl ? (
-                  <img src={logoUrl} alt="Logo" className="br-logo-img" />
-                ) : (
-                  <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="var(--text-light)" strokeWidth="1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3 3h18a1.5 1.5 0 0 1 1.5 1.5v15a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 19.5v-15A1.5 1.5 0 0 1 3 3Z" />
-                  </svg>
-                )}
-              </div>
-              <div className="br-logo-actions">
-                <div className="br-logo-buttons">
-                  <button className="btn btn-primary btn-sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                    {uploading ? <><span className="spinner spinner-sm" /> Uploading...</> : 'Upload Logo'}
-                  </button>
-                  {logoUrl && (
-                    <button className="btn btn-danger-outline btn-sm" onClick={handleRemoveLogo} disabled={uploading}>Remove</button>
+        <TabsContent value="general">
+          <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+            {/* Logo */}
+            <div className="mb-6">
+              <Label className="mb-2">Logo</Label>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-muted">
+                  {logoUrl ? (
+                    <img src={logoUrl} alt="Logo" className="h-full w-full object-contain" />
+                  ) : (
+                    <ImageIcon className="h-7 w-7 text-muted-foreground" />
                   )}
                 </div>
-                <span className="br-logo-hint">PNG, JPG, WebP, or GIF. Max 2MB. Square, at least 128x128px.</span>
-              </div>
-              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleLogoUpload} className="br-hidden" />
-            </div>
-          </div>
-
-          {/* Site Title */}
-          <div>
-            <label className="br-label--title">Site Title</label>
-            <input
-              type="text"
-              value={siteTitle}
-              onChange={(e) => setSiteTitle(e.target.value)}
-              placeholder="WP Launcher"
-              maxLength={100}
-              className="br-site-title-input"
-            />
-            <p className="br-field-hint">Displayed in the header navigation bar.</p>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'colors' && (
-        <div className="card">
-          <div className="br-colors-header">
-            <div>
-              <h4 className="br-colors-title">Color Palette</h4>
-              <p className="br-colors-desc">
-                Customize the color scheme across the entire dashboard.
-              </p>
-            </div>
-            <button
-              className="btn btn-sm br-reset-btn"
-              onClick={() => setColors(DEFAULT_COLORS)}
-            >
-              Reset to Defaults
-            </button>
-          </div>
-
-          {/* Preset palettes */}
-          <div className="br-presets-grid">
-            {PRESETS.map((preset) => {
-              const isActive = Object.keys(preset.colors).every(
-                (k) => colors[k as keyof ColorPalette] === preset.colors[k as keyof ColorPalette]
-              );
-              return (
-                <button
-                  key={preset.name}
-                  onClick={() => setColors(preset.colors)}
-                  className={`br-preset-btn ${isActive ? 'br-preset-btn--active' : 'br-preset-btn--inactive'}`}
-                >
-                  <div className="br-preset-swatches">
-                    <div className="br-preset-swatch" style={{ background: preset.colors.primaryDark }} />
-                    <div className="br-preset-swatch" style={{ background: preset.colors.accent }} />
-                    <div className="br-preset-swatch" style={{ background: preset.colors.textMuted }} />
-                    <div className="br-preset-swatch" style={{ background: preset.colors.bgSurface }} />
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                      {uploading ? <><Loader2 className="h-3 w-3 animate-spin" /> Uploading...</> : 'Upload Logo'}
+                    </Button>
+                    {logoUrl && (
+                      <Button size="sm" variant="destructive" onClick={handleRemoveLogo} disabled={uploading}>
+                        Remove
+                      </Button>
+                    )}
                   </div>
-                  <span className={`br-preset-name ${isActive ? 'br-preset-name--active' : 'br-preset-name--inactive'}`}>
-                    {preset.name}
+                  <span className="text-xs text-muted-foreground">
+                    PNG, JPG, WebP, or GIF. Max 2MB. Square, at least 128x128px.
                   </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Color preview bar */}
-          <div className="br-color-bar">
-            {COLOR_META.map(({ key }) => (
-              <div key={key} className="br-color-bar-segment" style={{ background: colors[key] }} title={key} />
-            ))}
-          </div>
-
-          {/* Color grid */}
-          <div className="br-color-grid">
-            {COLOR_META.map(({ key, label, description }) => (
-              <div key={key} className="br-color-item">
-                <label className="br-color-picker-label">
-                  <div className="br-color-swatch" style={{ background: colors[key] }} />
-                  <input
-                    type="color"
-                    value={colors[key]}
-                    onChange={(e) => setColors((prev) => ({ ...prev, [key]: e.target.value }))}
-                    className="br-color-input-hidden"
-                  />
-                </label>
-                <div className="br-color-info">
-                  <div className="br-color-label">{label}</div>
-                  <div className="br-color-description">{description}</div>
                 </div>
                 <input
-                  type="text"
-                  value={colors[key]}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setColors((prev) => ({ ...prev, [key]: v }));
-                  }}
-                  maxLength={7}
-                  className="br-color-hex-input"
+                  ref={fileRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={handleLogoUpload}
+                  className="hidden"
                 />
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            </div>
 
-      {activeTab === 'layout' && (
-        <div className="card">
-          <h4 className="br-layout-title">Product Card Layout</h4>
-          <p className="br-layout-desc">
-            Controls how products appear on the launch page.
-          </p>
-          <div className="br-layout-options">
-            <label
-              className="br-layout-option"
-              style={{
-                border: `2px solid ${cardLayout === 'full' ? 'var(--orange)' : 'var(--border)'}`,
-                background: cardLayout === 'full' ? '#fff8f0' : '#fff',
-              }}
-            >
-              <input type="radio" name="cardLayout" value="full" checked={cardLayout === 'full'} onChange={() => setCardLayout('full')} className="br-layout-radio" />
-              <svg width="48" height="40" fill="none" viewBox="0 0 48 40" stroke={cardLayout === 'full' ? 'var(--orange)' : 'var(--text-light)'} strokeWidth="1.5">
-                <rect x="1" y="1" width="20" height="38" rx="1" />
-                <rect x="27" y="1" width="20" height="38" rx="1" />
-                <rect x="3" y="3" width="16" height="14" rx="0.5" fill={cardLayout === 'full' ? '#fde8c8' : '#f1f5f9'} stroke="none" />
-                <rect x="29" y="3" width="16" height="14" rx="0.5" fill={cardLayout === 'full' ? '#fde8c8' : '#f1f5f9'} stroke="none" />
-                <line x1="3" y1="21" x2="19" y2="21" strokeWidth="1" />
-                <line x1="3" y1="25" x2="14" y2="25" strokeWidth="1" />
-                <line x1="29" y1="21" x2="45" y2="21" strokeWidth="1" />
-                <line x1="29" y1="25" x2="40" y2="25" strokeWidth="1" />
-              </svg>
-              <span className={`br-layout-label ${cardLayout === 'full' ? 'br-layout-label--active' : 'br-layout-label--muted'}`}>Full Cards</span>
-            </label>
-            <label
-              className="br-layout-option"
-              style={{
-                border: `2px solid ${cardLayout === 'compact' ? 'var(--orange)' : 'var(--border)'}`,
-                background: cardLayout === 'compact' ? '#fff8f0' : '#fff',
-              }}
-            >
-              <input type="radio" name="cardLayout" value="compact" checked={cardLayout === 'compact'} onChange={() => setCardLayout('compact')} className="br-layout-radio" />
-              <svg width="48" height="40" fill="none" viewBox="0 0 48 40" stroke={cardLayout === 'compact' ? 'var(--orange)' : 'var(--text-light)'} strokeWidth="1.5">
-                <rect x="1" y="1" width="46" height="11" rx="1" />
-                <rect x="1" y="15" width="46" height="11" rx="1" />
-                <rect x="1" y="29" width="46" height="11" rx="1" />
-                <rect x="3" y="3" width="7" height="7" rx="0.5" fill={cardLayout === 'compact' ? '#fde8c8' : '#f1f5f9'} stroke="none" />
-                <rect x="3" y="17" width="7" height="7" rx="0.5" fill={cardLayout === 'compact' ? '#fde8c8' : '#f1f5f9'} stroke="none" />
-                <rect x="3" y="31" width="7" height="7" rx="0.5" fill={cardLayout === 'compact' ? '#fde8c8' : '#f1f5f9'} stroke="none" />
-                <line x1="14" y1="6" x2="38" y2="6" strokeWidth="1" />
-                <line x1="14" y1="20" x2="38" y2="20" strokeWidth="1" />
-                <line x1="14" y1="34" x2="38" y2="34" strokeWidth="1" />
-              </svg>
-              <span className={`br-layout-label ${cardLayout === 'compact' ? 'br-layout-label--active' : 'br-layout-label--muted'}`}>Compact List</span>
-            </label>
+            {/* Site Title */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="branding-site-title">Site Title</Label>
+              <Input
+                id="branding-site-title"
+                type="text"
+                value={siteTitle}
+                onChange={(e) => setSiteTitle(e.target.value)}
+                placeholder="WP Launcher"
+                maxLength={100}
+                className="max-w-md"
+              />
+              <p className="text-xs text-muted-foreground">Displayed in the header navigation bar.</p>
+            </div>
           </div>
-        </div>
-      )}
+        </TabsContent>
+
+        <TabsContent value="colors">
+          <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-semibold">Color Palette</h4>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Customize the color scheme across the entire dashboard.
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setColors(DEFAULT_COLORS)}>
+                Reset to Defaults
+              </Button>
+            </div>
+
+            {/* Preset palettes */}
+            <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              {PRESETS.map((preset) => {
+                const isActive = Object.keys(preset.colors).every(
+                  (k) => colors[k as keyof ColorPalette] === preset.colors[k as keyof ColorPalette]
+                );
+                return (
+                  <button
+                    key={preset.name}
+                    type="button"
+                    onClick={() => setColors(preset.colors)}
+                    className={cn(
+                      'flex flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors',
+                      isActive
+                        ? 'border-primary bg-accent'
+                        : 'border-border bg-card hover:bg-accent',
+                    )}
+                  >
+                    <div className="flex gap-1">
+                      {/* Preview swatches render admin-chosen preset colours (user data,
+                          not design tokens), so the value must stay inline. */}
+                      <div className="h-4 w-4 rounded-sm border border-border" style={{ background: preset.colors.primaryDark }} />
+                      <div className="h-4 w-4 rounded-sm border border-border" style={{ background: preset.colors.accent }} />
+                      <div className="h-4 w-4 rounded-sm border border-border" style={{ background: preset.colors.textMuted }} />
+                      <div className="h-4 w-4 rounded-sm border border-border" style={{ background: preset.colors.bgSurface }} />
+                    </div>
+                    <span className={cn('text-xs', isActive ? 'font-medium text-foreground' : 'text-muted-foreground')}>
+                      {preset.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Color preview bar */}
+            <div className="mb-5 flex h-8 overflow-hidden rounded-lg border border-border">
+              {COLOR_META.map(({ key }) => (
+                /* Live preview of the admin-chosen colour value (user data, not a token). */
+                <div key={key} className="flex-1" style={{ background: colors[key] }} title={key} />
+              ))}
+            </div>
+
+            {/* Color grid */}
+            <div className="flex flex-col gap-3">
+              {COLOR_META.map(({ key, label, description }) => (
+                <div key={key} className="flex flex-wrap items-center gap-4 rounded-lg border border-border p-4">
+                  <label className="relative cursor-pointer">
+                    {/* Swatch shows the currently selected colour (user data, not a token). */}
+                    <div className="h-10 w-10 rounded-lg border border-border" style={{ background: colors[key] }} />
+                    <input
+                      type="color"
+                      aria-label={label}
+                      value={colors[key]}
+                      onChange={(e) => setColors((prev) => ({ ...prev, [key]: e.target.value }))}
+                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    />
+                  </label>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-foreground">{label}</div>
+                    <div className="text-xs text-muted-foreground">{description}</div>
+                  </div>
+                  <Input
+                    type="text"
+                    aria-label={`${label} hex value`}
+                    value={colors[key]}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setColors((prev) => ({ ...prev, [key]: v }));
+                    }}
+                    maxLength={7}
+                    className="w-28 font-mono"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="layout">
+          <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+            <h4 className="text-sm font-semibold">Product Card Layout</h4>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Controls how products appear on the launch page.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-4">
+              <label
+                className={cn(
+                  'flex w-44 cursor-pointer flex-col items-center gap-3 rounded-lg border-2 p-4 transition-colors',
+                  cardLayout === 'full'
+                    ? 'border-primary bg-accent text-primary'
+                    : 'border-border bg-card text-muted-foreground hover:bg-accent',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="cardLayout"
+                  value="full"
+                  checked={cardLayout === 'full'}
+                  onChange={() => setCardLayout('full')}
+                  className="sr-only"
+                />
+                <svg width="48" height="40" fill="none" viewBox="0 0 48 40" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="1" y="1" width="20" height="38" rx="1" />
+                  <rect x="27" y="1" width="20" height="38" rx="1" />
+                  <rect x="3" y="3" width="16" height="14" rx="0.5" fill="currentColor" fillOpacity="0.2" stroke="none" />
+                  <rect x="29" y="3" width="16" height="14" rx="0.5" fill="currentColor" fillOpacity="0.2" stroke="none" />
+                  <line x1="3" y1="21" x2="19" y2="21" strokeWidth="1" />
+                  <line x1="3" y1="25" x2="14" y2="25" strokeWidth="1" />
+                  <line x1="29" y1="21" x2="45" y2="21" strokeWidth="1" />
+                  <line x1="29" y1="25" x2="40" y2="25" strokeWidth="1" />
+                </svg>
+                <span className={cn('text-sm', cardLayout === 'full' ? 'font-medium' : '')}>Full Cards</span>
+              </label>
+              <label
+                className={cn(
+                  'flex w-44 cursor-pointer flex-col items-center gap-3 rounded-lg border-2 p-4 transition-colors',
+                  cardLayout === 'compact'
+                    ? 'border-primary bg-accent text-primary'
+                    : 'border-border bg-card text-muted-foreground hover:bg-accent',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="cardLayout"
+                  value="compact"
+                  checked={cardLayout === 'compact'}
+                  onChange={() => setCardLayout('compact')}
+                  className="sr-only"
+                />
+                <svg width="48" height="40" fill="none" viewBox="0 0 48 40" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="1" y="1" width="46" height="11" rx="1" />
+                  <rect x="1" y="15" width="46" height="11" rx="1" />
+                  <rect x="1" y="29" width="46" height="11" rx="1" />
+                  <rect x="3" y="3" width="7" height="7" rx="0.5" fill="currentColor" fillOpacity="0.2" stroke="none" />
+                  <rect x="3" y="17" width="7" height="7" rx="0.5" fill="currentColor" fillOpacity="0.2" stroke="none" />
+                  <rect x="3" y="31" width="7" height="7" rx="0.5" fill="currentColor" fillOpacity="0.2" stroke="none" />
+                  <line x1="14" y1="6" x2="38" y2="6" strokeWidth="1" />
+                  <line x1="14" y1="20" x2="38" y2="20" strokeWidth="1" />
+                  <line x1="14" y1="34" x2="38" y2="34" strokeWidth="1" />
+                </svg>
+                <span className={cn('text-sm', cardLayout === 'compact' ? 'font-medium' : '')}>Compact List</span>
+              </label>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Save bar — always visible */}
-      <div className="br-save-bar">
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-          {saving ? <><span className="spinner" /> Saving...</> : 'Save Changes'}
-        </button>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : 'Save Changes'}
+        </Button>
         {msg && (
-          <span className={msg.startsWith('Failed') || msg.startsWith('File') ? 'br-msg--error' : 'br-msg--success'}>
+          <span
+            className={cn(
+              'text-sm',
+              msg.startsWith('Failed') || msg.startsWith('File') ? 'text-destructive' : 'text-muted-foreground',
+            )}
+          >
             {msg}
           </span>
         )}

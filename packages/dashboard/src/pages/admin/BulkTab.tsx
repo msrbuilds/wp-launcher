@@ -1,8 +1,28 @@
 import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
-import { useIsLocalMode } from '../../context/SettingsContext';
 import { apiFetch } from '../../utils/api';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface BulkJob {
   id: string;
@@ -18,7 +38,6 @@ interface BulkJob {
 
 export default function BulkTab() {
   const headers = useAdminHeaders();
-  const isLocal = useIsLocalMode();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [blueprintId, setBlueprintId] = useState('');
   const [count, setCount] = useState(5);
@@ -83,132 +102,168 @@ export default function BulkTab() {
   const progress = activeJob ? Math.round((activeJob.completed / activeJob.total) * 100) : 0;
 
   return (
-    <div>
-      <div className="card bk-card-spaced">
-        <h3 className="bk-heading">Bulk Site Launch</h3>
+    <div className="flex flex-col gap-4">
+      <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+        <h3 className="mb-4 text-base font-semibold">Bulk Site Launch</h3>
         <form onSubmit={handleStart}>
-          <div className="bk-form-grid">
-            <div className="form-group bk-form-group-inline">
-              <label>{isLocal ? 'Template' : 'Product'}</label>
-              <select value={blueprintId} onChange={(e) => setBlueprintId(e.target.value)} className="bk-select">
-                {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+          <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="bulk-blueprint">Blueprint</Label>
+              <Select value={blueprintId} onValueChange={setBlueprintId}>
+                <SelectTrigger id="bulk-blueprint" className="w-full">
+                  <SelectValue placeholder="Select a blueprint" />
+                </SelectTrigger>
+                <SelectContent>
+                  {products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="form-group bk-form-group-inline">
-              <label>Count (1-50)</label>
-              <input type="number" min={1} max={50} value={count} onChange={(e) => setCount(parseInt(e.target.value) || 1)} />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="bulk-count">Count (1-50)</Label>
+              <Input
+                id="bulk-count"
+                type="number"
+                min={1}
+                max={50}
+                value={count}
+                onChange={(e) => setCount(parseInt(e.target.value) || 1)}
+              />
             </div>
-            {!isLocal && (
-              <div className="form-group bk-form-group-inline">
-                <label>Expires In</label>
-                <select value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)} className="bk-select">
-                  <option value="1h">1 hour</option>
-                  <option value="24h">24 hours</option>
-                  <option value="7d">7 days</option>
-                  <option value="30d">30 days</option>
-                </select>
+            {(
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="bulk-expires">Expires In</Label>
+                <Select value={expiresIn} onValueChange={setExpiresIn}>
+                  <SelectTrigger id="bulk-expires" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1h">1 hour</SelectItem>
+                    <SelectItem value="24h">24 hours</SelectItem>
+                    <SelectItem value="7d">7 days</SelectItem>
+                    <SelectItem value="30d">30 days</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
-            <div className="form-group bk-form-group-inline">
-              <label>Prefix (optional)</label>
-              <input type="text" value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="e.g. workshop" />
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="bulk-prefix">Prefix (optional)</Label>
+              <Input
+                id="bulk-prefix"
+                type="text"
+                value={prefix}
+                onChange={(e) => setPrefix(e.target.value)}
+                placeholder="e.g. workshop"
+              />
             </div>
           </div>
-          <button className="btn btn-primary" type="submit" disabled={starting || (activeJob?.status === 'running')}>
-            {starting ? <><span className="spinner" /> Starting...</> : 'Start Bulk Launch'}
-          </button>
+          <Button type="submit" disabled={starting || (activeJob?.status === 'running')}>
+            {starting ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting...</> : 'Start Bulk Launch'}
+          </Button>
         </form>
       </div>
 
       {activeJob && (
-        <div className="card bk-card-spaced">
-          <div className="bk-job-header">
-            <h3 className="bk-job-title">
+        <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-base font-semibold">
               Job: {activeJob.completed}/{activeJob.total}
-              {activeJob.failed > 0 && <span className="bk-failed-count"> ({activeJob.failed} failed)</span>}
+              {activeJob.failed > 0 && <span className="font-normal text-destructive"> ({activeJob.failed} failed)</span>}
             </h3>
-            <div className="bk-job-actions">
-              <span className={`badge badge-${activeJob.status === 'running' ? 'running' : activeJob.status === 'completed' ? 'running' : 'expired'}`}>
+            <div className="flex items-center gap-2">
+              <Badge variant={activeJob.status === 'running' || activeJob.status === 'completed' ? 'default' : 'secondary'}>
                 {activeJob.status}
-              </span>
+              </Badge>
               {activeJob.status === 'running' && (
-                <button className="btn btn-sm btn-danger" onClick={handleCancel}>Cancel</button>
+                <Button size="sm" variant="destructive" onClick={handleCancel}>Cancel</Button>
               )}
               {activeJob.status !== 'running' && (
-                <a href={`/api/admin/bulk/${activeJob.id}/export`} className="btn btn-sm btn-secondary" download>Download CSV</a>
+                <Button asChild size="sm" variant="secondary">
+                  <a href={`/api/admin/bulk/${activeJob.id}/export`} download>Download CSV</a>
+                </Button>
               )}
             </div>
           </div>
 
-          <div className="bk-progress-track">
-            <div className="bk-progress-fill" style={{ width: `${progress}%` }} />
-          </div>
+          <Progress value={progress} className="mb-4" />
 
           {activeJob.results.length > 0 && (
-            <div className="bk-table-scroll">
-              <table className="bk-table">
-                <thead>
-                  <tr className="bk-thead-row">
-                    <th className="bk-th">#</th>
-                    <th className="bk-th">Subdomain</th>
-                    <th className="bk-th">URL</th>
-                    <th className="bk-th">Password</th>
-                    <th className="bk-th">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="max-h-96 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Subdomain</TableHead>
+                    <TableHead>URL</TableHead>
+                    <TableHead>Password</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {activeJob.results.map((r) => (
-                    <tr key={r.index} className="bk-tbody-row">
-                      <td className="bk-td">{r.index}</td>
-                      <td className="bk-td">{r.subdomain || '—'}</td>
-                      <td className="bk-td">
-                        {r.url ? <a href={r.url} target="_blank" rel="noopener noreferrer">Open</a> : '—'}
-                      </td>
-                      <td className="bk-td"><code className="bk-code-sm">{r.password || '—'}</code></td>
-                      <td className="bk-td">
+                    <TableRow key={r.index}>
+                      <TableCell>{r.index}</TableCell>
+                      <TableCell>{r.subdomain || '—'}</TableCell>
+                      <TableCell>
+                        {r.url ? (
+                          <a
+                            href={r.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary underline-offset-4 hover:underline"
+                          >
+                            Open
+                          </a>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{r.password || '—'}</code>
+                      </TableCell>
+                      <TableCell>
                         {r.error
-                          ? <span className="bk-error-text">{r.error}</span>
-                          : <span className="badge badge-running">OK</span>}
-                      </td>
-                    </tr>
+                          ? <span className="text-xs text-destructive">{r.error}</span>
+                          : <Badge>OK</Badge>}
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </div>
       )}
 
       {jobs.length > 0 && !activeJob && (
-        <div className="card">
-          <h3 className="bk-heading">Recent Jobs</h3>
-          <div className="bk-recent-scroll">
-            <table className="bk-recent-table">
-              <thead>
-                <tr className="bk-recent-thead-row">
-                  <th className="bk-recent-th">Product</th>
-                  <th className="bk-recent-th">Sites</th>
-                  <th className="bk-recent-th">Status</th>
-                  <th className="bk-recent-th">Created</th>
-                  <th className="bk-recent-th">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+        <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+          <h3 className="mb-4 text-base font-semibold">Recent Jobs</h3>
+          <div className="max-h-96 overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Sites</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {jobs.map((j: any) => (
-                  <tr key={j.id} className="bk-recent-tbody-row">
-                    <td className="bk-recent-td">{j.product_id}</td>
-                    <td className="bk-recent-td">{j.completed}/{j.total}{j.failed > 0 && ` (${j.failed} failed)`}</td>
-                    <td className="bk-recent-td"><span className={`badge badge-${j.status === 'completed' ? 'running' : 'expired'}`}>{j.status}</span></td>
-                    <td className="bk-recent-td">{new Date(j.created_at).toLocaleString()}</td>
-                    <td className="bk-recent-td">
-                      <button className="btn btn-sm btn-secondary" onClick={() => {
+                  <TableRow key={j.id}>
+                    <TableCell>{j.product_id}</TableCell>
+                    <TableCell>{j.completed}/{j.total}{j.failed > 0 && ` (${j.failed} failed)`}</TableCell>
+                    <TableCell>
+                      <Badge variant={j.status === 'completed' ? 'default' : 'secondary'}>{j.status}</Badge>
+                    </TableCell>
+                    <TableCell>{new Date(j.created_at).toLocaleString()}</TableCell>
+                    <TableCell>
+                      <Button size="sm" variant="secondary" onClick={() => {
                         apiFetch(`/api/admin/bulk/${j.id}`, { headers }).then((r) => r.json()).then(setActiveJob).catch(() => {});
-                      }}>View</button>
-                    </td>
-                  </tr>
+                      }}>View</Button>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </div>
       )}

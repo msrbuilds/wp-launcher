@@ -1,8 +1,30 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Client } from './shared';
 import { apiFetch } from '../../utils/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function ClientsPage() {
   const headers = useAdminHeaders();
@@ -70,80 +92,106 @@ export default function ClientsPage() {
   }
 
   if (loading && clients.length === 0) {
-    return <div className="card"><span className="spinner spinner-dark" /> Loading clients...</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading clients...
+      </div>
+    );
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div className="cl-page">
-      <div className="card">
-        <div className="cl-header">
-          <h3 className="cl-title">Clients ({total})</h3>
-          <button className="btn btn-primary btn-sm" onClick={openCreate}>+ New Client</button>
+    <div>
+      <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-base font-semibold">Clients ({total})</h3>
+          <Button size="sm" onClick={openCreate}>+ New Client</Button>
         </div>
-        <div className="cl-search-wrap">
-          <input className="form-input cl-search" placeholder="Search clients..." value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} />
+        <div className="mb-4">
+          <Input
+            className="max-w-sm rounded-lg"
+            placeholder="Search clients..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(0); }}
+          />
         </div>
         {clients.length === 0 ? (
-          <p className="cl-empty">No clients found. Create your first client to get started.</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No clients found. Create your first client to get started.
+          </p>
         ) : (
-          <div className="cl-table-wrap">
-            <table className="cl-table">
-              <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Phone</th><th>Projects</th><th>Actions</th></tr></thead>
-              <tbody>
-                {clients.map(c => (
-                  <tr key={c.id}>
-                    <td className="cl-name-cell">{c.name}</td>
-                    <td>{c.email || '—'}</td>
-                    <td>{c.company || '—'}</td>
-                    <td>{c.phone || '—'}</td>
-                    <td><span className="badge">{c.projectCount || 0}</span></td>
-                    <td className="cl-actions">
-                      <button className="btn btn-secondary btn-xs" onClick={() => openEdit(c)}>Edit</button>
-                      <button className="btn btn-danger btn-xs" onClick={() => handleDelete(c.id)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Projects</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {clients.map(c => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell>{c.email || '—'}</TableCell>
+                  <TableCell>{c.company || '—'}</TableCell>
+                  <TableCell>{c.phone || '—'}</TableCell>
+                  <TableCell><Badge variant="secondary">{c.projectCount || 0}</Badge></TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="secondary" size="xs" onClick={() => openEdit(c)}>Edit</Button>
+                      <Button variant="destructive" size="xs" onClick={() => handleDelete(c.id)}>Delete</Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
         <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
       </div>
 
-      {showModal && (
-        <div className="lp-modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="lp-modal-card" onClick={e => e.stopPropagation()}>
-            <h3 className="lp-modal-title">{editing ? 'Edit Client' : 'New Client'}</h3>
-            {error && <div className="alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
-            <div className="form-group">
-              <label>Name *</label>
-              <input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editing ? 'Edit Client' : 'New Client'}</DialogTitle>
+          </DialogHeader>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="client-name">Name *</Label>
+              <Input id="client-name" className="rounded-lg" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
             </div>
-            <div className="form-group">
-              <label>Email</label>
-              <input className="form-input" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+            <div className="grid gap-2">
+              <Label htmlFor="client-email">Email</Label>
+              <Input id="client-email" className="rounded-lg" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
             </div>
-            <div className="form-group">
-              <label>Company</label>
-              <input className="form-input" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} />
+            <div className="grid gap-2">
+              <Label htmlFor="client-company">Company</Label>
+              <Input id="client-company" className="rounded-lg" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} />
             </div>
-            <div className="form-group">
-              <label>Phone</label>
-              <input className="form-input" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+            <div className="grid gap-2">
+              <Label htmlFor="client-phone">Phone</Label>
+              <Input id="client-phone" className="rounded-lg" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
             </div>
-            <div className="form-group">
-              <label>Notes</label>
-              <textarea className="form-input" rows={3} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
-            </div>
-            <div className="lp-modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+            <div className="grid gap-2">
+              <Label htmlFor="client-notes">Notes</Label>
+              <Textarea id="client-notes" className="rounded-lg" rows={3} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
             </div>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

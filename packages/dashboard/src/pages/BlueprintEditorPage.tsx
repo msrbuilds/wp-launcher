@@ -1,9 +1,25 @@
 import { useState } from 'react';
+import { AlertCircle, CheckCircle2, Loader2, Save } from 'lucide-react';
 import type { PluginEntry, ThemeEntry } from '../types/product';
 import PluginRepeater from '../components/PluginRepeater';
 import ThemeRepeater from '../components/ThemeRepeater';
 import ImageUpload from '../components/ImageUpload';
 import { apiFetch } from '../utils/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const DB_OPTIONS = [
   { label: 'SQLite (fastest)', value: 'sqlite' },
@@ -212,36 +228,37 @@ export default function BlueprintEditorPage() {
   }
 
   return (
-    <div className="tmpl-creator">
-      <div className="page-header">
-        <h2>Create Product</h2>
-        <p>Configure a product for your demo site launcher with plugins, themes, restrictions, and branding.</p>
+    <div className="mx-auto w-full max-w-4xl">
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold text-foreground">Create Product</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Configure a product for your demo site launcher with plugins, themes, restrictions, and branding.
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <div className="tmpl-tabs">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`tmpl-tab ${activeSection === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveSection(tab.id)}
-            >
-              {tab.label}
-              {tab.id === 'plugins' && plugins.length > 0 && <span className="tmpl-tab-badge">{plugins.length}</span>}
-              {tab.id === 'themes' && themes.length > 0 && <span className="tmpl-tab-badge">{themes.length}</span>}
-            </button>
-          ))}
-        </div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+        <Tabs value={activeSection} onValueChange={setActiveSection}>
+          <TabsList className="flex w-full flex-wrap justify-start gap-1 h-auto">
+            {TABS.map(tab => (
+              <TabsTrigger key={tab.id} value={tab.id} className="flex-none">
+                {tab.label}
+                {tab.id === 'plugins' && plugins.length > 0 && (
+                  <Badge variant="secondary" className="ml-1.5">{plugins.length}</Badge>
+                )}
+                {tab.id === 'themes' && themes.length > 0 && (
+                  <Badge variant="secondary" className="ml-1.5">{themes.length}</Badge>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-        <div className="tmpl-tab-content card">
-        {/* ── Basic Info ── */}
-        {activeSection === 'basic' && (
-            <div className="tmpl-section-body">
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="prod-id">Product ID</label>
-                  <input
+          {/* ── Basic Info ── */}
+          <TabsContent value="basic" className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+            <div className="flex flex-col gap-5">
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="prod-id">Product ID</Label>
+                  <Input
                     id="prod-id"
                     type="text"
                     value={id}
@@ -249,11 +266,11 @@ export default function BlueprintEditorPage() {
                     placeholder="my-product"
                     required
                   />
-                  <span className="form-hint">Lowercase, hyphens only. Used as identifier.</span>
+                  <span className="text-xs text-muted-foreground">Lowercase, hyphens only. Used as identifier.</span>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="prod-name">Display Name</label>
-                  <input
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="prod-name">Display Name</Label>
+                  <Input
                     id="prod-name"
                     type="text"
                     value={name}
@@ -263,16 +280,24 @@ export default function BlueprintEditorPage() {
                   />
                 </div>
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="prod-db">Database Engine</label>
-                  <select id="prod-db" value={database} onChange={(e) => setDatabase(e.target.value)}>
-                    {DB_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                  </select>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="prod-db">Database Engine</Label>
+                  <Select value={database} onValueChange={setDatabase}>
+                    <SelectTrigger id="prod-db" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DB_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="prod-wp-version">WordPress Version</label>
-                  <input
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="prod-wp-version">WordPress Version</Label>
+                  <Input
                     id="prod-wp-version"
                     type="text"
                     value={wpVersion}
@@ -281,9 +306,10 @@ export default function BlueprintEditorPage() {
                   />
                 </div>
               </div>
-              <div className="form-group">
-                <label htmlFor="prod-desc">Description</label>
-                <textarea
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="prod-desc">Description</Label>
+                <Textarea
                   id="prod-desc"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -291,77 +317,91 @@ export default function BlueprintEditorPage() {
                   rows={2}
                 />
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="prod-category">Category</label>
-                  <input
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="prod-category">Category</Label>
+                  <Input
                     id="prod-category"
                     type="text"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
                     placeholder="e.g. Plugins, Themes, Starter"
                   />
-                  <span className="form-hint">Used for filtering on the launch page.</span>
+                  <span className="text-xs text-muted-foreground">Used for filtering on the launch page.</span>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="prod-tags">Tags</label>
-                  <input
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="prod-tags">Tags</Label>
+                  <Input
                     id="prod-tags"
                     type="text"
                     value={tags}
                     onChange={(e) => setTags(e.target.value)}
                     placeholder="e.g. ecommerce, starter, blog"
                   />
-                  <span className="form-hint">Comma-separated. Used for search.</span>
+                  <span className="text-xs text-muted-foreground">Comma-separated. Used for search.</span>
                 </div>
               </div>
             </div>
-          )}
+          </TabsContent>
 
-        {/* ── Plugins ── */}
-          {activeSection === 'plugins' && (
+          {/* ── Plugins ── */}
+          <TabsContent value="plugins" className="rounded-xl border border-border bg-card p-6 text-card-foreground">
             <PluginRepeater
               plugins={plugins}
               onChange={setPlugins}
               removePlugins={removePlugins}
               onRemovePluginsChange={setRemovePlugins}
             />
-          )}
+          </TabsContent>
 
-        {/* ── Themes ── */}
-          {activeSection === 'themes' && (
+          {/* ── Themes ── */}
+          <TabsContent value="themes" className="rounded-xl border border-border bg-card p-6 text-card-foreground">
             <ThemeRepeater
               themes={themes}
               onChange={setThemes}
               removeThemes={removeThemes}
               onRemoveThemesChange={setRemoveThemes}
             />
-          )}
+          </TabsContent>
 
-        {/* ── Demo Settings ── */}
-          {activeSection === 'demo' && (
-            <div className="tmpl-section-body">
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Default Expiration</label>
-                  <select value={defaultExpiration} onChange={(e) => setDefaultExpiration(e.target.value)}>
-                    {EXPIRATION_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                  </select>
+          {/* ── Demo Settings ── */}
+          <TabsContent value="demo" className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+            <div className="flex flex-col gap-5">
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="prod-expiration">Default Expiration</Label>
+                  <Select value={defaultExpiration} onValueChange={setDefaultExpiration}>
+                    <SelectTrigger id="prod-expiration" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EXPIRATION_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Max Concurrent Sites <span className="cprod-label-hint">(0 = unlimited)</span></label>
-                  <input
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="prod-max-sites">
+                    Max Concurrent Sites{' '}
+                    <span className="font-normal text-muted-foreground">(0 = unlimited)</span>
+                  </Label>
+                  <Input
+                    id="prod-max-sites"
                     type="number"
                     min={0}
                     value={maxConcurrentSites}
                     onChange={(e) => setMaxConcurrentSites(parseInt(e.target.value) || 0)}
                   />
                 </div>
-                <div className="form-group">
-                  <label>WordPress Locale</label>
-                  <input
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="prod-locale">WordPress Locale</Label>
+                  <Input
+                    id="prod-locale"
                     type="text"
                     value={wpLocale}
                     onChange={(e) => setWpLocale(e.target.value)}
@@ -369,19 +409,22 @@ export default function BlueprintEditorPage() {
                   />
                 </div>
               </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Admin Username</label>
-                  <input
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="prod-admin-user">Admin Username</Label>
+                  <Input
+                    id="prod-admin-user"
                     type="text"
                     value={adminUser}
                     onChange={(e) => setAdminUser(e.target.value)}
                     placeholder="demo"
                   />
                 </div>
-                <div className="form-group">
-                  <label>Admin Email</label>
-                  <input
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="prod-admin-email">Admin Email</Label>
+                  <Input
+                    id="prod-admin-email"
                     type="email"
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
@@ -389,9 +432,16 @@ export default function BlueprintEditorPage() {
                   />
                 </div>
               </div>
-              <div className="form-group">
-                <label>Landing Page <span className="cprod-label-hint">(path after login, e.g. /wp-admin/plugins.php)</span></label>
-                <input
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="prod-landing">
+                  Landing Page{' '}
+                  <span className="font-normal text-muted-foreground">
+                    (path after login, e.g. /wp-admin/plugins.php)
+                  </span>
+                </Label>
+                <Input
+                  id="prod-landing"
                   type="text"
                   value={landingPage}
                   onChange={(e) => setLandingPage(e.target.value)}
@@ -399,70 +449,76 @@ export default function BlueprintEditorPage() {
                 />
               </div>
             </div>
-          )}
+          </TabsContent>
 
-        {/* ── Restrictions ── */}
-          {activeSection === 'restrictions' && (
-            <div className="tmpl-section-body">
-              <label className="tmpl-toggle-wrap cprod-toggle-spaced">
-                <input
-                  type="checkbox"
+          {/* ── Restrictions ── */}
+          <TabsContent value="restrictions" className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+            <div className="flex flex-col gap-6">
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="prod-file-mods"
                   checked={disableFileMods}
-                  onChange={(e) => setDisableFileMods(e.target.checked)}
+                  onCheckedChange={setDisableFileMods}
                 />
-                <span className="tmpl-toggle" />
-                <span className="tmpl-toggle-label">Disable File Modifications (DISALLOW_FILE_MODS)</span>
-              </label>
+                <Label htmlFor="prod-file-mods" className="font-normal">
+                  Disable File Modifications (DISALLOW_FILE_MODS)
+                </Label>
+              </div>
 
-              <div className="form-group">
-                <label>Blocked Capabilities</label>
-                <div className="tmpl-checkbox-grid">
+              <div className="flex flex-col gap-3">
+                <Label>Blocked Capabilities</Label>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {BLOCKED_CAPABILITIES.map(cap => (
-                    <label key={cap.key} className="tmpl-toggle-wrap">
-                      <input
-                        type="checkbox"
+                    <div key={cap.key} className="flex items-center gap-3">
+                      <Switch
+                        id={`cap-${cap.key}`}
                         checked={blockedCapabilities.includes(cap.key)}
-                        onChange={() => toggleCapability(cap.key)}
+                        onCheckedChange={() => toggleCapability(cap.key)}
                       />
-                      <span className="tmpl-toggle" />
-                      <span className="tmpl-toggle-label">{cap.label}</span>
-                    </label>
+                      <Label htmlFor={`cap-${cap.key}`} className="font-normal">{cap.label}</Label>
+                    </div>
                   ))}
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>Hidden Admin Menu Items</label>
-                <div className="tmpl-checkbox-grid">
+              <div className="flex flex-col gap-3">
+                <Label>Hidden Admin Menu Items</Label>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {HIDDEN_MENU_ITEMS.map(item => (
-                    <label key={item.key} className="tmpl-toggle-wrap">
-                      <input
-                        type="checkbox"
+                    <div key={item.key} className="flex items-center gap-3">
+                      <Switch
+                        id={`menu-${item.key}`}
                         checked={hiddenMenuItems.includes(item.key)}
-                        onChange={() => toggleMenuItem(item.key)}
+                        onCheckedChange={() => toggleMenuItem(item.key)}
                       />
-                      <span className="tmpl-toggle" />
-                      <span className="tmpl-toggle-label">{item.label}</span>
-                    </label>
+                      <Label htmlFor={`menu-${item.key}`} className="font-normal">{item.label}</Label>
+                    </div>
                   ))}
                 </div>
               </div>
             </div>
-          )}
+          </TabsContent>
 
-        {/* ── Branding ── */}
-          {activeSection === 'branding' && (
-            <div className="tmpl-section-body">
-              <div className="form-group">
-                <label>Banner Text <span className="cprod-label-hint">({'{time_remaining}'} for countdown)</span></label>
-                <input
+          {/* ── Branding ── */}
+          <TabsContent value="branding" className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="prod-banner">
+                  Banner Text{' '}
+                  <span className="font-normal text-muted-foreground">
+                    ({'{time_remaining}'} for countdown)
+                  </span>
+                </Label>
+                <Input
+                  id="prod-banner"
                   type="text"
                   value={bannerText}
                   onChange={(e) => setBannerText(e.target.value)}
                   placeholder="This is a temporary demo site. It will expire in {time_remaining}."
                 />
               </div>
-              <div className="form-row">
+
+              <div className="flex flex-col gap-5 md:flex-row md:items-start">
                 <ImageUpload
                   label="Card Image"
                   hint="3:2 ratio recommended"
@@ -476,30 +532,44 @@ export default function BlueprintEditorPage() {
                   preview={cardIconPreview}
                   onFileSelect={(file) => handleImageFile(file, setCardIconFile, setCardIconPreview)}
                   onClear={() => { setCardIconFile(null); setCardIconPreview(null); }}
-                  className="tmpl-image-upload--icon"
+                  className="aspect-square max-w-40"
                 />
               </div>
             </div>
-          )}
-        </div>
+          </TabsContent>
+        </Tabs>
 
-        {error && <div className="alert-error">{error}</div>}
-        {success && <div className="alert-success">{success}</div>}
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        {success && (
+          <Alert>
+            <CheckCircle2 />
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        )}
 
-        <button
+        <Button
           type="submit"
-          className="btn btn-primary btn-lg cprod-submit-btn"
+          size="lg"
+          className="self-start"
           disabled={submitting || !id || !name}
         >
           {submitting ? (
-            <><span className="spinner" /> Creating Product...</>
+            <>
+              <Loader2 className="animate-spin" />
+              Creating Product...
+            </>
           ) : (
             <>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              <Save />
               Create Product
             </>
           )}
-        </button>
+        </Button>
       </form>
     </div>
   );
