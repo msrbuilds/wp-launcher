@@ -82,6 +82,7 @@ interface Settings {
   colors: ColorPalette;
   sitesHostPath: string;
   setupRequired: boolean;
+  smtpConfigured: boolean;
   version: string;
   loading: boolean;
   error: string;
@@ -97,6 +98,7 @@ const SettingsContext = createContext<Settings>({
   colors: DEFAULT_COLORS,
   sitesHostPath: '',
   setupRequired: false,
+  smtpConfigured: false,
   version: '',
   loading: true,
   error: '',
@@ -113,6 +115,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     colors: DEFAULT_COLORS,
     sitesHostPath: '',
     setupRequired: false,
+  smtpConfigured: false,
     version: '',
     loading: true,
     error: '',
@@ -147,6 +150,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           colors,
           sitesHostPath: data.sitesHostPath || '',
           setupRequired: !!data.setupRequired,
+          smtpConfigured: !!data.smtpConfigured,
           version: versionData.version || '',
           loading: false,
           error: '',

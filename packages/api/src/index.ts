@@ -161,6 +161,8 @@ app.get('/api/settings', (_req, res) => {
     sitesHostPath: config.sitesHostPath,
     panel: getPanelSettings(),
     setupRequired: !policy.setupComplete(),
+    // Advisory only: drives the "needs email" hint on feature toggles.
+    smtpConfigured: !!(config.smtp.host && config.smtp.host !== 'localhost'),
   });
 });
 

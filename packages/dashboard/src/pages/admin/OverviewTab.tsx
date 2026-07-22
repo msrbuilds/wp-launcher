@@ -94,7 +94,7 @@ export default function OverviewTab() {
         <div className="card">
           <h3 className="ov-section-title">Active Modules</h3>
           <div className="ov-module-list">
-            {FEATURE_META.filter((f) => !isLocal || !f.agencyOnly).map((f) => (
+            {FEATURE_META.map((f) => (
               <div key={f.key} className="ov-module-row" style={{ background: features[f.key] ? '#f0fdf4' : 'var(--bg-surface)' }}>
                 <div className="ov-module-left">
                   <span className={`ov-module-dot ${features[f.key] ? 'ov-module-dot-on' : 'ov-module-dot-off'}`} />

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FEATURE_META } from './shared';
 import { useAdminHeaders } from './AdminLayout';
-import { useIsLocalMode } from '../../context/SettingsContext';
+import { useSettings } from '../../context/SettingsContext';
 import { apiFetch } from '../../utils/api';
 
 interface Webhook {
@@ -17,7 +17,7 @@ const ALL_EVENTS = ['site.created', 'site.expired', 'site.deleted'];
 
 export default function FeaturesTab() {
   const headers = useAdminHeaders();
-  const isLocal = useIsLocalMode();
+  const { baseDomain, smtpConfigured } = useSettings();
   const [features, setFeatures] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -134,21 +134,26 @@ export default function FeaturesTab() {
 
         <div className="ft-feature-list">
           {FEATURE_META.map((f) => {
-            const disabled = (isLocal && f.agencyOnly) || (!isLocal && f.localOnly);
+            // Every feature is toggleable. `hint` is advisory only: it warns
+            // when this install cannot fully deliver the feature yet.
+            const hint =
+              f.requires === 'publicDomain' && (!baseDomain || baseDomain === 'localhost')
+                ? 'Needs a public domain'
+                : f.requires === 'smtp' && !smtpConfigured
+                  ? 'Needs email configured'
+                  : '';
             return (
               <div
                 key={f.key}
                 className="ft-feature-row"
                 style={{
-                  background: disabled ? '#f1f5f9' : features[f.key] ? '#f0fdf4' : '#fafafa',
-                  opacity: disabled ? 0.55 : 1,
+                  background: features[f.key] ? '#f0fdf4' : '#fafafa',
                 }}
               >
                 <div>
                   <div className="ft-feature-label">
                     {f.label}
-                    {isLocal && f.agencyOnly && <span className="ft-agency-badge">Agency only</span>}
-                    {!isLocal && f.localOnly && <span className="ft-agency-badge">Local only</span>}
+                    {hint && <span className="ft-agency-badge" title={hint}>{hint}</span>}
                   </div>
                   <div className="ft-feature-desc">{f.description}</div>
                 </div>
@@ -156,15 +161,14 @@ export default function FeaturesTab() {
                   <input
                     type="checkbox"
                     checked={!!features[f.key]}
-                    disabled={disabled}
                     onChange={(e) => setFeatures((prev) => ({ ...prev, [f.key]: e.target.checked }))}
                     className="ft-toggle-input"
                   />
                   <span
                     className="ft-toggle-track"
                     style={{
-                      cursor: disabled ? 'not-allowed' : 'pointer',
-                      background: disabled ? '#e2e8f0' : features[f.key] ? '#22c55e' : '#cbd5e1',
+                      cursor: 'pointer',
+                      background: features[f.key] ? '#22c55e' : '#cbd5e1',
                     }}
                   >
                     <span

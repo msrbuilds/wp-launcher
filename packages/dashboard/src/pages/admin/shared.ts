@@ -54,24 +54,34 @@ export interface AdminProduct {
   branding?: { description?: string };
 }
 
-export const FEATURE_META: { key: string; label: string; description: string; agencyOnly?: boolean; localOnly?: boolean }[] = [
+/**
+ * `requires` records a genuine environment dependency, not a mode. Every
+ * feature is toggleable on every install; this only drives an advisory hint
+ * when the current install cannot fully support it.
+ */
+export const FEATURE_META: {
+  key: string;
+  label: string;
+  description: string;
+  requires?: 'publicDomain' | 'smtp';
+}[] = [
   { key: 'cloning', label: 'Site Cloning', description: 'Allow users to clone their running sites' },
   { key: 'snapshots', label: 'Snapshots', description: 'Allow users to take and restore site snapshots' },
-  { key: 'templates', label: 'Save as Template', description: 'Allow users to export running sites as reusable templates', localOnly: true },
-  { key: 'customDomains', label: 'Custom Domains', description: 'Allow users to set custom domains on their sites', agencyOnly: true },
+  { key: 'templates', label: 'Save as Blueprint', description: 'Allow users to export running sites as reusable blueprints' },
+  { key: 'customDomains', label: 'Custom Domains', description: 'Allow users to set custom domains on their sites', requires: 'publicDomain' },
   { key: 'phpConfig', label: 'PHP Configuration', description: 'Allow users to modify PHP settings on running sites' },
-  { key: 'siteExtend', label: 'Site Extend', description: 'Allow users to extend the expiration of their running sites', agencyOnly: true },
-  { key: 'sitePassword', label: 'Site Password Protection', description: 'Allow users to set a password on their demo site frontend' },
+  { key: 'siteExtend', label: 'Site Extend', description: 'Allow users to extend the expiration of their running sites' },
+  { key: 'sitePassword', label: 'Site Password Protection', description: 'Allow users to set a password on their site frontend' },
   { key: 'exportZip', label: 'Export Site as ZIP', description: 'Allow users to download their site as a portable ZIP archive' },
-  { key: 'webhooks', label: 'Webhook Notifications', description: 'Fire HTTP webhooks on site events (created, expired, deleted)', agencyOnly: true },
+  { key: 'webhooks', label: 'Webhook Notifications', description: 'Fire HTTP webhooks on site events (created, expired, deleted)' },
   { key: 'healthMonitoring', label: 'Site Health Monitoring', description: 'Track container CPU and memory usage for running sites' },
-  { key: 'scheduledLaunch', label: 'Scheduled Site Launch', description: 'Allow users to schedule sites to be created at a future time', agencyOnly: true },
-  { key: 'collaborativeSites', label: 'Collaborative Sites', description: 'Allow users to share sites with other users (viewer or admin access)', agencyOnly: true },
+  { key: 'scheduledLaunch', label: 'Scheduled Site Launch', description: 'Allow users to schedule sites to be created at a future time' },
+  { key: 'collaborativeSites', label: 'Collaborative Sites', description: 'Allow users to share sites with other users (viewer or admin access)', requires: 'smtp' },
   { key: 'adminer', label: 'Database Manager (Adminer)', description: 'Allow users to access and manage site databases through Adminer' },
   { key: 'publicSharing', label: 'Public Sharing (Tunnels)', description: 'Share sites publicly via LAN, Cloudflare Tunnel, or ngrok' },
-  { key: 'siteSync', label: 'Site Sync', description: 'Push/pull site content between local and remote instances', localOnly: true },
+  { key: 'siteSync', label: 'Site Sync', description: 'Push/pull site content between this panel and remote instances' },
   { key: 'projects', label: 'Projects & Invoices', description: 'Manage clients, projects, and generate invoices' },
-  { key: 'productivityMonitor', label: 'Productivity Monitor', description: 'Track coding time and WordPress site activity with daily goals and breakdowns', localOnly: true },
+  { key: 'productivityMonitor', label: 'Productivity Monitor', description: 'Track coding time and WordPress site activity with daily goals and breakdowns' },
 ];
 
 export interface Client {
