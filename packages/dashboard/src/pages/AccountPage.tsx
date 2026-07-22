@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react';
-import { Loader2, Upload, Trash2 } from 'lucide-react';
+import { Loader2, Upload, Trash2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar } from '@/components/ui/avatar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PasswordStrengthMeter } from '../components/PasswordStrengthMeter';
+import { evaluatePassword } from '@/lib/password-strength';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/api';
 
@@ -278,11 +280,25 @@ function EmailCard({
 function PasswordCard() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<Note>(null);
 
+  const strength = evaluatePassword(newPassword);
+  const mismatch = confirmPassword.length > 0 && confirmPassword !== newPassword;
+  const matches = confirmPassword.length > 0 && confirmPassword === newPassword;
+  const canSubmit = strength.ok && matches && currentPassword.length > 0 && !saving;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!strength.ok) {
+      setNote({ kind: 'error', text: 'Choose a stronger password' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setNote({ kind: 'error', text: 'Passwords do not match' });
+      return;
+    }
     setSaving(true);
     setNote(null);
     try {
@@ -295,6 +311,7 @@ function PasswordCard() {
       if (!res.ok) throw new Error(data.error || 'Failed to update password');
       setCurrentPassword('');
       setNewPassword('');
+      setConfirmPassword('');
       setNote({ kind: 'ok', text: 'Password updated' });
     } catch (err: any) {
       setNote({ kind: 'error', text: err.message });
@@ -307,7 +324,7 @@ function PasswordCard() {
     <Card>
       <CardHeader>
         <CardTitle>Password</CardTitle>
-        <CardDescription>Use at least 8 characters.</CardDescription>
+        <CardDescription>Use at least 8 characters with a mix of letters, numbers, and symbols.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="flex flex-col gap-4">
@@ -335,9 +352,33 @@ function PasswordCard() {
               minLength={8}
               className="max-w-md"
             />
+            <PasswordStrengthMeter password={newPassword} className="max-w-md" />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="confirmPassword">Confirm new password</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
+              required
+              aria-invalid={mismatch}
+              className="max-w-md"
+            />
+            {mismatch && (
+              <span className="flex items-center gap-1 text-xs text-destructive">
+                <X className="h-3.5 w-3.5" /> Passwords don't match
+              </span>
+            )}
+            {matches && (
+              <span className="flex items-center gap-1 text-xs text-success">
+                <Check className="h-3.5 w-3.5" /> Passwords match
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={!canSubmit}>
               {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Updating…</> : 'Update password'}
             </Button>
             <NoteLine note={note} />
