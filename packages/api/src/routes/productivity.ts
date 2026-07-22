@@ -1,5 +1,6 @@
-import { Router, Response } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import express from 'express';
+import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { conditionalAuth, AuthRequest } from '../middleware/userAuth';
 import { config } from '../config';
@@ -152,8 +153,35 @@ function requireGlobalReader(req: AuthRequest, res: Response, next: () => void) 
   next();
 }
 
+/**
+ * The per-install heartbeat secret already authenticates editor clients for
+ * ingestion, and the panel surfaces it for exactly that purpose. Accepting it
+ * for reads too means an editor needs one credential, not two — asking for a
+ * second one invites pasting the wrong key, which is a support problem rather
+ * than a security gain: its holder is already trusted at install level.
+ */
+function hasValidHeartbeatSecret(req: AuthRequest): boolean {
+  const provided = req.headers['x-wpl-secret'];
+  if (typeof provided !== 'string' || !provided) return false;
+  const expected = getCloudConfig().heartbeat_secret;
+  if (!expected) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+function statsAuth(req: AuthRequest, res: Response, next: () => void) {
+  if (hasValidHeartbeatSecret(req)) {
+    req.userId = 'heartbeat-client';
+    req.userRole = 'admin';
+    return next();
+  }
+  return conditionalAuth(req, res, next as NextFunction);
+}
+
 // All other routes require auth + feature enabled + global read access
-router.use(conditionalAuth, requireFeature, requireGlobalReader);
+router.use(statsAuth, requireFeature, requireGlobalReader);
 
 // ── Stats ──
 

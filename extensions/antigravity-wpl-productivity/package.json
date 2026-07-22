@@ -2,7 +2,7 @@
   "name": "wpl-productivity-antigravity",
   "displayName": "WPL Productivity Tracker for Antigravity",
   "description": "Track your coding time automatically in Google Antigravity. Sends heartbeats to WP Launcher for productivity monitoring \u2014 see time by language, project, editor, and more.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "publisher": "msrbuilds",
   "license": "MIT",
   "icon": "icon.png",
@@ -56,7 +56,7 @@
         "wplProductivity.apiKey": {
           "type": "string",
           "default": "",
-          "markdownDescription": "API key for your WP Launcher panel. Required to display today's tracked time in the status bar (heartbeats do not need it). Find it in your panel's `.env` as `API_KEY`."
+          "markdownDescription": "Optional. Only needed if you have not set `heartbeatSecret`. This is the panel's `API_KEY` from its `.env` \u2014 **not** the Cloud Sync key shown on the Productivity page."
         }
       }
     },

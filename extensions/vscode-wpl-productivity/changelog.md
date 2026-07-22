@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.8
+
+- The status bar now authenticates with the **heartbeat secret** you already
+  paste from Dashboard > Productivity > Cloud Settings. No second credential.
+- `apiKey` still works as an alternative, but is no longer needed. Note the
+  panel's Cloud Sync key is a *different* secret and will be rejected here.
+
 ## 0.2.7
 
 - The status bar now says why it cannot show a total: `key rejected` when the

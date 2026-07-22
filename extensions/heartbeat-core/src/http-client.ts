@@ -40,7 +40,11 @@ export type StatsResult =
  * result rather than null so callers can tell "wrong key" from "panel is down"
  * instead of showing one uninformative placeholder for every failure.
  */
-export async function fetchTodayStatsResult(apiUrl: string, apiKey?: string): Promise<StatsResult> {
+export async function fetchTodayStatsResult(
+  apiUrl: string,
+  apiKey?: string,
+  heartbeatSecret?: string,
+): Promise<StatsResult> {
   let url: URL;
   try {
     url = new URL('/api/productivity/stats/today', apiUrl);
@@ -53,6 +57,10 @@ export async function fetchTodayStatsResult(apiUrl: string, apiKey?: string): Pr
   // would otherwise fail the panel's constant-time comparison.
   const key = apiKey?.trim();
   if (key) headers['x-api-key'] = key;
+  // The heartbeat secret is the credential the panel already tells you to
+  // paste into your editor, so prefer it over asking for a second one.
+  const secret = heartbeatSecret?.trim();
+  if (secret) headers['x-wpl-secret'] = secret;
 
   return new Promise((resolve) => {
     const req = transport.get(url, { timeout: 5000, headers }, (res) => {
@@ -90,7 +98,11 @@ export async function fetchTodayStatsResult(apiUrl: string, apiKey?: string): Pr
 }
 
 /** Backwards-compatible wrapper. */
-export async function fetchTodayStats(apiUrl: string, apiKey?: string): Promise<TodayStats | null> {
-  const result = await fetchTodayStatsResult(apiUrl, apiKey);
+export async function fetchTodayStats(
+  apiUrl: string,
+  apiKey?: string,
+  heartbeatSecret?: string,
+): Promise<TodayStats | null> {
+  const result = await fetchTodayStatsResult(apiUrl, apiKey, heartbeatSecret);
   return result.ok ? result.stats : null;
 }

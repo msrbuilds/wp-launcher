@@ -28,7 +28,7 @@ export function activate(context: vscode.ExtensionContext): void {
   if (!config.get<boolean>('enabled', true)) return;
 
   heartbeatManager = new HeartbeatManager(getApiUrl, getSecret, getMachineId, EDITOR_NAME);
-  statusBarManager = new StatusBarManager(getApiUrl, getApiKey);
+  statusBarManager = new StatusBarManager(getApiUrl, getApiKey, getSecret);
 
   heartbeatManager.start();
   statusBarManager.start();
@@ -75,7 +75,7 @@ export function activate(context: vscode.ExtensionContext): void {
           statusBarManager = undefined;
         } else if (!heartbeatManager) {
           heartbeatManager = new HeartbeatManager(getApiUrl, getSecret, getMachineId, EDITOR_NAME);
-          statusBarManager = new StatusBarManager(getApiUrl, getApiKey);
+          statusBarManager = new StatusBarManager(getApiUrl, getApiKey, getSecret);
           heartbeatManager.start();
           statusBarManager.start();
         }

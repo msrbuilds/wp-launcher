@@ -8,7 +8,11 @@ export class StatusBarManager {
   private timer: NodeJS.Timeout | undefined;
   private disposed = false;
 
-  constructor(private getApiUrl: () => string, private getApiKey: () => string = () => '') {
+  constructor(
+    private getApiUrl: () => string,
+    private getApiKey: () => string = () => '',
+    private getSecret: () => string = () => '',
+  ) {
     this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.item.command = 'wplProductivity.showStats';
     this.item.tooltip = 'WP Launcher Productivity — Click to open dashboard';
@@ -26,7 +30,8 @@ export class StatusBarManager {
   private async refresh(): Promise<void> {
     const apiUrl = this.getApiUrl();
     const apiKey = this.getApiKey();
-    const result = await fetchTodayStatsResult(apiUrl, apiKey);
+    const secret = this.getSecret();
+    const result = await fetchTodayStatsResult(apiUrl, apiKey, secret);
 
     if (result.ok) {
       this.item.text = `$(clock) WPL: ${formatDuration(result.stats.totalSeconds)}`;
@@ -36,15 +41,15 @@ export class StatusBarManager {
 
     // Say which failure it is. A single placeholder for every cause makes this
     // impossible to diagnose from the status bar.
-    if (!apiKey.trim()) {
-      this.item.text = '$(clock) WPL: set API key';
-      this.item.tooltip = `Set wplProductivity.apiKey to your panel's API_KEY.
+    if (!apiKey.trim() && !secret.trim()) {
+      this.item.text = '$(clock) WPL: set secret';
+      this.item.tooltip = `Set wplProductivity.heartbeatSecret from Dashboard > Productivity > Cloud Settings.
 Panel: ${apiUrl}`;
     } else if (result.reason === 'auth') {
       this.item.text = '$(warning) WPL: key rejected';
-      this.item.tooltip = `The panel rejected this API key (HTTP ${result.status}).
+      this.item.tooltip = `The panel rejected these credentials (HTTP ${result.status}).
 Panel: ${apiUrl}
-Check wplProductivity.apiKey matches API_KEY in the panel's .env.`;
+Check wplProductivity.heartbeatSecret matches Dashboard > Productivity > Cloud Settings.`;
     } else if (result.reason === 'network') {
       this.item.text = '$(debug-disconnect) WPL: offline';
       this.item.tooltip = `Could not reach the panel at ${apiUrl}

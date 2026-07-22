@@ -1,9 +1,8 @@
 <div align="center">
-  
+
 # WP Launcher
 
 <img width="128" height="128" alt="logo-square" src="https://github.com/user-attachments/assets/e095da03-fa2e-4484-8f8b-6d4a984f4e5b" />
-
 
 [![Version](https://img.shields.io/badge/version-2.3.1-blue)](https://github.com/msrbuilds/wp-launcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -68,45 +67,6 @@ User clicks "Launch Demo"
 | Reverse Proxy | Traefik v3 (auto-discovery via Docker labels) |
 | Dashboard | React + Vite + TypeScript |
 | Container Base | wordpress:6.9 (PHP 8.1 / 8.2 / 8.3) |
-
-## Project Structure
-
-```
-wp-launcher/
-├── docker-compose.yml          # Infrastructure (Traefik + API + Dashboard)
-├── .env.example                # Environment configuration
-├── install.sh                  # One-click VPS installer
-├── install-local.sh            # Local mode installer
-├── bin/wpl                     # Global CLI command
-├── packages/
-│   ├── api/                    # Management API (Express/TypeScript)
-│   ├── provisioner/            # Docker container management service
-│   └── dashboard/              # React SPA (Vite)
-├── wordpress/                  # Custom WP Docker image
-│   ├── Dockerfile
-│   ├── entrypoint.sh           # Auto-installs WP + activates plugins
-│   ├── wp-config-docker.php
-│   └── mu-plugins/             # Admin restrictions, branding & auto-login
-├── products/                   # Product configs (agency mode)
-│   └── _default.json
-├── templates/                  # Template configs (local mode)
-│   └── starter.json
-├── product-assets/             # Local plugins/themes per product
-│   └── my-product/
-│       └── plugins/
-├── traefik/                    # Reverse proxy config
-├── scripts/
-│   ├── setup.sh                # Initial setup script
-│   └── build-wp-image.sh       # Builds product Docker images
-└── guides/                     # Documentation
-    ├── getting-started.md
-    ├── creating-products.md
-    ├── working-with-wordpress-files.md  # Edit themes/plugins in Docker
-    ├── adding-product-images.md
-    ├── vps-deployment.md
-    ├── cloudflare-dns-setup.md
-    └── upgrading.md
-```
 
 ## Installation
 
