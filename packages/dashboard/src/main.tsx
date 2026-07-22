@@ -34,6 +34,8 @@ import ProjectDetailPage from './pages/admin/ProjectDetailPage';
 import InvoicesPage from './pages/admin/InvoicesPage';
 import InvoicePrintPage from './pages/admin/InvoicePrintPage';
 import ProductivityPage from './pages/ProductivityPage';
+// theme.css first: index.css must win any conflict while pages are unconverted.
+import './styles/theme.css';
 import './index.css';
 
 function LaunchRedirect() {
