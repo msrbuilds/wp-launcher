@@ -1,8 +1,5 @@
 import { ensureSecrets } from './utils/secrets';
 
-const appMode = (process.env.APP_MODE || 'agency') as 'local' | 'agency';
-const isLocalMode = appMode === 'local';
-
 const dataDir = process.env.DATA_DIR || './data';
 
 // Every install gets strong secrets whether or not the operator set any.
@@ -10,8 +7,6 @@ const dataDir = process.env.DATA_DIR || './data';
 const generated = ensureSecrets(dataDir);
 
 export const config = {
-  appMode,
-  isLocalMode,
   port: parseInt(process.env.PORT || '3737', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   apiKey: process.env.API_KEY || generated.apiKey,

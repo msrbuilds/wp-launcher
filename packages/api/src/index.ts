@@ -147,9 +147,6 @@ app.get('/api/settings', (_req, res) => {
   }
   res.json({
     cardLayout: branding.cardLayout || config.ui.cardLayout,
-    // Retained until plan 4 removes the dashboard's mode fork. Nothing in the
-    // API reads it any more.
-    appMode: config.appMode,
     baseDomain: config.baseDomain,
     features,
     branding: {
@@ -201,7 +198,6 @@ app.get('/api/admin/system/info', adminAuth, (_req, res) => {
     uptimeFormatted: `${Math.floor(uptime / 86400)}d ${Math.floor((uptime % 86400) / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
     memoryUsage: Math.round(process.memoryUsage().rss / 1024 / 1024),
     env: config.nodeEnv,
-    appMode: config.appMode,
   });
 });
 
@@ -212,7 +208,7 @@ app.get('/api/admin/system/update-check', adminAuth, async (_req, res) => {
     const currentVersion = info.version || '0.0.0';
 
     // In development mode (running from source with tsx watch), skip update checks
-    if (config.nodeEnv === 'development' && !config.isLocalMode) {
+    if (config.nodeEnv === 'development') {
       res.json({ currentVersion, latestVersion: currentVersion, updateAvailable: false, source: 'local' });
       return;
     }
@@ -512,7 +508,6 @@ const server = app.listen(config.port, () => {
   console.log(`[api] WP Launcher API running on port ${config.port}`);
   console.log(`[api] Base domain: ${config.baseDomain}`);
   console.log(`[api] Environment: ${config.nodeEnv}`);
-  console.log(`[api] Mode: ${config.appMode}`);
 });
 
 // Start cleanup scheduler
