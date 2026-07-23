@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { Plus, FileText, Globe, Package, Mail, Loader2 } from 'lucide-react';
 import { useAdminHeaders } from './admin/AdminLayout';
 import { useFeatures } from '../context/SettingsContext';
-import { Stats, AdminSite, SiteLog } from './admin/shared';
+import { Stats } from './admin/shared';
 import { apiFetch } from '../utils/api';
-import { Badge } from '@/components/ui/badge';
+import { ServerResources } from '../components/ServerResources';
 import { cn } from '@/lib/utils';
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
@@ -43,38 +43,17 @@ const MAIL_SHORTCUT = {
 const SHORTCUT_CLASSES =
   'flex flex-col items-center justify-center gap-2 rounded-xl border border-border p-6 text-sm font-medium transition-opacity hover:opacity-80';
 
-function statusDotClass(status: string) {
-  if (status === 'running') return 'bg-primary';
-  if (status === 'error') return 'bg-destructive';
-  return 'bg-muted-foreground';
-}
-
-function statusBadgeVariant(status: string): 'default' | 'destructive' | 'secondary' {
-  if (status === 'running') return 'default';
-  if (status === 'error') return 'destructive';
-  return 'secondary';
-}
-
 export default function LocalDashboard() {
   const headers = useAdminHeaders();
   const features = useFeatures();
   const [stats, setStats] = useState<Stats | null>(null);
   const [projectStats, setProjectStats] = useState<{ clients: number; projects: number; invoices: number } | null>(null);
-  const [recentSites, setRecentSites] = useState<AdminSite[]>([]);
-  const [recentLogs, setRecentLogs] = useState<SiteLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      apiFetch('/api/admin/stats', { headers }).then((r) => r.json()),
-      apiFetch('/api/admin/sites?limit=5&offset=0', { headers }).then((r) => r.json()),
-      apiFetch('/api/admin/logs?limit=10&offset=0', { headers }).then((r) => r.json()),
-    ])
-      .then(([statsData, sitesData, logsData]) => {
-        setStats(statsData);
-        setRecentSites(sitesData.data || []);
-        setRecentLogs(logsData.data || []);
-      })
+    apiFetch('/api/admin/stats', { headers })
+      .then((r) => r.json())
+      .then((statsData) => setStats(statsData))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -89,17 +68,6 @@ export default function LocalDashboard() {
       .then(([c, p, i]) => setProjectStats({ clients: c.total || 0, projects: p.total || 0, invoices: i.total || 0 }))
       .catch(() => {});
   }, [features.projects]);
-
-  const timeAgo = (dateStr: string) => {
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    return `${days}d ago`;
-  };
 
   if (loading) {
     return (
@@ -147,86 +115,8 @@ export default function LocalDashboard() {
         </div>
       )}
 
-      {/* Recent Sites + Recent Activity */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <h3 className="text-sm font-semibold text-card-foreground">Recent Sites</h3>
-            <Link to="/sites" className="text-xs font-medium text-primary hover:underline">
-              View all
-            </Link>
-          </div>
-          {recentSites.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No sites yet.{' '}
-              <Link to="/sites/new" className="text-primary hover:underline">Create one</Link>
-            </p>
-          ) : (
-            <div className="divide-y divide-border">
-              {recentSites.map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className={cn('h-2 w-2 shrink-0 rounded-full', statusDotClass(s.status))} />
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-card-foreground">
-                        {s.url ? (
-                          <a href={s.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                            {s.subdomain}
-                          </a>
-                        ) : (
-                          s.subdomain
-                        )}
-                      </div>
-                      <div className="truncate text-xs text-muted-foreground">{s.blueprintId}</div>
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <Badge variant={statusBadgeVariant(s.status)}>{s.status}</Badge>
-                    <div className="mt-1 text-xs text-muted-foreground">{timeAgo(s.createdAt)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-6">
-          <h3 className="mb-4 text-sm font-semibold text-card-foreground">Recent Activity</h3>
-          {recentLogs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No activity yet.</p>
-          ) : (
-            <div className="divide-y divide-border">
-              {recentLogs.map((log) => (
-                <div key={log.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <Badge
-                      variant={
-                        log.action === 'created'
-                          ? 'default'
-                          : log.action === 'error'
-                          ? 'destructive'
-                          : 'secondary'
-                      }
-                    >
-                      {log.action}
-                    </Badge>
-                    <span className="truncate text-sm text-card-foreground">
-                      {log.site_url ? (
-                        <a href={log.site_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                          {log.subdomain}
-                        </a>
-                      ) : (
-                        log.subdomain
-                      )}
-                    </span>
-                  </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">{timeAgo(log.created_at)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Live server resources (CPU / Memory / Docker / Disk) + usage charts */}
+      <ServerResources />
     </div>
   );
 }

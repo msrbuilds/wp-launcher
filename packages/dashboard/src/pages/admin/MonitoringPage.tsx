@@ -1,17 +1,14 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
-import { useTheme } from '../../context/ThemeContext';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '@/components/ui/table';
+import { ServerResources } from '../../components/ServerResources';
 
 interface ContainerInfo {
   id: string;
@@ -31,44 +28,10 @@ interface ContainerInfo {
   memLimit: number | null;
 }
 
-interface SystemInfo {
-  docker: {
-    version: string;
-    containersRunning: number;
-    containersPaused: number;
-    containersStopped: number;
-    containersTotal: number;
-    images: number;
-  };
-  host: {
-    cpuModel: string;
-    cpuCores: number;
-    cpuPhysicalCores: number;
-    loadAvg: number[];
-    memTotal: number;
-    memUsed: number;
-    memFree: number;
-    memPercent: number;
-    disk: { fs: string; mount: string; size: number; used: number; available: number; usePercent: number }[];
-  };
-}
-
 interface DiskInfo {
   images: { count: number; totalSize: number; items: { id: string; repoTags: string[]; size: number; created: number }[] };
   volumes: { count: number; items: { name: string; driver: string }[] };
 }
-
-interface ChartPoint {
-  time: string;
-  ts: number;
-  cpuUser: number;
-  cpuSystem: number;
-  memPercent: number;
-  memUsedGB: number;
-  diskPercent: number;
-}
-
-const MAX_POINTS = 60; // 10 minutes at 10s intervals
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -85,39 +48,6 @@ function formatUptime(created: number): string {
   return `${Math.floor(diff / 86400)}d ${Math.floor((diff % 86400) / 3600)}h`;
 }
 
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
-}
-
-/**
- * Recharts takes colours as props, so they cannot come from Tailwind classes.
- * Read the resolved design tokens off the document instead, and recompute them
- * whenever the theme flips so the charts follow light/dark.
- */
-function readChartTokens() {
-  if (typeof window === 'undefined') {
-    return { grid: '', axis: '', tooltipBg: '', tooltipBorder: '', tooltipText: '', series: [] as string[] };
-  }
-  const css = getComputedStyle(document.documentElement);
-  const v = (name: string) => css.getPropertyValue(name).trim();
-  const primary = v('--primary');
-  // Derive a small categorical palette by rotating the hue of the primary token
-  // rather than hardcoding colour literals.
-  const match = primary.match(/oklch\(\s*([\d.]+%?)\s+([\d.]+)\s+([\d.]+)/i);
-  const series = match
-    ? Array.from({ length: 6 }, (_, i) => `oklch(${match[1]} ${match[2]} ${(Number(match[3]) + i * 47) % 360})`)
-    : Array.from({ length: 6 }, () => primary);
-  return {
-    grid: v('--border'),
-    axis: v('--muted-foreground'),
-    tooltipBg: v('--popover'),
-    tooltipBorder: v('--border'),
-    tooltipText: v('--popover-foreground'),
-    series,
-  };
-}
-
 const flagVariant: Record<ContainerInfo['flag'], 'secondary' | 'outline' | 'destructive'> = {
   normal: 'secondary',
   stale: 'outline',
@@ -127,92 +57,34 @@ const flagVariant: Record<ContainerInfo['flag'], 'secondary' | 'outline' | 'dest
 
 export default function MonitoringPage() {
   const headers = useAdminHeaders();
-  const { resolved } = useTheme();
   const [containers, setContainers] = useState<ContainerInfo[]>([]);
   const [counts, setCounts] = useState({ normal: 0, stale: 0, orphaned: 0, leftover: 0 });
-  const [system, setSystem] = useState<SystemInfo | null>(null);
   const [disk, setDisk] = useState<DiskInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
-  const [chartData, setChartData] = useState<ChartPoint[]>([]);
-  const [systemError, setSystemError] = useState(false);
-  const chartPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const chart = useMemo(() => readChartTokens(), [resolved]);
-  const chartTooltipStyle = useMemo(() => ({
-    backgroundColor: chart.tooltipBg,
-    border: `1px solid ${chart.tooltipBorder}`,
-    borderRadius: '0.5rem',
-    color: chart.tooltipText,
-    fontSize: '0.8rem',
-  }), [chart]);
-
+  // System resources + usage charts live in <ServerResources />, which polls on
+  // its own. This page owns the container list, docker disk usage and actions.
   const fetchAll = useCallback(async () => {
     try {
-      const [cRes, sRes, dRes] = await Promise.all([
+      const [cRes, dRes] = await Promise.all([
         apiFetch('/api/admin/monitoring/containers', { headers }),
-        apiFetch('/api/admin/monitoring/system', { headers }),
         apiFetch('/api/admin/monitoring/disk', { headers }),
       ]);
       const cData = cRes.ok ? await cRes.json() : { containers: [], counts: null };
-      const sData = sRes.ok ? await sRes.json() : null;
       const dData = dRes.ok ? await dRes.json() : null;
       setContainers(cData.containers || []);
       setCounts(cData.counts || { normal: 0, stale: 0, orphaned: 0, leftover: 0 });
-      if (sData?.host) { setSystem(sData); setSystemError(false); }
-      else setSystemError(true);
       if (dData?.images) setDisk(dData);
-      return sData as SystemInfo;
     } catch {
-      return null;
+      /* silent */
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const fetchSystemForChart = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/admin/monitoring/system', { headers });
-      if (!res.ok) return;
-      const data = await res.json() as SystemInfo;
-      if (!data?.host) return;
-      const mainDisk = data.host.disk?.find((d: any) => d.mount === '/' || d.mount === 'C:');
-      const now = Date.now();
-      const point: ChartPoint = {
-        time: formatTime(now),
-        ts: now,
-        cpuUser: data.host.loadAvg?.[1] ?? 0,
-        cpuSystem: data.host.loadAvg?.[2] ?? 0,
-        memPercent: data.host.memPercent ?? 0,
-        memUsedGB: Math.round(((data.host.memUsed || 0) / (1024 * 1024 * 1024)) * 100) / 100,
-        diskPercent: mainDisk?.usePercent ?? 0,
-      };
-      setChartData(prev => [...prev.slice(-(MAX_POINTS - 1)), point]);
-      setSystem(data);
-    } catch { /* silent */ }
-  }, []);
-
-  useEffect(() => {
-    fetchAll().then(sData => {
-      if (sData?.host) {
-        const mainDisk = sData.host.disk?.find(d => d.mount === '/' || d.mount === 'C:');
-        const now = Date.now();
-        setChartData([{
-          time: formatTime(now),
-          ts: now,
-          cpuUser: sData.host.loadAvg?.[1] ?? 0,
-          cpuSystem: sData.host.loadAvg?.[2] ?? 0,
-          memPercent: sData.host.memPercent ?? 0,
-          memUsedGB: Math.round(((sData.host.memUsed || 0) / (1024 * 1024 * 1024)) * 100) / 100,
-          diskPercent: mainDisk?.usePercent ?? 0,
-        }]);
-      }
-    });
-    // Start chart polling (every 10s)
-    chartPollRef.current = setInterval(fetchSystemForChart, 10000);
-    return () => { if (chartPollRef.current) clearInterval(chartPollRef.current); };
-  }, [fetchAll, fetchSystemForChart]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const doAction = async (url: string, label: string) => {
     if (!confirm(`Are you sure you want to ${label}?`)) return;
@@ -253,8 +125,6 @@ export default function MonitoringPage() {
     );
   }
 
-  const mainDisk = system?.host?.disk?.find(d => d.mount === '/' || d.mount === 'C:');
-
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -273,109 +143,8 @@ export default function MonitoringPage() {
         </Alert>
       )}
 
-      {systemError && !system && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            System monitoring data unavailable. The provisioner may need to be rebuilt:
-            <code className="mt-2 block rounded-lg bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">
-              docker compose build provisioner &amp;&amp; docker compose up -d provisioner
-            </code>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* System Resources Cards */}
-      {system?.host && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-border bg-card p-6">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">CPU Load</div>
-            <div className="mt-1 text-2xl font-semibold text-card-foreground">{system.host.loadAvg?.[0] ?? 0}%</div>
-            <div className="mt-1 truncate text-xs text-muted-foreground">{system.host.cpuCores} cores &middot; {system.host.cpuModel}</div>
-          </div>
-          <div className="rounded-xl border border-border bg-card p-6">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Memory</div>
-            <div className="mt-1 text-2xl font-semibold text-card-foreground">{system.host.memPercent ?? 0}%</div>
-            <div className="mt-1 text-xs text-muted-foreground">{formatBytes(system.host.memUsed || 0)} / {formatBytes(system.host.memTotal || 0)}</div>
-            <Progress
-              className={cn(
-                'mt-3',
-                (system.host.memPercent ?? 0) > 85 && 'bg-destructive/20 [&>[data-slot=progress-indicator]]:bg-destructive',
-              )}
-              value={Math.min(system.host.memPercent ?? 0, 100)}
-            />
-          </div>
-          <div className="rounded-xl border border-border bg-card p-6">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Docker Engine</div>
-            <div className="mt-1 text-2xl font-semibold text-card-foreground">{system.docker.containersRunning} running</div>
-            <div className="mt-1 text-xs text-muted-foreground">v{system.docker.version} &middot; {system.docker.images} images &middot; {system.docker.containersTotal} total</div>
-          </div>
-          {mainDisk && (
-            <div className="rounded-xl border border-border bg-card p-6">
-              <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Disk ({mainDisk.mount})</div>
-              <div className="mt-1 text-2xl font-semibold text-card-foreground">{mainDisk.usePercent}%</div>
-              <div className="mt-1 text-xs text-muted-foreground">{formatBytes(mainDisk.used)} / {formatBytes(mainDisk.size)}</div>
-              <Progress
-                className={cn(
-                  'mt-3',
-                  mainDisk.usePercent > 85 && 'bg-destructive/20 [&>[data-slot=progress-indicator]]:bg-destructive',
-                )}
-                value={Math.min(mainDisk.usePercent, 100)}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Charts */}
-      {chartData.length > 0 && (
-        <div className="grid gap-4 xl:grid-cols-3">
-          {/* CPU Usage Chart */}
-          <div className="rounded-xl border border-border bg-card p-6">
-            <h3 className="mb-3 text-sm font-semibold text-card-foreground">CPU Usage</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
-                <XAxis dataKey="time" tick={{ fontSize: 11, fill: chart.axis }} stroke={chart.grid} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11, fill: chart.axis }} stroke={chart.grid} domain={[0, 'auto']} unit="%" />
-                <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => [`${Number(v).toFixed(1)}%`]} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '0.75rem', color: chart.axis }} />
-                <Area type="monotone" dataKey="cpuUser" name="user" stroke={chart.series[0]} fill={chart.series[0]} fillOpacity={0.15} strokeWidth={2} dot={false} />
-                <Area type="monotone" dataKey="cpuSystem" name="system" stroke={chart.series[2]} fill={chart.series[2]} fillOpacity={0.1} strokeWidth={2} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Memory Usage Chart */}
-          <div className="rounded-xl border border-border bg-card p-6">
-            <h3 className="mb-3 text-sm font-semibold text-card-foreground">Memory Usage</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
-                <XAxis dataKey="time" tick={{ fontSize: 11, fill: chart.axis }} stroke={chart.grid} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11, fill: chart.axis }} stroke={chart.grid} domain={[0, 100]} unit="%" />
-                <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => [`${Number(v).toFixed(1)}%`]} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '0.75rem', color: chart.axis }} />
-                <Area type="monotone" dataKey="memPercent" name="usage %" stroke={chart.series[1]} fill={chart.series[1]} fillOpacity={0.15} strokeWidth={2} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Disk Usage Chart */}
-          <div className="rounded-xl border border-border bg-card p-6">
-            <h3 className="mb-3 text-sm font-semibold text-card-foreground">Disk Usage</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
-                <XAxis dataKey="time" tick={{ fontSize: 11, fill: chart.axis }} stroke={chart.grid} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11, fill: chart.axis }} stroke={chart.grid} domain={[0, 100]} unit="%" />
-                <Tooltip contentStyle={chartTooltipStyle} formatter={(v) => [`${Number(v).toFixed(1)}%`]} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '0.75rem', color: chart.axis }} />
-                <Area type="monotone" dataKey="diskPercent" name="disk usage" stroke={chart.series[3]} fill={chart.series[3]} fillOpacity={0.15} strokeWidth={2} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
+      {/* System resource cards + usage charts (self-polling) */}
+      <ServerResources showErrorAlert />
 
       {/* Docker Containers */}
       <div className="rounded-xl border border-border bg-card p-6">
