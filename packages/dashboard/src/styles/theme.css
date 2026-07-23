@@ -7,6 +7,19 @@
 
 @layer base {
   /*
+   * App-wide text/background defaults. Without this, anything not explicitly
+   * coloured falls back to browser-default black — invisible in dark mode. The
+   * AppShell sets text-foreground on its own container, but out-of-shell pages
+   * (login, signup, verify, setup, demo) and uncoloured primitives like Label
+   * relied on that and rendered black. Set the baseline from the tokens so every
+   * surface is readable in both themes; component classes still override.
+   */
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  /*
    * Tailwind v4 defaults an un-coloured `border` to `currentColor`, so bare
    * `border` utilities (shadcn's Card, and any component that omits
    * `border-border`) inherited the element's text colour — a near-white edge on

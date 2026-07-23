@@ -9,10 +9,21 @@ const allFeatures = {
 };
 
 describe('buildNavGroups', () => {
-  it('always shows the panel group', () => {
+  it('shows members only their sites in the panel group', () => {
     const groups = buildNavGroups({}, 'member');
     const panel = groups.find((g) => g.label === 'Panel');
+    expect(panel?.items.map((i) => i.to)).toEqual(['/sites']);
+  });
+
+  it('gives admins the full panel group (overview + blueprints)', () => {
+    const panel = buildNavGroups({}, 'admin').find((g) => g.label === 'Panel');
     expect(panel?.items.map((i) => i.to)).toEqual(['/', '/sites', '/blueprints']);
+  });
+
+  it('shows a member nothing but Sites, even with every feature enabled', () => {
+    const groups = buildNavGroups(allFeatures, 'member');
+    expect(groups.map((g) => g.label)).toEqual(['Panel']);
+    expect(groups[0].items.map((i) => i.to)).toEqual(['/sites']);
   });
 
   it('hides the clients group unless the projects feature is on', () => {

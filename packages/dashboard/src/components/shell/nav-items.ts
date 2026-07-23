@@ -32,15 +32,20 @@ export function buildNavGroups(features: Features, role: string | undefined): Na
   const groups: NavGroup[] = [
     {
       label: 'Panel',
+      // Members manage only their own sites; the admin Overview and Blueprint
+      // management are hidden from them.
       items: [
-        { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
+        ...(isPrivileged ? [{ to: '/', label: 'Overview', icon: LayoutDashboard, end: true }] : []),
         { to: '/sites', label: 'Sites', icon: Globe },
-        { to: '/blueprints', label: 'Blueprints', icon: Layers },
+        ...(isPrivileged ? [{ to: '/blueprints', label: 'Blueprints', icon: Layers }] : []),
       ],
     },
+    // Everything below is an admin/owner-only area, so each item requires
+    // privilege *and* its feature flag — a member would only be redirected back
+    // to their sites, so the tab must not appear for them at all.
     {
       label: 'Clients',
-      items: features.projects
+      items: isPrivileged && features.projects
         ? [
             { to: '/clients', label: 'Clients', icon: Users },
             { to: '/projects', label: 'Projects', icon: FolderKanban },
@@ -50,15 +55,17 @@ export function buildNavGroups(features: Features, role: string | undefined): Na
     },
     {
       label: 'Insights',
-      items: [
-        ...(features.healthMonitoring ? [{ to: '/monitoring', label: 'Monitoring', icon: Activity }] : []),
-        ...(isPrivileged ? [{ to: '/analytics', label: 'Analytics', icon: BarChart3 }] : []),
-        ...(features.productivityMonitor ? [{ to: '/productivity', label: 'Productivity', icon: Timer }] : []),
-      ],
+      items: isPrivileged
+        ? [
+            ...(features.healthMonitoring ? [{ to: '/monitoring', label: 'Monitoring', icon: Activity }] : []),
+            { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+            ...(features.productivityMonitor ? [{ to: '/productivity', label: 'Productivity', icon: Timer }] : []),
+          ]
+        : [],
     },
     {
       label: 'Sync',
-      items: features.siteSync ? [{ to: '/sync', label: 'Sync', icon: RefreshCw }] : [],
+      items: isPrivileged && features.siteSync ? [{ to: '/sync', label: 'Sync', icon: RefreshCw }] : [],
     },
     {
       label: 'Settings',

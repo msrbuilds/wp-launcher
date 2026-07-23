@@ -1,9 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useParams } from 'react-router-dom';
 import { SettingsProvider } from './context/SettingsContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { useSettings } from './context/SettingsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import LocalLaunchPage from './pages/LocalLaunchPage';
@@ -47,6 +47,20 @@ function LaunchRedirect() {
   return <Navigate to="/" replace />;
 }
 
+// Members (regular signups) don't get the admin Overview — their home is their
+// own sites list. Admins and owners keep the dashboard.
+function HomeRoute() {
+  const { isAdmin } = useAuth();
+  return isAdmin ? <LocalDashboard /> : <Navigate to="/sites" replace />;
+}
+
+// Gate for admin/owner-only sections. A member who lands on one (bookmark, stale
+// link) is sent to their sites rather than shown a broken page.
+function RequireAdmin() {
+  const { isAdmin } = useAuth();
+  return isAdmin ? <Outlet /> : <Navigate to="/sites" replace />;
+}
+
 function AppRoutes() {
   const { loading, setupRequired } = useSettings();
 
@@ -73,28 +87,33 @@ function AppRoutes() {
       <Route path="/setup" element={<Navigate to="/" replace />} />
 
       <Route path="/" element={<AppShell />}>
-        <Route index element={<LocalDashboard />} />
+        {/* Available to every signed-in account (members included). */}
+        <Route index element={<HomeRoute />} />
         <Route path="sites" element={<SitesListPage />} />
         <Route path="sites/new" element={<LocalLaunchPage />} />
-        <Route path="blueprints" element={<BlueprintsTab />} />
-        <Route path="blueprints/new" element={<BlueprintEditorPage />} />
-        <Route path="monitoring" element={<MonitoringPage />} />
-        <Route path="analytics" element={<AnalyticsTab />} />
-        <Route path="productivity" element={<ProductivityPage />} />
-        <Route path="sync" element={<SyncPage />} />
-        <Route path="clients" element={<ClientsPage />} />
-        <Route path="projects" element={<ProjectsPage />} />
-        <Route path="projects/:id" element={<ProjectDetailPage />} />
-        <Route path="invoices" element={<InvoicesPage />} />
-        <Route path="invoices/:id/print" element={<InvoicePrintPage />} />
-        <Route path="bulk" element={<BulkTab />} />
-        <Route path="logs" element={<LogsTab />} />
-        <Route path="users" element={<UsersTab />} />
-        <Route path="features" element={<FeaturesTab />} />
-        <Route path="branding" element={<BrandingTab />} />
-        <Route path="panel" element={<PanelSettingsPage />} />
-        <Route path="system" element={<SystemTab />} />
         <Route path="account" element={<AccountPage />} />
+
+        {/* Admin / owner only. */}
+        <Route element={<RequireAdmin />}>
+          <Route path="blueprints" element={<BlueprintsTab />} />
+          <Route path="blueprints/new" element={<BlueprintEditorPage />} />
+          <Route path="monitoring" element={<MonitoringPage />} />
+          <Route path="analytics" element={<AnalyticsTab />} />
+          <Route path="productivity" element={<ProductivityPage />} />
+          <Route path="sync" element={<SyncPage />} />
+          <Route path="clients" element={<ClientsPage />} />
+          <Route path="projects" element={<ProjectsPage />} />
+          <Route path="projects/:id" element={<ProjectDetailPage />} />
+          <Route path="invoices" element={<InvoicesPage />} />
+          <Route path="invoices/:id/print" element={<InvoicePrintPage />} />
+          <Route path="bulk" element={<BulkTab />} />
+          <Route path="logs" element={<LogsTab />} />
+          <Route path="users" element={<UsersTab />} />
+          <Route path="features" element={<FeaturesTab />} />
+          <Route path="branding" element={<BrandingTab />} />
+          <Route path="panel" element={<PanelSettingsPage />} />
+          <Route path="system" element={<SystemTab />} />
+        </Route>
 
         {/* Old paths, kept so existing links and bookmarks resolve. */}
         <Route path="create" element={<Navigate to="/sites/new" replace />} />

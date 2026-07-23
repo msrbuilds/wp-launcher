@@ -11,7 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 const COLLAPSE_KEY = 'wpl-sidebar-collapsed';
 
 export default function AppShell() {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => {
@@ -32,20 +32,6 @@ export default function AppShell() {
           <h2 className="mb-1 text-lg font-semibold text-card-foreground">Sign in required</h2>
           <p className="mb-4 text-sm text-muted-foreground">Log in to access this panel.</p>
           <Button className="w-full" onClick={() => navigate('/login')}>Go to login</Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6">
-        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 text-center">
-          <h2 className="mb-1 text-lg font-semibold text-destructive">Access denied</h2>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Your account does not have permission to view this panel.
-          </p>
-          <Button variant="secondary" className="w-full" onClick={() => navigate('/')}>Back</Button>
         </div>
       </div>
     );
