@@ -16,6 +16,7 @@ import setupRouter from './routes/setup';
 import adminRouter from './routes/admin';
 import analyticsRouter from './routes/analytics';
 import bulkRouter from './routes/bulk';
+import imagesRouter from './routes/images';
 import syncRouter from './routes/sync';
 import projectsRouter from './routes/projects';
 import productivityRouter from './routes/productivity';
@@ -233,6 +234,7 @@ app.use('/api/admin', adminLimiter, adminRouter);
 app.use('/api/admin/analytics', analyticsRouter);
 app.use('/api/admin/monitoring', monitoringRouter);
 app.use('/api/admin/bulk', bulkRouter);
+app.use('/api/admin/images', imagesRouter);
 
 // ── Admin endpoints available in both local and agency modes ──
 

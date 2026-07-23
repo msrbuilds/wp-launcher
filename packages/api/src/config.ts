@@ -13,6 +13,10 @@ export const config = {
   baseDomain: process.env.BASE_DOMAIN || 'localhost',
   wpImage: process.env.WP_IMAGE || 'wp-launcher/wordpress:latest',
   dataDir,
+  // The WordPress build context (Dockerfile, entrypoint, mu-plugins), mounted
+  // read-only into the API container; tarred and streamed to the provisioner
+  // when building base images from the panel.
+  wordpressDir: process.env.WORDPRESS_DIR || '/app/wordpress',
   sitesDir: process.env.SITES_DIR || '',  // Container-internal path to sites directory (for cleanup)
   sitesHostPath: process.env.SITES_HOST_PATH || '',  // Host path to sites directory (exposed to dashboard)
   blueprintConfigsDir: process.env.BLUEPRINT_CONFIGS_DIR || './blueprints',
