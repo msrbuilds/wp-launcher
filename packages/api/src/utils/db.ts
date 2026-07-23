@@ -346,6 +346,20 @@ function initSchema(db: Database.Database): void {
       started_at TEXT NOT NULL DEFAULT (datetime('now')),
       completed_at TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS image_builds (
+      id TEXT PRIMARY KEY,
+      tag TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'queued',
+      log TEXT NOT NULL DEFAULT '',
+      error TEXT,
+      spec TEXT,
+      created_by TEXT,
+      started_at TEXT,
+      completed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Seed default feature flags and branding
@@ -519,6 +533,15 @@ function initSchema(db: Database.Database): void {
     if (adminCount === 0) {
       db.prepare("UPDATE users SET role = 'admin' WHERE email = ? AND verified = 1").run(config.adminEmail);
     }
+  }
+
+  // Any image build left mid-flight by a restart can never resume (the runner is
+  // in-process); fail it so the UI doesn't show a permanently 'building' job.
+  // Lazy require avoids a module cycle (the service imports from this file).
+  try {
+    require('../services/imageBuildJob.service').reconcileStuckImageBuilds();
+  } catch {
+    // Service or table may not be present on a very old DB — safe to skip.
   }
 }
 

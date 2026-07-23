@@ -66,6 +66,21 @@ const SETTINGS_TABLE = `
     value TEXT NOT NULL
   )`;
 
+const IMAGE_BUILDS_TABLE = `
+  CREATE TABLE image_builds (
+    id TEXT PRIMARY KEY,
+    tag TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued',
+    log TEXT NOT NULL DEFAULT '',
+    error TEXT,
+    spec TEXT,
+    created_by TEXT,
+    started_at TEXT,
+    completed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`;
+
 /**
  * Minimal in-memory schema covering only the tables the panel migration
  * touches. Deliberately not the full production schema — these tests assert
@@ -73,7 +88,7 @@ const SETTINGS_TABLE = `
  */
 export function createTestDb(): Database.Database {
   const db = new Database(':memory:');
-  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, PROJECTS_TABLE, SETTINGS_TABLE]) {
+  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, PROJECTS_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE]) {
     db.prepare(ddl).run();
   }
   return db;
