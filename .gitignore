@@ -19,8 +19,9 @@ data/
 # Manual copies taken before migrations (data.live, data.pre-v3-backup, ...)
 data.*/
 
-# Site wp-content bind mounts
-sites/
+# Site wp-content bind mounts (runtime dir at the repo root only — anchored so
+# it doesn't also swallow packages/dashboard/src/pages/sites/).
+/sites/
 *.db
 *.db-shm
 *.db-wal
