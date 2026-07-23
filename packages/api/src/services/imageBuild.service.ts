@@ -3,7 +3,7 @@ import { ValidationError } from '../utils/errors';
 export const IMAGE_PREFIX = 'wp-launcher/';
 export const DEFAULT_PHP = '8.3';
 export const DEFAULT_WP = '6.9';
-export const ALL_PHP_VERSIONS = ['8.3', '8.2', '8.1', '7.4'] as const;
+export const ALL_PHP_VERSIONS = ['8.5', '8.4', '8.3', '8.2', '8.1', '7.4'] as const;
 export type PhpVersion = typeof ALL_PHP_VERSIONS[number];
 
 /** WP 6.9 only ships PHP 8.x base images; 7.4 must use WP 6.1's last 7.4 tag. */

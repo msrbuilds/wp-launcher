@@ -11,11 +11,11 @@ import {
 } from '@/components/ui/table';
 import { BuildImageDialog } from './images/BuildImageDialog';
 import { BuildLogPanel, BuildStatusBadge } from './images/BuildLogPanel';
+import { PHP_VERSIONS } from './images/php-versions';
 
 interface WplImage { tag: string; id: string; size: number; created: number; usedByBlueprints: string[]; }
 interface BuildMeta { id: string; tag: string; kind: string; status: string; created_at: string; }
 
-const PHP_VERSIONS = ['8.3', '8.2', '8.1', '7.4'];
 const baseTag = (v: string) => `wp-launcher/wordpress:php${v}`;
 
 function formatBytes(n: number): string {

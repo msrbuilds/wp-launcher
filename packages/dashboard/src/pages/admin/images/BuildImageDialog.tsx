@@ -14,8 +14,7 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-
-const PHP_VERSIONS = ['8.3', '8.2', '8.1', '7.4'];
+import { PHP_VERSIONS } from './php-versions';
 
 // Map a repeater entry to the build-spec source shape. Only the fields the
 // server reads are sent; 'activate' and 'remove defaults' don't apply to a
