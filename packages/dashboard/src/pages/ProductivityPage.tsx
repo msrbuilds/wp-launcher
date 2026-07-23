@@ -6,7 +6,7 @@ import {
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { AlertCircle, Blocks, Loader2, X } from 'lucide-react';
+import { AlertCircle, Blocks, Cloud, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EDITOR_COLORS } from '@/lib/editor-colors';
 import { Button } from '@/components/ui/button';
@@ -473,6 +473,14 @@ export default function ProductivityPage() {
               <SelectItem value="30">30 days</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="secondary" size="sm" onClick={() => setShowCloud(!showCloud)}>
+            <Cloud className="h-3.5 w-3.5" />
+            Cloud Sync
+            <span
+              className={cn('ml-0.5 h-1.5 w-1.5 rounded-full', isCloudLinked ? 'bg-success' : 'bg-muted-foreground/50')}
+              aria-hidden="true"
+            />
+          </Button>
           <Button variant="secondary" size="sm" onClick={() => setShowIntegrations(!showIntegrations)}>
             <Blocks className="h-3.5 w-3.5" />
             Integrations
@@ -519,6 +527,102 @@ export default function ProductivityPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cloud Sync Panel */}
+      {showCloud && (
+        <div className={statCard}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-card-foreground">Cloud Sync</h3>
+              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Link this install to your WP Launcher cloud account to back up productivity heartbeats and sync them across devices.</p>
+            </div>
+            <Button variant="ghost" size="icon-sm" onClick={() => setShowCloud(false)} aria-label="Close">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="mt-4">
+            {cloudConfig.cloud_url ? (
+              <div className="space-y-4">
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <p><strong className="font-medium text-card-foreground">Cloud URL:</strong> {cloudConfig.cloud_url}</p>
+                  <p><strong className="font-medium text-card-foreground">API Key:</strong> {cloudConfig.cloud_api_key}</p>
+                  <p><strong className="font-medium text-card-foreground">Last Synced:</strong> {cloudConfig.last_synced_at ? new Date(cloudConfig.last_synced_at).toLocaleString() : 'Never'}</p>
+                  {cloudConfig.heartbeat_secret && (
+                    <div className="pt-2">
+                      <p><strong className="font-medium text-card-foreground">VS Code Secret:</strong></p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <code className="rounded-lg bg-muted px-2 py-1 font-mono text-xs text-foreground">{cloudConfig.heartbeat_secret}</code>
+                        <Button size="sm" variant="secondary" title="Copy secret" onClick={() => { navigator.clipboard.writeText(cloudConfig.heartbeat_secret!); }}>Copy</Button>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">Paste this into VS Code Settings &gt; WP Launcher Productivity &gt; Heartbeat Secret</p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={triggerSync} disabled={syncing}>
+                    {syncing ? 'Syncing...' : 'Sync Now'}
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={disconnectCloud}>Disconnect</Button>
+                </div>
+                {syncMsg && (
+                  <div className={cn('text-sm', syncMsg.includes('failed') ? 'text-destructive' : 'text-muted-foreground')}>
+                    {syncMsg}
+                  </div>
+                )}
+                {syncLogs.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-card-foreground">Recent Syncs</h4>
+                    <div className="mt-2 overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Time</TableHead>
+                            <TableHead>Count</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Error</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {syncLogs.map(log => (
+                            <TableRow key={log.id}>
+                              <TableCell>{new Date(log.completed_at + 'Z').toLocaleString()}</TableCell>
+                              <TableCell>{log.heartbeats_count}</TableCell>
+                              <TableCell>
+                                <Badge variant={log.status === 'success' ? 'default' : 'destructive'}>{log.status}</Badge>
+                              </TableCell>
+                              <TableCell className="max-w-[16rem] truncate text-muted-foreground">{log.error || '—'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="max-w-md space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="pd-cloud-key">API Key</Label>
+                  <Input id="pd-cloud-key" placeholder="wpl_xxxxxxxxxx" value={cloudApiKey} onChange={e => setCloudApiKey(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="pd-device-name">Device Name (optional)</Label>
+                  <Input id="pd-device-name" placeholder="My Laptop" value={deviceName} onChange={e => setDeviceName(e.target.value)} />
+                </div>
+                {connectError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{connectError}</AlertDescription>
+                  </Alert>
+                )}
+                <Button onClick={connectCloud} disabled={!cloudApiKey || connecting}>
+                  {connecting ? 'Verifying...' : 'Connect'}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -740,98 +844,6 @@ export default function ProductivityPage() {
         </div>
       )}
 
-      {/* Cloud Connection */}
-      <div className={statCard}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-card-foreground">Cloud Sync</h3>
-          <Button variant="secondary" size="sm" onClick={() => setShowCloud(!showCloud)}>
-            {showCloud ? 'Hide' : 'Configure'}
-          </Button>
-        </div>
-
-        {showCloud && (
-          <div className="mt-4">
-            {cloudConfig.cloud_url ? (
-              <div className="space-y-4">
-                <div className="space-y-1 text-sm text-muted-foreground">
-                  <p><strong className="font-medium text-card-foreground">Cloud URL:</strong> {cloudConfig.cloud_url}</p>
-                  <p><strong className="font-medium text-card-foreground">API Key:</strong> {cloudConfig.cloud_api_key}</p>
-                  <p><strong className="font-medium text-card-foreground">Last Synced:</strong> {cloudConfig.last_synced_at ? new Date(cloudConfig.last_synced_at).toLocaleString() : 'Never'}</p>
-                  {cloudConfig.heartbeat_secret && (
-                    <div className="pt-2">
-                      <p><strong className="font-medium text-card-foreground">VS Code Secret:</strong></p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <code className="rounded-lg bg-muted px-2 py-1 font-mono text-xs text-foreground">{cloudConfig.heartbeat_secret}</code>
-                        <Button size="sm" variant="secondary" title="Copy secret" onClick={() => { navigator.clipboard.writeText(cloudConfig.heartbeat_secret!); }}>Copy</Button>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">Paste this into VS Code Settings &gt; WP Launcher Productivity &gt; Heartbeat Secret</p>
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={triggerSync} disabled={syncing}>
-                    {syncing ? 'Syncing...' : 'Sync Now'}
-                  </Button>
-                  <Button size="sm" variant="destructive" onClick={disconnectCloud}>Disconnect</Button>
-                </div>
-                {syncMsg && (
-                  <div className={cn('text-sm', syncMsg.includes('failed') ? 'text-destructive' : 'text-muted-foreground')}>
-                    {syncMsg}
-                  </div>
-                )}
-                {syncLogs.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-card-foreground">Recent Syncs</h4>
-                    <div className="mt-2 overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Time</TableHead>
-                            <TableHead>Count</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Error</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {syncLogs.map(log => (
-                            <TableRow key={log.id}>
-                              <TableCell>{new Date(log.completed_at + 'Z').toLocaleString()}</TableCell>
-                              <TableCell>{log.heartbeats_count}</TableCell>
-                              <TableCell>
-                                <Badge variant={log.status === 'success' ? 'default' : 'destructive'}>{log.status}</Badge>
-                              </TableCell>
-                              <TableCell className="max-w-[16rem] truncate text-muted-foreground">{log.error || '—'}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="max-w-md space-y-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="pd-cloud-key">API Key</Label>
-                  <Input id="pd-cloud-key" placeholder="wpl_xxxxxxxxxx" value={cloudApiKey} onChange={e => setCloudApiKey(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="pd-device-name">Device Name (optional)</Label>
-                  <Input id="pd-device-name" placeholder="My Laptop" value={deviceName} onChange={e => setDeviceName(e.target.value)} />
-                </div>
-                {connectError && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{connectError}</AlertDescription>
-                  </Alert>
-                )}
-                <Button onClick={connectCloud} disabled={!cloudApiKey || connecting}>
-                  {connecting ? 'Verifying...' : 'Connect'}
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
