@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Loader2, Save } from 'lucide-react';
 import type { PluginEntry, ThemeEntry } from '../types/product';
 import PluginRepeater from '../components/PluginRepeater';
@@ -65,6 +65,20 @@ export default function BlueprintEditorPage() {
   const [category, setCategory] = useState('');
   const [tags, setTags] = useState('');
   const [database, setDatabase] = useState('sqlite');
+
+  // Docker image. Empty means the default wp-launcher/wordpress:latest; the
+  // dropdown lists images built under Settings → Images. Radix Select can't use
+  // an empty-string value, so an empty selection is stored as the sentinel below.
+  const DEFAULT_IMAGE = '__default__';
+  const [dockerImage, setDockerImage] = useState('');
+  const [availableImages, setAvailableImages] = useState<string[]>([]);
+
+  useEffect(() => {
+    apiFetch('/api/admin/images')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((imgs: { tag: string }[]) => setAvailableImages(imgs.map((i) => i.tag)))
+      .catch(() => { /* leave the list empty; the default option still works */ });
+  }, []);
 
   // WordPress
   const [wpVersion, setWpVersion] = useState('6.9');
@@ -181,6 +195,7 @@ export default function BlueprintEditorPage() {
           landing_page: landingPage,
         },
         database,
+        ...(dockerImage && { docker: { image: dockerImage } }),
         restrictions: {
           disable_file_mods: disableFileMods,
           hidden_menu_items: hiddenMenuItems,
@@ -307,6 +322,27 @@ export default function BlueprintEditorPage() {
                     placeholder="6.9"
                   />
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="prod-image">Docker Image</Label>
+                <Select
+                  value={dockerImage || DEFAULT_IMAGE}
+                  onValueChange={(v) => setDockerImage(v === DEFAULT_IMAGE ? '' : v)}
+                >
+                  <SelectTrigger id="prod-image" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DEFAULT_IMAGE}>Default (wp-launcher/wordpress:latest)</SelectItem>
+                    {availableImages.map((tag) => (
+                      <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground">
+                  Base image sites launch from. Build more under Settings → Images.
+                </span>
               </div>
 
               <div className="flex flex-col gap-2">
