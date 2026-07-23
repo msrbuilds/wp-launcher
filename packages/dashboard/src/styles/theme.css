@@ -123,10 +123,13 @@
      it these read as either muted or brand-coloured, which loses the meaning. */
   --success: oklch(0.62 0.15 150);
   --success-foreground: oklch(0.99 0 0);
-  /* Panel/divider edges stay quiet — softer than the input border so cards
-     read as gently outlined, not boxed in. --input keeps more contrast so
-     fields stay clearly tappable. */
+  /* Panel/divider edges stay quiet — softer than the interactive border so
+     cards read as gently outlined, not boxed in. */
   --border: oklch(0.94 0.004 265);
+  /* Actionable boundaries (fields, secondary/outline buttons). Light mode was
+     already legible; this carries the same value as --input so the token exists
+     in both themes and the interactive classes resolve here too. */
+  --border-interactive: oklch(0.90 0.006 265);
   --input: oklch(0.90 0.006 265);
   --ring: oklch(0.72 0.17 55);
   --radius: 0.5rem;
@@ -140,23 +143,33 @@
   --popover: oklch(0.23 0.02 265);
   --popover-foreground: oklch(0.97 0.005 265);
   --primary: oklch(0.72 0.17 55);
-  --primary-foreground: oklch(0.99 0 0);
+  /* was 0.99 (white) = 2.54:1 — failed AA. Near-black on orange = 7.22:1.
+     This matches what the app already renders; only the token was wrong. */
+  --primary-foreground: oklch(0.18 0.02 55);
   --secondary: oklch(0.28 0.02 265);
   --secondary-foreground: oklch(0.97 0.005 265);
   --muted: oklch(0.28 0.02 265);
-  --muted-foreground: oklch(0.68 0.02 265);
+  /* was 0.68 = 5.86:1 (AA only). 0.73 = 7.02:1 on card, AAA. */
+  --muted-foreground: oklch(0.73 0.02 265);
   --accent: oklch(0.28 0.02 265);
   --accent-foreground: oklch(0.97 0.005 265);
-  --destructive: oklch(0.62 0.2 27);
+  /* was 0.62: white label on it = 3.90:1, under AA for text.
+     0.58 brings white to 4.53:1 and still holds 3.65:1 against the card. */
+  --destructive: oklch(0.58 0.2 27);
   --destructive-foreground: oklch(0.99 0 0);
   --success: oklch(0.7 0.15 150);
   --success-foreground: oklch(0.18 0.02 265);
-  /* A DARK edge for the dark theme: sit below the card fill (0.23) and page
-     background (0.19) so panels get a soft dark outline, mirroring how the
-     light theme's border sits just below its white card — never a light-grey
-     line floating on top. --input stays lighter so fields remain tappable. */
+
+  /* Decorative only — panel outlines, row dividers. Keeps the dark-edge look
+     (a dark edge can't reach 3:1 on these surfaces at any lightness, so this is
+     never used on anything the user can click or type into). */
   --border: oklch(0.17 0.01 265);
-  --input: oklch(0.32 0.02 265);
+  /* Interactive boundaries: inputs, selects, secondary/outline buttons.
+     3.02:1 on card, 3.30:1 on page bg — clears WCAG 1.4.11. */
+  --border-interactive: oklch(0.52 0.02 265);
+  /* shadcn uses --input as the field BORDER, not the fill.
+     Was 0.32 = 1.33:1 (invisible). Now matches --border-interactive. */
+  --input: oklch(0.52 0.02 265);
   --ring: oklch(0.72 0.17 55);
 }
 
@@ -180,6 +193,7 @@
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-border: var(--border);
+  --color-border-interactive: var(--border-interactive);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --radius-lg: var(--radius);
