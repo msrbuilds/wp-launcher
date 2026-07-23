@@ -447,14 +447,32 @@ function initSchema(db: Database.Database): void {
   runRolesMigration(db);
 
   // Blueprints: the table and column renames already ran at the top of this
-  // function; the config files merge here.
-  const merge = mergeBlueprintDirectories({
-    products: config.legacyProductConfigsDir,
-    templates: config.legacyTemplateConfigsDir,
-    blueprints: config.blueprintConfigsDir,
-  });
-  // Any product displaced by a name collision takes its sites with it.
-  repointRenamedBlueprints(db, merge.renamed);
+  // function; the legacy config files merge here — but only once. Without the
+  // marker this ran on every boot and re-copied any blueprint missing from
+  // blueprints/ back from the still-present products/ and templates/ dirs, so a
+  // blueprint deleted through the UI reappeared on the next restart. It also
+  // only seeds on a genuinely first-run install: an established panel (setup
+  // already complete) keeps exactly the blueprints its owner chose.
+  const blueprintsMerged = db
+    .prepare("SELECT 1 FROM settings WHERE key = 'panel.blueprintsMerged'")
+    .get();
+  if (!blueprintsMerged) {
+    const setupDone = db
+      .prepare("SELECT value FROM settings WHERE key = 'panel.setupComplete'")
+      .get() as { value: string } | undefined;
+    if (setupDone?.value !== 'true') {
+      const merge = mergeBlueprintDirectories({
+        products: config.legacyProductConfigsDir,
+        templates: config.legacyTemplateConfigsDir,
+        blueprints: config.blueprintConfigsDir,
+      });
+      // Any product displaced by a name collision takes its sites with it.
+      repointRenamedBlueprints(db, merge.renamed);
+    }
+    db.prepare(
+      "INSERT INTO settings (key, value) VALUES ('panel.blueprintsMerged', 'true') ON CONFLICT(key) DO UPDATE SET value = 'true'",
+    ).run();
+  }
 
   const migrationMarker = path.join(config.dataDir, '.panel-migration-v3');
   if (!fs.existsSync(migrationMarker)) {
