@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Globe, Layers,
   Users, FolderKanban, Receipt,
   Activity, BarChart3, Timer,
-  RefreshCw, ToggleLeft, Palette, UserCog, Server,
+  RefreshCw, ToggleLeft, Palette, UserCog, Server, SlidersHorizontal,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -64,6 +64,7 @@ export function buildNavGroups(features: Features, role: string | undefined): Na
       label: 'Settings',
       items: isPrivileged
         ? [
+            { to: '/panel', label: 'General', icon: SlidersHorizontal },
             { to: '/features', label: 'Features', icon: ToggleLeft },
             { to: '/branding', label: 'Branding', icon: Palette },
             { to: '/users', label: 'Team', icon: UserCog },

@@ -156,8 +156,12 @@ export default function LocalLaunchPage() {
       .then((data) => {
         if (Array.isArray(data)) {
           setTemplates(data);
-          const templateParam = searchParams.get('template');
+          // A blueprint chosen on the public demo portal is parked in
+          // localStorage until the visitor has an account; consume it here.
+          const pending = localStorage.getItem('pendingProductLaunch');
+          const templateParam = searchParams.get('template') || pending;
           const match = templateParam && data.find((t: Template) => t.id === templateParam);
+          if (pending) localStorage.removeItem('pendingProductLaunch');
           setSelectedTemplate(match ? match.id : data.length > 0 ? data[0].id : '');
         }
       })

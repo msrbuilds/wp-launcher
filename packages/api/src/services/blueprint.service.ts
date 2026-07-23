@@ -28,6 +28,8 @@ export interface BlueprintThemeConfig {
 export interface BlueprintConfig {
   id: string;
   name: string;
+  /** Offered on the public demo portal. Off unless explicitly published. */
+  public?: boolean;
   wordpress?: {
     version?: string;
     locale?: string;

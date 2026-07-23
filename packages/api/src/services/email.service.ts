@@ -95,6 +95,32 @@ export async function sendVerificationEmail(
   console.log(`[email] Verification email sent to ${email} via ${config.emailProvider}`);
 }
 
+export async function sendInviteEmail(
+  email: string,
+  token: string,
+  inviterEmail: string,
+  role: string,
+): Promise<void> {
+  const acceptUrl = `${config.publicUrl}/verify?token=${token}`;
+  const roleLabel = role === 'admin' ? 'an admin' : 'a member';
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 2rem;">
+      <h2 style="color: #1a1a2e;">You've been invited to WP Launcher</h2>
+      <p><strong>${inviterEmail}</strong> invited you to join their WP Launcher panel as ${roleLabel}.</p>
+      <p>Click below to accept and set your password:</p>
+      <a href="${acceptUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500; margin: 1rem 0;">
+        Accept Invitation
+      </a>
+      <p style="color: #64748b; font-size: 0.85rem;">This invitation expires in 7 days. If you weren't expecting it, you can ignore this email.</p>
+      <p style="color: #94a3b8; font-size: 0.8rem;">Or copy this link: ${acceptUrl}</p>
+    </div>
+  `;
+
+  await sendEmail(email, 'You have been invited to WP Launcher', html);
+  console.log(`[email] Invite sent to ${email} via ${config.emailProvider}`);
+}
+
 export async function sendEmailChangeVerification(
   newEmail: string,
   token: string,

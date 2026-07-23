@@ -2,7 +2,9 @@ import { Router, Response } from 'express';
 import { adminAuth } from '../middleware/auth';
 import { AuthRequest } from '../middleware/userAuth';
 import { config } from '../config';
-import { listUsers, getUsersCount, deleteUser, updateUserRole } from '../services/user.service';
+import { listUsers, getUsersCount, deleteUser, updateUserRole, inviteUser } from '../services/user.service';
+import { sendInviteEmail } from '../services/email.service';
+import { getPanelSettings, updatePanelSettings, SettingValidationError } from '../services/settings.service';
 import { listWebhooks, createWebhook, deleteWebhook, toggleWebhook } from '../services/webhook.service';
 import {
   listAllSites,
@@ -203,6 +205,79 @@ router.post('/users/promote', (req: AuthRequest, res: Response) => {
   } catch (err: any) {
     const status = err.statusCode || 500;
     res.status(status).json({ error: err.message });
+  }
+});
+
+// --- Panel settings ---
+
+router.get('/panel-settings', (_req: AuthRequest, res: Response) => {
+  res.json(getPanelSettings());
+});
+
+router.put('/panel-settings', (req: AuthRequest, res: Response) => {
+  try {
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      res.status(400).json({ error: 'A settings object is required' });
+      return;
+    }
+    res.json(updatePanelSettings(body));
+  } catch (err: any) {
+    if (err instanceof SettingValidationError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Invitations ---
+
+router.post('/users/invite', async (req: AuthRequest, res: Response) => {
+  try {
+    const { email, role } = req.body;
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      res.status(400).json({ error: 'A valid email is required' });
+      return;
+    }
+    const targetRole: 'member' | 'admin' = role === 'admin' ? 'admin' : 'member';
+    const normalized = email.toLowerCase().trim();
+
+    const { token, resent } = inviteUser(normalized, targetRole);
+    await sendInviteEmail(normalized, token, req.userEmail || 'A panel admin', targetRole);
+
+    res.json({
+      message: resent
+        ? `Invitation resent to ${normalized}`
+        : `Invitation sent to ${normalized}`,
+      resent,
+    });
+  } catch (err: any) {
+    const status = err.statusCode || 500;
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// Withdraw a pending invitation — only ever removes an unverified row, so it
+// cannot be used to delete a real account.
+router.delete('/users/invite/:id', (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb();
+    const user = db.prepare('SELECT id, verified FROM users WHERE id = ?').get(req.params.id) as
+      | { id: string; verified: number }
+      | undefined;
+    if (!user) {
+      res.status(404).json({ error: 'Invitation not found' });
+      return;
+    }
+    if (user.verified) {
+      res.status(400).json({ error: 'That account is already active — delete it instead' });
+      return;
+    }
+    deleteUser(user.id);
+    res.json({ message: 'Invitation withdrawn' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

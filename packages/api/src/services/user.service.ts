@@ -193,6 +193,49 @@ export async function updatePassword(userId: string, currentPassword: string, ne
   db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?").run(hash, userId);
 }
 
+/**
+ * Invite someone to the panel. The invited row is a normal unverified user with
+ * a verification token, so the existing verify → set-password flow completes the
+ * signup; only the email wording differs. Re-inviting a pending user just issues
+ * a fresh token.
+ */
+export function inviteUser(email: string, role: 'member' | 'admin'): {
+  user: UserRecord;
+  token: string;
+  resent: boolean;
+} {
+  const db = getDb();
+
+  const inviteTxn = db.transaction((email: string, role: 'member' | 'admin') => {
+    const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRecord | undefined;
+    if (existing?.verified) {
+      throw new ValidationError('That email already belongs to an active account');
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(); // 7 days
+
+    if (existing) {
+      db.prepare(`
+        UPDATE users SET role = ?, verification_token = ?, verification_expires_at = ?,
+        updated_at = datetime('now') WHERE id = ?
+      `).run(role, token, expiresAt, existing.id);
+      const user = db.prepare('SELECT * FROM users WHERE id = ?').get(existing.id) as UserRecord;
+      return { user, token, resent: true };
+    }
+
+    const id = uuidv4();
+    db.prepare(`
+      INSERT INTO users (id, email, password_hash, verified, role, verification_token, verification_expires_at)
+      VALUES (?, ?, '', 0, ?, ?, ?)
+    `).run(id, email, role, token, expiresAt);
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord;
+    return { user, token, resent: false };
+  });
+
+  return inviteTxn(email, role);
+}
+
 export function getUserById(id: string): UserRecord | undefined {
   const db = getDb();
   return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord | undefined;

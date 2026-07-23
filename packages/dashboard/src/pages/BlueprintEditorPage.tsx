@@ -61,6 +61,7 @@ export default function BlueprintEditorPage() {
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [category, setCategory] = useState('');
   const [tags, setTags] = useState('');
   const [database, setDatabase] = useState('sqlite');
@@ -185,6 +186,7 @@ export default function BlueprintEditorPage() {
           hidden_menu_items: hiddenMenuItems,
           blocked_capabilities: blockedCapabilities,
         },
+        public: isPublic,
         branding: {
           description,
           banner_text: bannerText,
@@ -316,6 +318,17 @@ export default function BlueprintEditorPage() {
                   placeholder="Shown on the product card in the launch page"
                   rows={2}
                 />
+              </div>
+
+              <div className="flex items-start justify-between gap-4 rounded-lg border border-border p-4">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-foreground">Publish to demo portal</div>
+                  <div className="mt-0.5 text-sm text-muted-foreground">
+                    Offer this blueprint to visitors on the public <code className="font-mono">/demo</code> page.
+                    Requires the demo portal to be enabled in Panel settings.
+                  </div>
+                </div>
+                <Switch checked={isPublic} onCheckedChange={setIsPublic} aria-label="Publish to demo portal" />
               </div>
 
               <div className="grid gap-5 md:grid-cols-2">

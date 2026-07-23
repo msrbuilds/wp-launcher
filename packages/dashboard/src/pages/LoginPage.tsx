@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 import { apiFetch } from '../utils/api';
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { panel } = useSettings();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -89,12 +91,25 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Don't have an account?{' '}
-          <a href="/" className="font-medium text-primary underline-offset-4 hover:underline">
-            Sign up with email
-          </a>
-        </p>
+        {/* Only offered when the install actually accepts sign-ups; otherwise
+            accounts arrive by invitation and this would be a dead end. */}
+        {panel['panel.publicRegistration'] === 'true' && (
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            Don't have an account?{' '}
+            <Link to="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
+              Sign up with email
+            </Link>
+          </p>
+        )}
+
+        {panel['panel.demoPortalEnabled'] === 'true' && (
+          <p className="mt-3 text-center text-sm text-muted-foreground">
+            Just looking?{' '}
+            <Link to="/demo" className="font-medium text-primary underline-offset-4 hover:underline">
+              Try a demo site
+            </Link>
+          </p>
+        )}
       </div>
     </div>
   );

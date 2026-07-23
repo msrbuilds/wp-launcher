@@ -163,8 +163,11 @@ export default function VerifyPage() {
           You're now logged in and can launch your demo site.
         </p>
 
-        <Button className="mt-4 w-full" onClick={() => navigate('/')}>
-          {localStorage.getItem('pendingProductLaunch') ? 'Continue to Launch' : 'Launch Demo Site'}
+        <Button
+          className="mt-4 w-full"
+          onClick={() => navigate(localStorage.getItem('pendingProductLaunch') ? '/sites/new' : '/')}
+        >
+          {localStorage.getItem('pendingProductLaunch') ? 'Continue to Launch' : 'Go to Dashboard'}
         </Button>
       </div>
     </div>

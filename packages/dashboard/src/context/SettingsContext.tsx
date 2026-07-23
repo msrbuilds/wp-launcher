@@ -83,6 +83,8 @@ interface Settings {
   sitesHostPath: string;
   setupRequired: boolean;
   smtpConfigured: boolean;
+  /** Raw `panel.*` install settings, e.g. panel.publicRegistration. */
+  panel: Record<string, string>;
   version: string;
   loading: boolean;
   error: string;
@@ -98,6 +100,7 @@ const SettingsContext = createContext<Settings>({
   sitesHostPath: '',
   setupRequired: false,
   smtpConfigured: false,
+  panel: {},
   version: '',
   loading: true,
   error: '',
@@ -114,6 +117,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     sitesHostPath: '',
     setupRequired: false,
   smtpConfigured: false,
+    panel: {},
     version: '',
     loading: true,
     error: '',
@@ -150,6 +154,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           sitesHostPath: data.sitesHostPath || '',
           setupRequired: !!data.setupRequired,
           smtpConfigured: !!data.smtpConfigured,
+          panel: data.panel || {},
           version: versionData.version || '',
           loading: false,
           error: '',

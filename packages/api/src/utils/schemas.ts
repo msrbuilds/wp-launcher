@@ -19,6 +19,7 @@ const themeSchema = z.object({
 export const blueprintConfigSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
+  public: z.boolean().optional(),
   wordpress: z.object({
     version: z.string().optional(),
     locale: z.string().optional(),

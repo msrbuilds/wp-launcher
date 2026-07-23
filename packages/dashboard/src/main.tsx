@@ -14,6 +14,8 @@ import SetupPage from './pages/SetupPage';
 import AccountPage from './pages/AccountPage';
 import VerifyPage from './pages/VerifyPage';
 import VerifyEmailChangePage from './pages/VerifyEmailChangePage';
+import SignupPage from './pages/SignupPage';
+import DemoPortalPage from './pages/DemoPortalPage';
 import AppShell from './components/shell/AppShell';
 import AnalyticsTab from './pages/admin/AnalyticsTab';
 import MonitoringPage from './pages/admin/MonitoringPage';
@@ -24,6 +26,7 @@ import LogsTab from './pages/admin/LogsTab';
 import FeaturesTab from './pages/admin/FeaturesTab';
 import BrandingTab from './pages/admin/BrandingTab';
 import SystemTab from './pages/admin/SystemTab';
+import PanelSettingsPage from './pages/admin/PanelSettingsPage';
 import BlueprintEditorPage from './pages/BlueprintEditorPage';
 import SyncPage from './pages/SyncPage';
 import ClientsPage from './pages/admin/ClientsPage';
@@ -63,6 +66,8 @@ function AppRoutes() {
     <Routes>
       {/* Outside the shell: its auth guard would bounce these straight back. */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/demo" element={<DemoPortalPage />} />
       <Route path="/verify" element={<VerifyPage />} />
       <Route path="/verify-email-change" element={<VerifyEmailChangePage />} />
       <Route path="/setup" element={<Navigate to="/" replace />} />
@@ -87,6 +92,7 @@ function AppRoutes() {
         <Route path="users" element={<UsersTab />} />
         <Route path="features" element={<FeaturesTab />} />
         <Route path="branding" element={<BrandingTab />} />
+        <Route path="panel" element={<PanelSettingsPage />} />
         <Route path="system" element={<SystemTab />} />
         <Route path="account" element={<AccountPage />} />
 

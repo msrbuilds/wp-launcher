@@ -10,6 +10,7 @@ import { adminAuth } from './middleware/auth';
 import { csrfProtection } from './middleware/csrf';
 import sitesRouter from './routes/sites';
 import blueprintsRouter from './routes/blueprints';
+import { listBlueprints } from './services/blueprint.service';
 import authRouter from './routes/auth';
 import setupRouter from './routes/setup';
 import adminRouter from './routes/admin';
@@ -128,6 +129,27 @@ app.use('/api/uploads', (_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   next();
 }, express.static(uploadsDir, { maxAge: '1h', fallthrough: true }));
+
+/*
+ * Public demo portal: the blueprints an anonymous visitor may launch. Only the
+ * display fields are exposed — never plugin lists, docker images or admin
+ * credentials — and the whole endpoint is dark unless the portal is enabled.
+ */
+app.get('/api/public/blueprints', (_req, res) => {
+  if (!policy.demoPortalEnabled()) {
+    res.status(404).json({ error: 'The demo portal is not enabled on this panel' });
+    return;
+  }
+  const blueprints = listBlueprints()
+    .filter((b) => b.public)
+    .map((b) => ({
+      id: b.id,
+      name: b.name,
+      description: b.branding?.description || '',
+      imageUrl: b.branding?.image_url || '',
+    }));
+  res.json({ blueprints });
+});
 
 // Public UI settings (includes feature flags + branding)
 app.get('/api/settings', (_req, res) => {
