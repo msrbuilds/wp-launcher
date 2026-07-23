@@ -4,6 +4,7 @@ import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Client } from './shared';
 import { apiFetch } from '../../utils/api';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +29,7 @@ import {
 
 export default function ClientsPage() {
   const headers = useAdminHeaders();
+  const confirm = useConfirm();
   const [clients, setClients] = useState<Client[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -82,7 +84,12 @@ export default function ClientsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this client?')) return;
+    if (!(await confirm({
+      title: 'Delete client?',
+      description: 'This removes the client. Projects and invoices linked to them are not deleted.',
+      confirmText: 'Delete',
+      variant: 'destructive',
+    }))) return;
     try {
       const res = await apiFetch(`/api/projects/clients/${id}`, { method: 'DELETE', headers });
       const data = await res.json();

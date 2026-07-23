@@ -5,6 +5,7 @@ import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Invoice, InvoiceLineItem } from './shared';
 import { apiFetch } from '../../utils/api';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,6 +55,7 @@ const emptyItem = (): InvoiceLineItem => ({ description: '', qty: 1, rate: 0, am
 
 export default function InvoicesPage() {
   const headers = useAdminHeaders();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [total, setTotal] = useState(0);
@@ -156,7 +158,12 @@ export default function InvoicesPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this invoice?')) return;
+    if (!(await confirm({
+      title: 'Delete invoice?',
+      description: 'This permanently deletes the invoice. This cannot be undone.',
+      confirmText: 'Delete',
+      variant: 'destructive',
+    }))) return;
     try {
       const res = await apiFetch(`/api/projects/invoices/${id}`, { method: 'DELETE', headers });
       const data = await res.json();

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Download, Loader2 } from 'lucide-react';
 import { useFeatures } from '../context/SettingsContext';
 import { apiFetch } from '../utils/api';
+import { useConfirm } from '../components/ConfirmDialog';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +39,7 @@ interface SyncRecord {
 
 export default function SyncPage() {
   const features = useFeatures();
+  const confirm = useConfirm();
 
   const [connections, setConnections] = useState<Connection[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -118,7 +120,12 @@ export default function SyncPage() {
   }
 
   async function handleDeleteConnection(id: string) {
-    if (!confirm('Remove this connection?')) return;
+    if (!(await confirm({
+      title: 'Remove connection?',
+      description: 'This removes the saved remote connection. Sites synced through it are unaffected.',
+      confirmText: 'Remove',
+      variant: 'destructive',
+    }))) return;
     await apiFetch(`/api/sync/connections/${id}`, { method: 'DELETE' });
     if (selectedConn === id) setSelectedConn('');
     fetchConnections();

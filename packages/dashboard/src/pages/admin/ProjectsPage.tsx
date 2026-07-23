@@ -5,6 +5,7 @@ import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Project } from './shared';
 import { apiFetch } from '../../utils/api';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,6 +51,7 @@ const NO_CLIENT = '__none__';
 
 export default function ProjectsPage() {
   const headers = useAdminHeaders();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [total, setTotal] = useState(0);
@@ -112,7 +114,12 @@ export default function ProjectsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this project?')) return;
+    if (!(await confirm({
+      title: 'Delete project?',
+      description: 'This removes the project and its site links. Linked sites themselves are not deleted.',
+      confirmText: 'Delete',
+      variant: 'destructive',
+    }))) return;
     try {
       const res = await apiFetch(`/api/projects/list/${id}`, { method: 'DELETE', headers });
       const data = await res.json();

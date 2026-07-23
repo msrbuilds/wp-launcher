@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '../context/AuthContext';
 import { useFeatures } from '../context/SettingsContext';
 import { apiFetch } from '../utils/api';
+import { useConfirm } from '../components/ConfirmDialog';
 import { ActivityEntry, PanelKind, Site } from './sites/types';
 import { SiteControllers } from './sites/controllers';
 import { usePhpConfig } from './sites/hooks/usePhpConfig';
@@ -27,6 +28,7 @@ export default function SitesListPage() {
   const { isAuthenticated } = useAuth();
   const features = useFeatures();
   const navigate = useNavigate();
+  const confirm = useConfirm();
 
   const [sites, setSites] = useState<Site[]>([]);
   const [maxSites, setMaxSites] = useState<number | null>(null);
@@ -89,13 +91,23 @@ export default function SitesListPage() {
   }
 
   async function handleCancelScheduled(id: string) {
-    if (!confirm('Cancel this scheduled launch?')) return;
+    if (!(await confirm({
+      title: 'Cancel scheduled launch?',
+      description: 'The site will not be created at its scheduled time.',
+      confirmText: 'Cancel launch',
+      variant: 'destructive',
+    }))) return;
     await apiFetch(`/api/sites/scheduled/${id}`, { method: 'DELETE' });
     fetchScheduled();
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this site?')) return;
+    if (!(await confirm({
+      title: 'Delete site?',
+      description: 'This tears down the site and its container. This cannot be undone.',
+      confirmText: 'Delete site',
+      variant: 'destructive',
+    }))) return;
 
     // Optimistic remove so the dashboard never appears frozen while the API
     // tears down the container. A failed request restores the row and surfaces

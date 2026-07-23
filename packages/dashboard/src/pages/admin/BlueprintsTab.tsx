@@ -4,6 +4,7 @@ import { Loader2, Plus } from 'lucide-react';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -16,6 +17,7 @@ import {
 
 export default function BlueprintsTab() {
   const headers = useAdminHeaders();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +39,12 @@ export default function BlueprintsTab() {
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete ${noun} "${name}"? This cannot be undone.`)) return;
+    if (!(await confirm({
+      title: `Delete ${noun}?`,
+      description: <>Delete the {noun} <strong>{name}</strong>? This cannot be undone.</>,
+      confirmText: 'Delete',
+      variant: 'destructive',
+    }))) return;
     setDeleting(id);
     try {
       const res = await apiFetch(`${apiBase}/${id}`, { method: 'DELETE', headers });

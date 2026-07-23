@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ interface UpdateCheck {
 
 export default function SystemTab() {
   const headers = useAdminHeaders();
+  const confirm = useConfirm();
   const [info, setInfo] = useState<SystemInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [update, setUpdate] = useState<UpdateCheck | null>(null);
@@ -70,8 +72,12 @@ export default function SystemTab() {
       .finally(() => setChecking(false));
   }
 
-  function triggerUpdate() {
-    if (!confirm('This will pull the latest code, rebuild containers, and restart services. Existing sites will remain accessible. Proceed?')) return;
+  async function triggerUpdate() {
+    if (!(await confirm({
+      title: 'Update the panel?',
+      description: 'This pulls the latest code, rebuilds containers, and restarts services. Existing sites stay accessible.',
+      confirmText: 'Update now',
+    }))) return;
     setTriggering(true);
     setShowLog(true);
     setUpdateLog('Triggering update...\n');

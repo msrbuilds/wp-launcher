@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, UserPlus } from 'lucide-react';
+import { Loader2, UserPlus, ShieldCheck } from 'lucide-react';
 import { User, PaginatedResponse, PAGE_SIZE } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { apiFetch } from '../../utils/api';
 import { useSettings } from '../../context/SettingsContext';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,11 +29,18 @@ import {
 export default function UsersTab() {
   const headers = useAdminHeaders();
   const { smtpConfigured } = useSettings();
+  const confirm = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [roleUpdating, setRoleUpdating] = useState<string | null>(null);
+
+  // Role dialog — role changes go through an explicit picker, never a one-click
+  // promote straight to admin.
+  const [roleUser, setRoleUser] = useState<User | null>(null);
+  const [roleChoice, setRoleChoice] = useState<'member' | 'admin'>('member');
+  const [roleSaving, setRoleSaving] = useState(false);
+  const [roleError, setRoleError] = useState('');
 
   // Invite dialog
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -78,40 +86,58 @@ export default function UsersTab() {
     }
   }
 
-  async function withdrawInvite(id: string) {
-    if (!confirm('Withdraw this invitation?')) return;
-    const res = await apiFetch(`/api/admin/users/invite/${id}`, { method: 'DELETE', headers });
+  async function withdrawInvite(user: User) {
+    if (!(await confirm({
+      title: 'Withdraw invitation?',
+      description: <>The pending invite for <strong>{user.email}</strong> will be cancelled and its link stops working.</>,
+      confirmText: 'Withdraw',
+      variant: 'destructive',
+    }))) return;
+    const res = await apiFetch(`/api/admin/users/invite/${user.id}`, { method: 'DELETE', headers });
     if (res.ok) setBanner('Invitation withdrawn');
     fetchUsers();
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Delete this user?')) return;
-    await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE', headers });
+  async function handleDelete(user: User) {
+    if (!(await confirm({
+      title: 'Delete user?',
+      description: <>This permanently removes <strong>{user.email}</strong> and their access. This cannot be undone.</>,
+      confirmText: 'Delete user',
+      variant: 'destructive',
+    }))) return;
+    await apiFetch(`/api/admin/users/${user.id}`, { method: 'DELETE', headers });
     fetchUsers();
   }
 
-  async function handleRoleChange(id: string, newRole: 'admin' | 'user') {
-    const action = newRole === 'admin' ? 'promote to admin' : 'demote to user';
-    if (!confirm(`Are you sure you want to ${action}?`)) return;
+  function openRoleDialog(user: User) {
+    setRoleUser(user);
+    setRoleChoice(user.role === 'admin' ? 'admin' : 'member');
+    setRoleError('');
+  }
 
-    setRoleUpdating(id);
+  async function saveRole() {
+    if (!roleUser) return;
+    // API roles: 'admin' or the legacy 'user' (== member).
+    const apiRole = roleChoice === 'admin' ? 'admin' : 'user';
+    setRoleSaving(true);
+    setRoleError('');
     try {
-      const res = await apiFetch(`/api/admin/users/${id}/role`, {
+      const res = await apiFetch(`/api/admin/users/${roleUser.id}/role`, {
         method: 'PATCH',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: newRole }),
+        body: JSON.stringify({ role: apiRole }),
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to update role');
-      } else {
-        fetchUsers();
+        throw new Error(data.error || 'Failed to update role');
       }
-    } catch {
-      alert('Failed to update role');
+      setBanner(`${roleUser.email} is now ${roleChoice === 'admin' ? 'an admin' : 'a member'}`);
+      setRoleUser(null);
+      fetchUsers();
+    } catch (err: any) {
+      setRoleError(err.message);
     } finally {
-      setRoleUpdating(null);
+      setRoleSaving(false);
     }
   }
 
@@ -192,36 +218,19 @@ export default function UsersTab() {
                           >
                             Resend
                           </Button>
-                          <Button variant="destructive" size="sm" onClick={() => withdrawInvite(u.id)}>
+                          <Button variant="destructive" size="sm" onClick={() => withdrawInvite(u)}>
                             Withdraw
                           </Button>
                         </>
                       )}
-                      {!isSystem && !pending && (
+                      {!isSystem && !pending && u.role !== 'owner' && (
                         <>
-                          {u.role === 'admin' ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleRoleChange(u.id, 'user')}
-                              disabled={roleUpdating === u.id}
-                            >
-                              {roleUpdating === u.id ? '...' : 'Demote'}
-                            </Button>
-                          ) : u.role !== 'owner' ? (
-                            <Button
-                              size="sm"
-                              onClick={() => handleRoleChange(u.id, 'admin')}
-                              disabled={roleUpdating === u.id}
-                            >
-                              {roleUpdating === u.id ? '...' : 'Promote'}
-                            </Button>
-                          ) : null}
-                          {u.role !== 'owner' && (
-                            <Button variant="destructive" size="sm" onClick={() => handleDelete(u.id)}>
-                              Delete
-                            </Button>
-                          )}
+                          <Button variant="outline" size="sm" onClick={() => openRoleDialog(u)}>
+                            <ShieldCheck className="h-4 w-4" /> Change role
+                          </Button>
+                          <Button variant="destructive" size="sm" onClick={() => handleDelete(u)}>
+                            Delete
+                          </Button>
                         </>
                       )}
                     </div>
@@ -278,6 +287,46 @@ export default function UsersTab() {
             <Button variant="outline" onClick={() => setInviteOpen(false)}>Cancel</Button>
             <Button type="submit" form="invite-form" disabled={inviting || !inviteEmail.trim()}>
               {inviting ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</> : 'Send invitation'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!roleUser} onOpenChange={(o) => { if (!o) setRoleUser(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change role</DialogTitle>
+            <DialogDescription>
+              Set the panel role for <strong className="text-foreground">{roleUser?.email}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3">
+            <Label htmlFor="role-select">Role</Label>
+            <Select value={roleChoice} onValueChange={(v) => setRoleChoice(v as 'member' | 'admin')}>
+              <SelectTrigger id="role-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="member">Member — manages only their own sites</SelectItem>
+                <SelectItem value="admin">Admin — full access to the panel and every site</SelectItem>
+              </SelectContent>
+            </Select>
+            {roleChoice === 'admin' && (
+              <p className="text-xs text-muted-foreground">
+                Admins can manage users, blueprints, settings, and all sites. Grant this only to people you trust.
+              </p>
+            )}
+            {roleError && <p className="text-sm text-destructive">{roleError}</p>}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRoleUser(null)}>Cancel</Button>
+            <Button
+              onClick={saveRole}
+              disabled={roleSaving || (roleUser?.role === 'admin' ? 'admin' : 'member') === roleChoice}
+            >
+              {roleSaving ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : 'Save role'}
             </Button>
           </DialogFooter>
         </DialogContent>

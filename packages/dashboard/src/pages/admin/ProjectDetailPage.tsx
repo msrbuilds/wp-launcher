@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -52,6 +53,7 @@ const SITE_STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'outline' |
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const headers = useAdminHeaders();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -93,7 +95,11 @@ export default function ProjectDetailPage() {
   }
 
   async function unlinkSite(siteId: string) {
-    if (!confirm('Unlink this site from the project?')) return;
+    if (!(await confirm({
+      title: 'Unlink site?',
+      description: 'This removes the site from this project. The site itself is not deleted.',
+      confirmText: 'Unlink',
+    }))) return;
     try {
       const res = await apiFetch(`/api/projects/list/${id}/sites/${siteId}`, { method: 'DELETE', headers });
       if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed'); return; }

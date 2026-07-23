@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +58,7 @@ const flagVariant: Record<ContainerInfo['flag'], 'secondary' | 'outline' | 'dest
 
 export default function MonitoringPage() {
   const headers = useAdminHeaders();
+  const confirm = useConfirm();
   const [containers, setContainers] = useState<ContainerInfo[]>([]);
   const [counts, setCounts] = useState({ normal: 0, stale: 0, orphaned: 0, leftover: 0 });
   const [disk, setDisk] = useState<DiskInfo | null>(null);
@@ -87,7 +89,12 @@ export default function MonitoringPage() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const doAction = async (url: string, label: string) => {
-    if (!confirm(`Are you sure you want to ${label}?`)) return;
+    if (!(await confirm({
+      title: 'Confirm action',
+      description: <>Are you sure you want to <strong>{label}</strong>?</>,
+      confirmText: 'Proceed',
+      variant: 'destructive',
+    }))) return;
     setActionLoading(label);
     setActionMsg(null);
     try {
@@ -108,7 +115,12 @@ export default function MonitoringPage() {
   };
 
   const forceRemove = async (containerId: string, name: string) => {
-    if (!confirm(`Force remove container "${name}"?`)) return;
+    if (!(await confirm({
+      title: 'Force remove container?',
+      description: <>Force-remove <strong>{name}</strong>? Any unsaved state in it is lost.</>,
+      confirmText: 'Force remove',
+      variant: 'destructive',
+    }))) return;
     setActionLoading(containerId);
     try {
       await apiFetch(`/api/admin/monitoring/containers/${containerId}/force-remove`, { method: 'POST', headers });

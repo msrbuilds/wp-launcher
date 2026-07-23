@@ -4,6 +4,7 @@ import { FEATURE_META } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { useSettings } from '../../context/SettingsContext';
 import { apiFetch } from '../../utils/api';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ const ALL_EVENTS = ['site.created', 'site.expired', 'site.deleted'];
 
 export default function FeaturesTab() {
   const headers = useAdminHeaders();
+  const confirm = useConfirm();
   const { baseDomain, smtpConfigured } = useSettings();
   const [features, setFeatures] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
@@ -111,7 +113,12 @@ export default function FeaturesTab() {
   }
 
   async function handleDeleteWebhook(id: string) {
-    if (!confirm('Delete this webhook?')) return;
+    if (!(await confirm({
+      title: 'Delete webhook?',
+      description: 'This stops event notifications to that endpoint.',
+      confirmText: 'Delete',
+      variant: 'destructive',
+    }))) return;
     await apiFetch(`/api/admin/webhooks/${id}`, { method: 'DELETE', headers });
     fetchWebhooks();
   }
