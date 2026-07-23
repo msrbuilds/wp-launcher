@@ -5,6 +5,7 @@ import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Project } from './shared';
 import { apiFetch } from '../../utils/api';
+import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,6 +52,7 @@ const NO_CLIENT = '__none__';
 
 export default function ProjectsPage() {
   const headers = useAdminHeaders();
+  const toast = useToast();
   const confirm = useConfirm();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -123,9 +125,9 @@ export default function ProjectsPage() {
     try {
       const res = await apiFetch(`/api/projects/list/${id}`, { method: 'DELETE', headers });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || 'Failed to delete'); return; }
+      if (!res.ok) { toast.error(data.error || 'Failed to delete'); return; }
       fetchProjects();
-    } catch { alert('Network error'); }
+    } catch { toast.error('Network error'); }
   }
 
   if (loading && projects.length === 0) {

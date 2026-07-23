@@ -4,6 +4,7 @@ import { Loader2, Plus } from 'lucide-react';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
+import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +18,7 @@ import {
 
 export default function BlueprintsTab() {
   const headers = useAdminHeaders();
+  const toast = useToast();
   const confirm = useConfirm();
   const navigate = useNavigate();
   const [products, setProducts] = useState<AdminProduct[]>([]);
@@ -48,8 +50,8 @@ export default function BlueprintsTab() {
     setDeleting(id);
     try {
       const res = await apiFetch(`${apiBase}/${id}`, { method: 'DELETE', headers });
-      if (!res.ok) { const data = await res.json(); alert(data.error || `Failed to delete ${noun}`); }
-    } catch { alert(`Failed to delete ${noun}`); }
+      if (!res.ok) { const data = await res.json(); toast.error(data.error || `Failed to delete ${noun}`); }
+    } catch { toast.error(`Failed to delete ${noun}`); }
     finally { setDeleting(null); fetchProducts(); }
   }
 

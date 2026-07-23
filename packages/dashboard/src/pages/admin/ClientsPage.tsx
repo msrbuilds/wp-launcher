@@ -4,6 +4,7 @@ import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Client } from './shared';
 import { apiFetch } from '../../utils/api';
+import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +30,7 @@ import {
 
 export default function ClientsPage() {
   const headers = useAdminHeaders();
+  const toast = useToast();
   const confirm = useConfirm();
   const [clients, setClients] = useState<Client[]>([]);
   const [total, setTotal] = useState(0);
@@ -93,9 +95,9 @@ export default function ClientsPage() {
     try {
       const res = await apiFetch(`/api/projects/clients/${id}`, { method: 'DELETE', headers });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || 'Failed to delete'); return; }
+      if (!res.ok) { toast.error(data.error || 'Failed to delete'); return; }
       fetchClients();
-    } catch { alert('Network error'); }
+    } catch { toast.error('Network error'); }
   }
 
   if (loading && clients.length === 0) {

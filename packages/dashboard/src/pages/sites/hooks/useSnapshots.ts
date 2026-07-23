@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { apiFetch } from '../../../utils/api';
+import { useToast } from '../../../components/Toast';
 import { Snapshot } from '../types';
 
 export interface SnapshotsController {
@@ -12,6 +13,7 @@ export interface SnapshotsController {
 }
 
 export function useSnapshots(): SnapshotsController {
+  const toast = useToast();
   const [bySite, setBySite] = useState<Record<string, Snapshot[]>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -38,10 +40,10 @@ export function useSnapshots(): SnapshotsController {
         await load(siteId);
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to take snapshot');
+        toast.error(data.error || 'Failed to take snapshot');
       }
     } catch {
-      alert('Failed to take snapshot');
+      toast.error('Failed to take snapshot');
     } finally {
       setBusyId(null);
     }
@@ -56,10 +58,10 @@ export function useSnapshots(): SnapshotsController {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to restore');
+        toast.error(data.error || 'Failed to restore');
       }
     } catch {
-      alert('Failed to restore snapshot');
+      toast.error('Failed to restore snapshot');
     } finally {
       setBusyId(null);
     }

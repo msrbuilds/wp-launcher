@@ -5,6 +5,7 @@ import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Invoice, InvoiceLineItem } from './shared';
 import { apiFetch } from '../../utils/api';
+import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +56,7 @@ const emptyItem = (): InvoiceLineItem => ({ description: '', qty: 1, rate: 0, am
 
 export default function InvoicesPage() {
   const headers = useAdminHeaders();
+  const toast = useToast();
   const confirm = useConfirm();
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -152,9 +154,9 @@ export default function InvoicesPage() {
         method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || 'Failed'); return; }
+      if (!res.ok) { toast.error(data.error || 'Failed'); return; }
       fetchInvoices();
-    } catch { alert('Network error'); }
+    } catch { toast.error('Network error'); }
   }
 
   async function handleDelete(id: string) {
@@ -167,9 +169,9 @@ export default function InvoicesPage() {
     try {
       const res = await apiFetch(`/api/projects/invoices/${id}`, { method: 'DELETE', headers });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || 'Failed to delete'); return; }
+      if (!res.ok) { toast.error(data.error || 'Failed to delete'); return; }
       fetchInvoices();
-    } catch { alert('Network error'); }
+    } catch { toast.error('Network error'); }
   }
 
   if (loading && invoices.length === 0) {

@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
+import { useToast } from '../../components/Toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +39,7 @@ interface BulkJob {
 
 export default function BulkTab() {
   const headers = useAdminHeaders();
+  const toast = useToast();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [blueprintId, setBlueprintId] = useState('');
   const [count, setCount] = useState(5);
@@ -88,7 +90,7 @@ export default function BulkTab() {
         setActiveJob(await jobRes.json());
       }
     } catch {
-      alert('Failed to start bulk job');
+      toast.error('Failed to start bulk job');
     } finally {
       setStarting(false);
     }

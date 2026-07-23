@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { useSettings } from './context/SettingsContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ConfirmProvider } from './components/ConfirmDialog';
+import { ToastProvider } from './components/Toast';
 import LocalLaunchPage from './pages/LocalLaunchPage';
 import LocalDashboard from './pages/LocalDashboard';
 import SitesListPage from './pages/SitesListPage';
@@ -137,13 +138,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <SettingsProvider>
         <AuthProvider>
-          <ConfirmProvider>
-            <BrowserRouter>
-              <ErrorBoundary>
-                <AppRoutes />
-              </ErrorBoundary>
-            </BrowserRouter>
-          </ConfirmProvider>
+          <ToastProvider>
+            <ConfirmProvider>
+              <BrowserRouter>
+                <ErrorBoundary>
+                  <AppRoutes />
+                </ErrorBoundary>
+              </BrowserRouter>
+            </ConfirmProvider>
+          </ToastProvider>
         </AuthProvider>
       </SettingsProvider>
     </ThemeProvider>

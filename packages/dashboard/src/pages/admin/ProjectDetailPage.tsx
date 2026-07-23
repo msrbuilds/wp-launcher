@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
+import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,6 +54,7 @@ const SITE_STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'outline' |
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const headers = useAdminHeaders();
+  const toast = useToast();
   const confirm = useConfirm();
   const navigate = useNavigate();
   const [project, setProject] = useState<ProjectDetail | null>(null);
@@ -88,10 +90,10 @@ export default function ProjectDetailPage() {
         body: JSON.stringify({ siteId: selectedSite }),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.error || 'Failed to link'); return; }
+      if (!res.ok) { toast.error(data.error || 'Failed to link'); return; }
       setSelectedSite('');
       fetchProject();
-    } catch { alert('Network error'); }
+    } catch { toast.error('Network error'); }
   }
 
   async function unlinkSite(siteId: string) {
@@ -102,9 +104,9 @@ export default function ProjectDetailPage() {
     }))) return;
     try {
       const res = await apiFetch(`/api/projects/list/${id}/sites/${siteId}`, { method: 'DELETE', headers });
-      if (!res.ok) { const d = await res.json(); alert(d.error || 'Failed'); return; }
+      if (!res.ok) { const d = await res.json(); toast.error(d.error || 'Failed'); return; }
       fetchProject();
-    } catch { alert('Network error'); }
+    } catch { toast.error('Network error'); }
   }
 
   if (loading) {

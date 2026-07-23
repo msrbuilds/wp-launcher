@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { apiFetch } from '../../../utils/api';
+import { useToast } from '../../../components/Toast';
 import { TunnelInfo, TunnelMethod } from '../types';
 
 export interface TunnelController {
@@ -17,6 +18,7 @@ export interface TunnelController {
 }
 
 export function useTunnel(): TunnelController {
+  const toast = useToast();
   const [status, setStatus] = useState<Record<string, TunnelInfo>>({});
   const [creatingId, setCreatingId] = useState<string | null>(null);
   const [method, setMethod] = useState<TunnelMethod>('cloudflare');
@@ -48,13 +50,13 @@ export function useTunnel(): TunnelController {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed to create tunnel' }));
-        alert(err.error || 'Failed to create tunnel');
+        toast.error(err.error || 'Failed to create tunnel');
         return;
       }
       setTimeout(() => load(siteId, true), 2000);
       setStatus((prev) => ({ ...prev, [siteId]: { active: true, method, url: null, status: 'connecting' } }));
     } catch {
-      alert('Failed to create tunnel');
+      toast.error('Failed to create tunnel');
     } finally {
       setCreatingId(null);
     }

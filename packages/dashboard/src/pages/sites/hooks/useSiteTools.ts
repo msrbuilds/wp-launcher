@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { apiFetch } from '../../../utils/api';
+import { useToast } from '../../../components/Toast';
 import { PasswordScope, Site } from '../types';
 
 export interface DbCredentials {
@@ -50,6 +51,7 @@ export interface SiteToolsController {
 }
 
 export function useSiteTools(onSitesChanged: () => void): SiteToolsController {
+  const toast = useToast();
   const [cloningId, setCloningId] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
 
@@ -80,10 +82,10 @@ export function useSiteTools(onSitesChanged: () => void): SiteToolsController {
         onSitesChanged();
       } else {
         const data = await res.json();
-        alert(data.error || 'Failed to clone site');
+        toast.error(data.error || 'Failed to clone site');
       }
     } catch {
-      alert('Failed to clone site');
+      toast.error('Failed to clone site');
     } finally {
       setCloningId(null);
     }
@@ -95,18 +97,18 @@ export function useSiteTools(onSitesChanged: () => void): SiteToolsController {
       const res = await apiFetch(`/api/sites/${siteId}/export-zip`, { method: 'POST' });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed to export' }));
-        alert(err.error || 'Failed to export site');
+        toast.error(err.error || 'Failed to export site');
         return;
       }
       const data = await res.json();
       if (!data.downloadUrl) {
-        alert('Export failed: no download URL returned');
+        toast.error('Export failed: no download URL returned');
         return;
       }
       // Download with credentials and trigger browser save
       const dlRes = await apiFetch(data.downloadUrl);
       if (!dlRes.ok) {
-        alert('Download failed');
+        toast.error('Download failed');
         return;
       }
       const blob = await dlRes.blob();
@@ -120,7 +122,7 @@ export function useSiteTools(onSitesChanged: () => void): SiteToolsController {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Export error:', err);
-      alert('Failed to export site');
+      toast.error('Failed to export site');
     } finally {
       setExportingId(null);
     }
@@ -149,12 +151,12 @@ export function useSiteTools(onSitesChanged: () => void): SiteToolsController {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed to extend site' }));
-        alert(err.error || 'Failed to extend site');
+        toast.error(err.error || 'Failed to extend site');
         return;
       }
       onSitesChanged();
     } catch {
-      alert('Failed to extend site');
+      toast.error('Failed to extend site');
     }
   }
 
@@ -190,7 +192,7 @@ export function useSiteTools(onSitesChanged: () => void): SiteToolsController {
         setTemplateSiteId(null);
         setTemplateId('');
         setTemplateName('');
-        alert(`Template "${data.name}" saved successfully! It will appear in your templates list.`);
+        toast.success(`Template "${data.name}" saved. It will appear in your templates list.`);
       } else {
         const data = await res.json();
         setTemplateError(data.error || 'Failed to export template');
@@ -221,13 +223,13 @@ export function useSiteTools(onSitesChanged: () => void): SiteToolsController {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed' }));
-        alert(err.error || 'Failed to set password');
+        toast.error(err.error || 'Failed to set password');
         return;
       }
       setPasswordSiteId(null);
       setPasswordValue('');
     } catch {
-      alert('Failed to set password');
+      toast.error('Failed to set password');
     } finally {
       setPasswordLoadingId(null);
     }
@@ -250,12 +252,12 @@ export function useSiteTools(onSitesChanged: () => void): SiteToolsController {
       const res = await apiFetch(`/api/sites/${site.id}/db-credentials`, { cache: 'no-store' });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Failed to get database credentials' }));
-        alert(err.error || 'Failed to get database credentials');
+        toast.error(err.error || 'Failed to get database credentials');
         return;
       }
       const data = await res.json();
       if (!data.supported) {
-        alert(data.message || 'This site uses SQLite and does not support Adminer');
+        toast.show(data.message || 'This site uses SQLite and does not support Adminer');
         return;
       }
       console.log('[DB Modal] Setting credentials:', data);
@@ -270,7 +272,7 @@ export function useSiteTools(onSitesChanged: () => void): SiteToolsController {
       });
       setDbCopied('');
     } catch {
-      alert('Failed to get database credentials');
+      toast.error('Failed to get database credentials');
     }
   }
 
