@@ -2,7 +2,8 @@ import { Router, Response } from 'express';
 import { adminAuth } from '../middleware/auth';
 import { AuthRequest } from '../middleware/userAuth';
 import { config } from '../config';
-import { baseImageTag, validatePhpWp } from '../services/imageBuild.service';
+import { baseImageTag } from '../services/imageBuild.service';
+import { getBuildableWpByPhp, isBuildable } from '../services/wpImageTags.service';
 import {
   createBuildJob, getBuildJob, listBuildJobs, enqueueBuild,
 } from '../services/imageBuildJob.service';
@@ -25,6 +26,13 @@ router.get('/', async (_req: AuthRequest, res: Response) => {
   }
 });
 
+// GET /versions — buildable PHP versions and, per PHP, the WordPress versions
+// (fetched live from Docker Hub, newest first) to populate the build dialog.
+router.get('/versions', async (_req: AuthRequest, res: Response) => {
+  const wpByPhp = await getBuildableWpByPhp();
+  res.json({ phpVersions: Object.keys(wpByPhp), wpByPhp });
+});
+
 // GET /builds — recent build jobs, metadata only (no log/spec blobs).
 router.get('/builds', (_req: AuthRequest, res: Response) => {
   res.json(listBuildJobs(30).map(({ log: _log, spec: _spec, ...meta }) => meta));
@@ -39,12 +47,11 @@ router.get('/builds/:id', (req: AuthRequest, res: Response) => {
 });
 
 // POST /builds — build a base image for a { phpVersion, wpVersion } pair.
-router.post('/builds', (req: AuthRequest, res: Response) => {
+router.post('/builds', async (req: AuthRequest, res: Response) => {
   const { phpVersion, wpVersion } = req.body || {};
-  try {
-    validatePhpWp(phpVersion, wpVersion);
-  } catch (e: any) {
-    res.status(400).json({ error: e.message });
+  const matrix = await getBuildableWpByPhp();
+  if (!isBuildable(matrix, phpVersion, wpVersion)) {
+    res.status(400).json({ error: `PHP ${phpVersion} + WordPress ${wpVersion} is not a buildable combination` });
     return;
   }
   const tag = baseImageTag(phpVersion, wpVersion);
