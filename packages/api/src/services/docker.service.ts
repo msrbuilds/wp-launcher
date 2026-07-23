@@ -3,6 +3,8 @@
  * The API no longer has direct Docker socket access.
  */
 
+import { Readable } from 'node:stream';
+
 const PROVISIONER_URL = process.env.PROVISIONER_URL || 'http://provisioner:4000';
 const INTERNAL_KEY = process.env.PROVISIONER_INTERNAL_KEY || '';
 
@@ -292,4 +294,69 @@ export async function pruneVolumes(): Promise<{ pruned: number; spaceReclaimed: 
 export async function pruneBuildCache(): Promise<{ spaceReclaimed: number }> {
   const res = await provisionerFetch('/system/prune-buildcache', { method: 'POST' });
   return await parseJson<{ spaceReclaimed: number }>(res);
+}
+
+export interface WplImage { tag: string; id: string; size: number; created: number; }
+
+/**
+ * Stream a tar build context to the provisioner and relay the build output.
+ * `onLine` receives each decoded output line. Resolves on success; rejects on a
+ * build error. Uses a dedicated fetch (not provisionerFetch) so the tar body
+ * streams up as application/x-tar and the ndjson build log streams back down.
+ */
+export async function buildImageStream(
+  tar: Readable,
+  tag: string,
+  buildargs: Record<string, string>,
+  onLine: (line: string) => void,
+): Promise<void> {
+  const url = `${PROVISIONER_URL}/images/build-stream?tag=${encodeURIComponent(tag)}` +
+    `&buildargs=${encodeURIComponent(JSON.stringify(buildargs))}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-tar',
+      ...(INTERNAL_KEY ? { 'x-internal-key': INTERNAL_KEY } : {}),
+    },
+    body: Readable.toWeb(tar) as any,
+    // Node fetch requires duplex for a streamed request body.
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' });
+  if (!res.ok || !res.body) {
+    const msg = await res.text().catch(() => `HTTP ${res.status}`);
+    throw new Error(`Build failed to start: ${msg}`);
+  }
+  // The provisioner relays docker's build output as newline-delimited JSON.
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let buildError: string | null = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf('\n')) >= 0) {
+      const raw = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!raw) continue;
+      try {
+        const obj = JSON.parse(raw);
+        if (obj.stream) onLine(String(obj.stream).replace(/\n$/, ''));
+        else if (obj.error) buildError = obj.error;
+      } catch {
+        onLine(raw);
+      }
+    }
+  }
+  if (buildError) throw new Error(buildError);
+}
+
+export async function removeImage(tag: string): Promise<void> {
+  await provisionerFetch('/images/remove', { method: 'POST', body: JSON.stringify({ tag }) });
+}
+
+export async function listWplImages(): Promise<WplImage[]> {
+  const res = await provisionerFetch('/images');
+  return await parseJson<WplImage[]>(res);
 }
