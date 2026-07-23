@@ -165,11 +165,13 @@
      never used on anything the user can click or type into). */
   --border: oklch(0.17 0.01 265);
   /* Interactive boundaries: inputs, selects, secondary/outline buttons.
-     3.02:1 on card, 3.30:1 on page bg — clears WCAG 1.4.11. */
-  --border-interactive: oklch(0.52 0.02 265);
-  /* shadcn uses --input as the field BORDER, not the fill.
-     Was 0.32 = 1.33:1 (invisible). Now matches --border-interactive. */
-  --input: oklch(0.52 0.02 265);
+     Kept smooth for the dark aesthetic rather than pushed to a stark 3:1
+     border — affordance is carried by the subtle field fill (--input, used at
+     30% for bg-input) and the focus ring, so the resting edge can stay quiet. */
+  --border-interactive: oklch(0.32 0.015 265);
+  /* Only drives the translucent field fill (bg-input/30) now; kept a touch
+     lighter so fields read as gently raised beneath the smooth border. */
+  --input: oklch(0.42 0.02 265);
   --ring: oklch(0.72 0.17 55);
 }
 

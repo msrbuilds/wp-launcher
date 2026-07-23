@@ -70,12 +70,12 @@ export function ServerClock() {
     );
 
   return (
-    <div className="hidden h-9 items-center gap-2 rounded-md border border-border px-3 text-xs md:flex">
+    <div className="hidden h-9 items-center gap-2 rounded-md border border-border-interactive px-3 text-xs md:flex">
       <span className="text-muted-foreground">Server Time:</span>
       <span className="font-mono font-medium tabular-nums text-foreground">
         {formatTime(now, zone)}
       </span>
-      <span className="flex overflow-hidden rounded-sm border border-border" role="group" aria-label="Time zone">
+      <span className="flex overflow-hidden rounded-sm border border-border-interactive" role="group" aria-label="Time zone">
         <button type="button" onClick={() => setZone('utc')} aria-pressed={zone === 'utc'} className={segment('utc')}>
           UTC
         </button>
@@ -84,7 +84,7 @@ export function ServerClock() {
           onClick={() => setZone('local')}
           aria-pressed={zone === 'local'}
           title="Your local time zone"
-          className={cn('border-l border-border', segment('local'))}
+          className={cn('border-l border-border-interactive', segment('local'))}
         >
           {localLabel}
         </button>
