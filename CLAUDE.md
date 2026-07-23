@@ -65,6 +65,9 @@ npm run dev:dashboard      # Dashboard Vite dev server (port 4000)
 npm run build              # Build all packages
 
 # WordPress images
+# NOTE: base + custom images can now also be built from the panel (Settings >
+# Images), which ports this script's logic to TypeScript. The script remains for
+# CLI/CI use but is optional for a panel-driven setup.
 bash scripts/build-wp-image.sh                  # Base image only
 bash scripts/build-wp-image.sh my-product       # Product-specific image
 bash scripts/build-wp-image.sh my-product tag   # Custom tag
@@ -110,6 +113,7 @@ Tables in `data/wp-launcher.db`:
 - **productivity_goals** — id, daily_goal_seconds, updated_at
 - **productivity_cloud_config** — key, value (cloud_url, cloud_api_key, device_name, last_synced_at)
 - **productivity_sync_log** — id, heartbeats_count, status, error, started_at, completed_at
+- **image_builds** — id, tag, kind (base|custom), status (queued/building/success/failed), log, error, spec (JSON), created_by, started_at, completed_at, created_at
 
 ## API Endpoints
 
@@ -141,6 +145,14 @@ Tables in `data/wp-launcher.db`:
 - `GET|DELETE /users` — user management
 - `GET|DELETE /sites` — site management
 - `GET /logs` — site logs
+
+### Admin Images (`/api/admin/images/*`) — adminAuth (owner/admin or API key)
+- `GET /` — built `wp-launcher/*` images with `usedByBlueprints[]`
+- `POST /builds` — start a build (multipart: `spec` JSON + optional `plugin_files`/`theme_files` zips). `spec.kind` = `base` (PHP variant) or `custom` (plugins/themes baked on a base, auto-building the base if missing). Returns `{ jobId, tag }`
+- `GET /builds` — recent build jobs (metadata)
+- `GET /builds/:id` — one job with live `log` (poll endpoint)
+- `DELETE /:tag` — remove an image (409 if a blueprint uses it, unless `?force=true`)
+- Builds run as one-at-a-time background jobs (API assembles a tar context, streams it to the provisioner's `POST /images/build-stream`, relays the ndjson build log into the `image_builds` row). Stuck `building` jobs are failed on API restart.
 
 ### Sync (`/api/sync/*`) — JWT required
 - `GET /connections` — list remote connections
