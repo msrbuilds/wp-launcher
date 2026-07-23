@@ -227,35 +227,54 @@ router.put('/panel-settings', (req: AuthRequest, res: Response) => {
       res.status(400).json({ error: err.message });
       return;
     }
-    res.status(500).json({ error: err.message });
+    console.error('[admin] panel-settings update failed:', err);
+    res.status(500).json({ error: 'Failed to update settings' });
   }
 });
 
 // --- Invitations ---
 
 router.post('/users/invite', async (req: AuthRequest, res: Response) => {
+  const { email, role } = req.body;
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    res.status(400).json({ error: 'A valid email is required' });
+    return;
+  }
+  const targetRole: 'member' | 'admin' = role === 'admin' ? 'admin' : 'member';
+  const normalized = email.toLowerCase().trim();
+
+  // inviteUser throws user-facing ValidationErrors (e.g. already active); those
+  // messages are safe to surface. Anything else is a 500 without internals.
+  let invited: { user: { id: string }; token: string; resent: boolean };
   try {
-    const { email, role } = req.body;
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
-      res.status(400).json({ error: 'A valid email is required' });
+    invited = inviteUser(normalized, targetRole);
+  } catch (err: any) {
+    if (err.statusCode) {
+      res.status(err.statusCode).json({ error: err.message });
       return;
     }
-    const targetRole: 'member' | 'admin' = role === 'admin' ? 'admin' : 'member';
-    const normalized = email.toLowerCase().trim();
-
-    const { token, resent } = inviteUser(normalized, targetRole);
-    await sendInviteEmail(normalized, token, req.userEmail || 'A panel admin', targetRole);
-
-    res.json({
-      message: resent
-        ? `Invitation resent to ${normalized}`
-        : `Invitation sent to ${normalized}`,
-      resent,
-    });
-  } catch (err: any) {
-    const status = err.statusCode || 500;
-    res.status(status).json({ error: err.message });
+    console.error('[admin] invite failed:', err);
+    res.status(500).json({ error: 'Failed to create invitation' });
+    return;
   }
+
+  try {
+    await sendInviteEmail(normalized, invited.token, req.userEmail || 'A panel admin', targetRole);
+  } catch (err) {
+    console.error('[admin] invite email failed:', err);
+    // A freshly created pending row is undeliverable without the email — roll it
+    // back so it can't linger. A resend leaves the existing row untouched.
+    if (!invited.resent) {
+      try { deleteUser(invited.user.id); } catch { /* best effort */ }
+    }
+    res.status(502).json({ error: 'Could not send the invitation email. Check the panel’s email settings.' });
+    return;
+  }
+
+  res.json({
+    message: invited.resent ? `Invitation resent to ${normalized}` : `Invitation sent to ${normalized}`,
+    resent: invited.resent,
+  });
 });
 
 // Withdraw a pending invitation — only ever removes an unverified row, so it
@@ -277,7 +296,8 @@ router.delete('/users/invite/:id', (req: AuthRequest, res: Response) => {
     deleteUser(user.id);
     res.json({ message: 'Invitation withdrawn' });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('[admin] withdraw invite failed:', err);
+    res.status(500).json({ error: 'Failed to withdraw invitation' });
   }
 });
 

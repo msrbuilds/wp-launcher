@@ -14,16 +14,11 @@ function safeEqual(a: string, b: string): boolean {
   return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
-// API key only — for M2M endpoints (keep for backward compat)
+// API key only — for M2M endpoints. Header-only: the old wpl_admin cookie path
+// was removed so a value that leaks into a browser cookie can't grant admin.
 export function apiKeyAuth(req: Request, res: Response, next: NextFunction): void {
   const apiKey = req.headers['x-api-key'] as string | undefined;
   if (apiKey && safeEqual(apiKey, config.apiKey)) {
-    return next();
-  }
-
-  // Check wpl_admin httpOnly cookie (legacy, will be phased out)
-  const adminCookie = (req as any).cookies?.wpl_admin as string | undefined;
-  if (adminCookie && safeEqual(adminCookie, config.apiKey)) {
     return next();
   }
 
@@ -48,9 +43,10 @@ export function adminAuth(req: AuthRequest, res: Response, next: NextFunction): 
   const token = extractToken(req);
   if (token) {
     try {
-      const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string };
+      const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string; tv?: number };
       const user = getUserById(decoded.userId);
-      if (user && (user.role === 'owner' || user.role === 'admin')) {
+      const tvOk = user && (typeof decoded.tv === 'number' ? decoded.tv : 0) === (user.token_version ?? 0);
+      if (user && tvOk && (user.role === 'owner' || user.role === 'admin')) {
         req.userId = decoded.userId;
         req.userEmail = decoded.email;
         req.userRole = user.role;

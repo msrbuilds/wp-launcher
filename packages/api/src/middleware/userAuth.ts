@@ -33,10 +33,26 @@ export function extractToken(req: Request): string | null {
   return null;
 }
 
-export function generateToken(userId: string, email: string, role: string = 'user'): string {
-  return jwt.sign({ userId, email, role }, config.jwtSecret, {
+export function generateToken(
+  userId: string,
+  email: string,
+  role: string = 'user',
+  tokenVersion: number = 0,
+): string {
+  return jwt.sign({ userId, email, role, tv: tokenVersion }, config.jwtSecret, {
     expiresIn: config.jwtExpiresIn,
   } as jwt.SignOptions);
+}
+
+/**
+ * A token is only valid while its `tv` claim matches the account's current
+ * token_version. Changing a password or email bumps that number, which
+ * instantly invalidates every JWT minted beforehand. Tokens issued before this
+ * claim existed carry no `tv`; treating that as 0 keeps them valid against a
+ * default-0 account, so upgrading doesn't force everyone to log in again.
+ */
+function tokenVersionMatches(claimed: unknown, user: { token_version?: number }): boolean {
+  return (typeof claimed === 'number' ? claimed : 0) === (user.token_version ?? 0);
 }
 
 export function userAuth(req: AuthRequest, res: Response, next: NextFunction): void {
@@ -55,11 +71,15 @@ export function userAuth(req: AuthRequest, res: Response, next: NextFunction): v
   }
 
   try {
-    const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string };
+    const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string; tv?: number };
     const user = getUserById(decoded.userId);
 
     if (!user || !user.verified) {
       res.status(401).json({ error: 'Invalid or unverified user' });
+      return;
+    }
+    if (!tokenVersionMatches(decoded.tv, user)) {
+      res.status(401).json({ error: 'Session expired. Please log in again.' });
       return;
     }
 
@@ -86,8 +106,10 @@ export function optionalUserAuth(req: AuthRequest, _res: Response, next: NextFun
   if (!token) return next();
 
   try {
-    const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string };
+    const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string; tv?: number };
     const user = getUserById(decoded.userId);
+    // A superseded token is treated as no token at all, not an error.
+    if (user && !tokenVersionMatches(decoded.tv, user)) return next();
     req.userId = decoded.userId;
     req.userEmail = decoded.email;
     req.userRole = user?.role || decoded.role || 'user';

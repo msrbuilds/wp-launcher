@@ -51,8 +51,12 @@ router.post('/register', asyncHandler(async (req: Request, res: Response) => {
     throw new ValidationError('Valid email is required');
   }
 
-  const { verificationToken } = await registerUser(email.toLowerCase().trim());
-  await sendVerificationEmail(email, verificationToken);
+  const { verificationToken, throttled } = await registerUser(email.toLowerCase().trim());
+  // When throttled, a link went out moments ago — stay silent rather than send
+  // again, but return the same response so nothing is leaked about the address.
+  if (!throttled) {
+    await sendVerificationEmail(email, verificationToken);
+  }
 
   res.json({ message: 'Verification email sent. Please check your inbox.' });
 }));
@@ -83,7 +87,7 @@ router.post('/verify', asyncHandler(async (req: Request, res: Response) => {
     });
   } else {
     // Returning user (magic-link login) — issue JWT directly
-    const jwtToken = generateToken(user.id, user.email, user.role);
+    const jwtToken = generateToken(user.id, user.email, user.role, user.token_version);
     setAuthCookie(res, jwtToken);
     res.json({
       needsPassword: false,
@@ -109,7 +113,7 @@ router.post('/set-password', asyncHandler(async (req: Request, res: Response) =>
   }
 
   const user = await setInitialPassword(passwordSetToken, password);
-  const jwtToken = generateToken(user.id, user.email, user.role);
+  const jwtToken = generateToken(user.id, user.email, user.role, user.token_version);
   setAuthCookie(res, jwtToken);
 
   res.json({
@@ -130,7 +134,7 @@ router.post('/login', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const user = await loginUser(email.toLowerCase().trim(), password);
-  const token = generateToken(user.id, user.email, user.role);
+  const token = generateToken(user.id, user.email, user.role, user.token_version);
   setAuthCookie(res, token);
 
   res.json({
@@ -179,7 +183,11 @@ router.post('/update-password', userAuth, asyncHandler(async (req: AuthRequest, 
     throw new ValidationError('New password must be at least 8 characters');
   }
 
-  await updatePassword(req.userId!, currentPassword, newPassword);
+  const { tokenVersion } = await updatePassword(req.userId!, currentPassword, newPassword);
+  // The change invalidated every prior JWT (including this request's). Re-issue
+  // one at the new version so the device that made the change stays signed in
+  // while other sessions are logged out.
+  setAuthCookie(res, generateToken(req.userId!, req.userEmail!, req.userRole || 'user', tokenVersion));
   res.json({ message: 'Password updated successfully' });
 }));
 

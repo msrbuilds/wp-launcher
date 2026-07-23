@@ -417,13 +417,16 @@ function initSchema(db: Database.Database): void {
     // Column already exists
   }
 
-  // Migration: account profile fields (display name, avatar, pending email change).
+  // Migration: account profile fields (display name, avatar, pending email
+  // change) plus token_version — bumped on password/email change to invalidate
+  // JWTs issued before it (see userAuth).
   for (const col of [
     `name TEXT`,
     `avatar_url TEXT`,
     `pending_email TEXT`,
     `email_change_token TEXT`,
     `email_change_expires_at TEXT`,
+    `token_version INTEGER NOT NULL DEFAULT 0`,
   ]) {
     try {
       db.exec(`ALTER TABLE users ADD COLUMN ${col}`);

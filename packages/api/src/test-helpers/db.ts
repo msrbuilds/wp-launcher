@@ -7,7 +7,16 @@ const USERS_TABLE = `
     password_hash TEXT NOT NULL DEFAULT '',
     verified INTEGER NOT NULL DEFAULT 0,
     role TEXT NOT NULL DEFAULT 'user',
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    name TEXT,
+    avatar_url TEXT,
+    pending_email TEXT,
+    email_change_token TEXT,
+    email_change_expires_at TEXT,
+    token_version INTEGER NOT NULL DEFAULT 0,
+    verification_token TEXT,
+    verification_expires_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`;
 
 // The foreign key matters: production enforces it (better-sqlite3 turns

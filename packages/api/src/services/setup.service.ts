@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 import { getDb } from '../utils/db';
 import { getBool, setSetting } from './settings.service';
+import { BCRYPT_ROUNDS } from './user.service';
 import { ValidationError, ConflictError } from '../utils/errors';
 
 const MIN_PASSWORD_LENGTH = 12;
@@ -64,7 +65,7 @@ export async function runSetup(input: SetupInput): Promise<OwnerRecord> {
 
   // Hash outside the transaction — bcrypt is async and better-sqlite3
   // transactions must stay synchronous.
-  const passwordHash = await bcrypt.hash(input.password, 10);
+  const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
   const id = uuidv4();
   const db = getDb();
 

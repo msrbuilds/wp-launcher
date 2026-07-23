@@ -85,6 +85,24 @@ const adminLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Endpoints that send email on demand get a tight cap so a compromised admin
+// token can't turn them into a spam relay.
+const inviteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: { error: 'Too many invitations. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Unauthenticated public surfaces (demo portal listing).
+const publicReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Health check
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -135,7 +153,7 @@ app.use('/api/uploads', (_req, res, next) => {
  * display fields are exposed — never plugin lists, docker images or admin
  * credentials — and the whole endpoint is dark unless the portal is enabled.
  */
-app.get('/api/public/blueprints', (_req, res) => {
+app.get('/api/public/blueprints', publicReadLimiter, (_req, res) => {
   if (!policy.demoPortalEnabled()) {
     res.status(404).json({ error: 'The demo portal is not enabled on this panel' });
     return;
@@ -201,7 +219,14 @@ app.get('/api/auth/me', authReadLimiter);
 app.post('/api/auth/logout', authReadLimiter);
 app.post('/api/auth/update-password', authReadLimiter);
 app.patch('/api/auth/profile', authReadLimiter);
+// Avatar writes a file per call; cap it like other auth writes.
+app.post('/api/auth/avatar', authWriteLimiter);
+app.delete('/api/auth/avatar', authReadLimiter);
 app.use('/api/auth', authRouter);
+
+// Sending an invitation dispatches an email — throttle it hard (in addition to
+// the general admin limiter applied when the router mounts).
+app.post('/api/admin/users/invite', inviteLimiter);
 
 // Admin routes — admin JWT or M2M API key, rate limited
 app.use('/api/admin', adminLimiter, adminRouter);

@@ -11,6 +11,9 @@ import { ValidationError, UnauthorizedError, NotFoundError } from '../utils/erro
  */
 export type UserRole = 'owner' | 'admin' | 'member' | 'user';
 
+/** bcrypt work factor for new hashes. Existing hashes verify at their own cost. */
+export const BCRYPT_ROUNDS = 12;
+
 export interface UserRecord {
   id: string;
   email: string;
@@ -22,16 +25,30 @@ export interface UserRecord {
   pending_email: string | null;
   email_change_token: string | null;
   email_change_expires_at: string | null;
+  token_version: number;
   verification_token: string | null;
   verification_expires_at: string | null;
   created_at: string;
   updated_at: string;
 }
 
+// Tokens live an hour; don't mint (or email) a new one more than once a minute
+// per address, so registration can't be used to flood someone's inbox.
+const TOKEN_TTL_MS = 3600000;
+const RESEND_COOLDOWN_MS = 60000;
+
+function issuedWithinCooldown(u: UserRecord): boolean {
+  if (!u.verification_expires_at) return false;
+  const issuedAt = new Date(u.verification_expires_at).getTime() - TOKEN_TTL_MS;
+  return Date.now() - issuedAt < RESEND_COOLDOWN_MS;
+}
+
 export async function registerUser(email: string): Promise<{
   user: UserRecord;
   verificationToken: string;
   isNew: boolean;
+  /** True when a token was issued moments ago — the caller must not resend. */
+  throttled: boolean;
 }> {
   const db = getDb();
 
@@ -39,36 +56,34 @@ export async function registerUser(email: string): Promise<{
     // Check if user already exists — atomic with insert
     const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRecord | undefined;
 
-    if (existing && existing.verified) {
-      // User already verified — return existing with a new verification token for re-login
+    if (existing) {
+      // A token minted seconds ago is reused as-is; we return it but signal the
+      // caller to skip the email. Covers both re-login (verified) and resend
+      // (unverified) without regenerating on every request.
+      if (issuedWithinCooldown(existing)) {
+        return {
+          user: existing,
+          verificationToken: existing.verification_token || '',
+          isNew: false,
+          throttled: true,
+        };
+      }
       const token = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+      const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
       db.prepare('UPDATE users SET verification_token = ?, verification_expires_at = ? WHERE id = ?')
         .run(token, expiresAt, existing.id);
       return {
         user: { ...existing, verification_token: token, verification_expires_at: expiresAt },
         verificationToken: token,
         isNew: false,
-      };
-    }
-
-    if (existing && !existing.verified) {
-      // Not yet verified — update token and resend
-      const token = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 3600000).toISOString();
-      db.prepare('UPDATE users SET verification_token = ?, verification_expires_at = ? WHERE id = ?')
-        .run(token, expiresAt, existing.id);
-      return {
-        user: { ...existing, verification_token: token, verification_expires_at: expiresAt },
-        verificationToken: token,
-        isNew: false,
+        throttled: false,
       };
     }
 
     // Create new user — no password yet; user sets it after email verification
     const id = uuidv4();
     const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 3600000).toISOString();
+    const expiresAt = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
 
     db.prepare(`
       INSERT INTO users (id, email, password_hash, verified, verification_token, verification_expires_at)
@@ -77,7 +92,7 @@ export async function registerUser(email: string): Promise<{
 
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRecord;
 
-    return { user, verificationToken: token, isNew: true };
+    return { user, verificationToken: token, isNew: true, throttled: false };
   });
 
   return registerTxn(email);
@@ -143,7 +158,7 @@ export async function setInitialPassword(token: string, newPassword: string): Pr
     throw new ValidationError('Password-set token has expired. Please register again.');
   }
 
-  const hash = await bcrypt.hash(newPassword, 10);
+  const hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
   db.prepare(`
     UPDATE users SET password_hash = ?, verification_token = NULL,
     verification_expires_at = NULL, updated_at = datetime('now') WHERE id = ?
@@ -176,7 +191,16 @@ export async function loginUser(email: string, password: string): Promise<UserRe
   return user;
 }
 
-export async function updatePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+/**
+ * Change the password and bump token_version, invalidating every JWT issued
+ * before now. Returns the new token_version so the caller can re-issue a fresh
+ * cookie and keep the acting device signed in.
+ */
+export async function updatePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<{ tokenVersion: number }> {
   const db = getDb();
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as UserRecord | undefined;
@@ -189,8 +213,12 @@ export async function updatePassword(userId: string, currentPassword: string, ne
     throw new ValidationError('Current password is incorrect');
   }
 
-  const hash = await bcrypt.hash(newPassword, 10);
-  db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?").run(hash, userId);
+  const hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+  const tokenVersion = (user.token_version ?? 0) + 1;
+  db.prepare(
+    "UPDATE users SET password_hash = ?, token_version = ?, updated_at = datetime('now') WHERE id = ?",
+  ).run(hash, tokenVersion, userId);
+  return { tokenVersion };
 }
 
 /**
@@ -327,9 +355,12 @@ export function confirmEmailChange(token: string): UserRecord {
       throw new ValidationError('That email address is no longer available');
     }
 
+    // Bump token_version too: the sign-in identifier changed, so every JWT
+    // minted under the old email is retired.
     db.prepare(`
       UPDATE users SET email = ?, pending_email = NULL, email_change_token = NULL,
-      email_change_expires_at = NULL, updated_at = datetime('now') WHERE id = ?
+      email_change_expires_at = NULL, token_version = token_version + 1,
+      updated_at = datetime('now') WHERE id = ?
     `).run(user.pending_email, user.id);
 
     return db.prepare('SELECT * FROM users WHERE id = ?').get(user.id) as UserRecord;
