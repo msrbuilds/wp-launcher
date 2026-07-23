@@ -821,6 +821,71 @@ app.post('/images/build', async (req: Request, res: Response) => {
   }
 });
 
+// Build from a tar context streamed in the request body (application/x-tar),
+// relaying docker's ndjson build output straight back to the caller. The API
+// assembles the context so the provisioner needs no shared build volume.
+// express.json() ignores non-JSON bodies, so `req` is still the readable tar.
+app.post('/images/build-stream', async (req: Request, res: Response) => {
+  try {
+    const tag = String(req.query.tag || '');
+    if (!validateImage(tag)) {
+      res.status(400).json({ error: `Image tag must start with "${ALLOWED_IMAGE_PREFIX}"` });
+      return;
+    }
+    let buildargs: Record<string, string> = {};
+    try { buildargs = JSON.parse(String(req.query.buildargs || '{}')); } catch { /* ignore malformed */ }
+
+    const stream = await docker.buildImage(req as any, { t: tag, buildargs });
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    stream.pipe(res); // docker emits newline-delimited JSON; the API parses it
+    stream.on('error', () => { try { res.end(); } catch { /* already closed */ } });
+  } catch (err: any) {
+    console.error('[provisioner] build-stream error:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+    else res.end();
+  }
+});
+
+app.post('/images/remove', async (req: Request, res: Response) => {
+  try {
+    const { tag } = req.body;
+    if (!validateImage(tag)) {
+      res.status(400).json({ error: `Image must start with "${ALLOWED_IMAGE_PREFIX}"` });
+      return;
+    }
+    await docker.getImage(tag).remove({ force: false });
+    res.json({ status: 'removed', tag });
+  } catch (err: any) {
+    if (err.statusCode === 404) { res.status(404).json({ error: 'Image not found' }); return; }
+    if (err.statusCode === 409) { res.status(409).json({ error: 'Image is in use by a container' }); return; }
+    console.error('[provisioner] image remove error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/images', async (_req: Request, res: Response) => {
+  try {
+    const list = await docker.listImages();
+    const out: { tag: string; id: string; size: number; created: number }[] = [];
+    for (const img of list || []) {
+      for (const tag of img.RepoTags || []) {
+        if (tag.startsWith(ALLOWED_IMAGE_PREFIX)) {
+          out.push({
+            tag,
+            id: (img.Id || '').replace('sha256:', '').substring(0, 12),
+            size: img.Size || 0,
+            created: img.Created || 0,
+          });
+        }
+      }
+    }
+    res.json(out);
+  } catch (err: any) {
+    console.error('[provisioner] images list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- Snapshot & Restore ---
 
 const SNAPSHOTS_DIR = process.env.SNAPSHOTS_DIR || '/app/data/snapshots';
