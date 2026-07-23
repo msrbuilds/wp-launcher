@@ -28,6 +28,7 @@ import LogsTab from './pages/admin/LogsTab';
 import FeaturesTab from './pages/admin/FeaturesTab';
 import BrandingTab from './pages/admin/BrandingTab';
 import SystemTab from './pages/admin/SystemTab';
+import ImagesPage from './pages/admin/ImagesPage';
 import PanelSettingsPage from './pages/admin/PanelSettingsPage';
 import BlueprintEditorPage from './pages/BlueprintEditorPage';
 import SyncPage from './pages/SyncPage';
@@ -113,6 +114,7 @@ function AppRoutes() {
           <Route path="users" element={<UsersTab />} />
           <Route path="features" element={<FeaturesTab />} />
           <Route path="branding" element={<BrandingTab />} />
+          <Route path="images" element={<ImagesPage />} />
           <Route path="panel" element={<PanelSettingsPage />} />
           <Route path="system" element={<SystemTab />} />
         </Route>
