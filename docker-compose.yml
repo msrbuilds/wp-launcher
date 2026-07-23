@@ -67,9 +67,12 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     restart: unless-stopped
+    # Loopback-only: the web UI shows every captured email (verification and
+    # invite links included), so it must never be reachable from the internet.
+    # Reach it over an SSH tunnel (see guides/vps-deployment.md).
     ports:
-      - "8025:8025" # Web UI
-      - "1025:1025" # SMTP
+      - "127.0.0.1:8025:8025" # Web UI
+      - "127.0.0.1:1025:1025" # SMTP
     networks:
       - wp-launcher-network
 
@@ -91,8 +94,14 @@ services:
   api:
     build: ./packages/api
     restart: unless-stopped
+    # Loopback-only. In production the dashboard reaches the API over the
+    # internal Docker network (Traefik -> nginx -> api:3737), so this host
+    # publish is for local debugging only. Binding it to 127.0.0.1 keeps the
+    # API off the public internet — otherwise a direct caller could bypass
+    # Traefik and spoof X-Forwarded-For to defeat the per-IP rate limits.
+    # To expose it deliberately, drop the 127.0.0.1 prefix.
     ports:
-      - "${API_PORT:-3737}:3737"
+      - "127.0.0.1:${API_PORT:-3737}:3737"
     volumes:
       - ./data:/app/data
       - ./blueprints:/app/blueprints

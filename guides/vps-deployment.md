@@ -90,6 +90,9 @@ docker compose version  # Docker Compose v2+
 
 ### Step 2: Configure Firewall
 
+Only HTTP/HTTPS (and SSH) should ever be open. All traffic enters through Traefik
+on 80/443; everything else talks over the internal Docker network.
+
 ```bash
 # Allow SSH, HTTP, HTTPS
 sudo ufw allow OpenSSH
@@ -97,6 +100,14 @@ sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw enable
 ```
+
+> **Do not open the API port (3737) or Mailpit (8025/1025).** They're published on
+> `127.0.0.1` only by default, so they're already unreachable from the internet.
+> Reaching the API directly would let a caller bypass Traefik and spoof
+> `X-Forwarded-For`, defeating the per-IP rate limits; Mailpit's UI exposes every
+> captured email, including verification and invite links. Access either over an
+> SSH tunnel (see [Testing with Mailpit](#testing-with-mailpit)). If you run a
+> cloud firewall/security group in addition to `ufw`, apply the same rule there.
 
 ### Step 3: Clone and Configure
 
@@ -118,9 +129,11 @@ NODE_ENV=production
 BASE_DOMAIN=demos.yourdomain.com
 PUBLIC_URL=https://demos.yourdomain.com
 
-# Optional: change the host port the API is exposed on (default: 3737)
-# Only needed if port 3737 conflicts with another service on this server.
-# Internal Docker networking always uses port 3737 regardless of this setting.
+# Optional: change the host port the API binds to on localhost (default: 3737)
+# The API is published on 127.0.0.1 only — the public path is always
+# Traefik -> dashboard (nginx) -> api over the internal Docker network, so this
+# port is for local debugging (e.g. curl, an SSH tunnel) and never needs to face
+# the internet. Only change it if 3737 clashes with another local service.
 # API_PORT=3737
 
 # Security — generate with: openssl rand -hex 32
