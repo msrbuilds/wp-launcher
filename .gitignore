@@ -64,6 +64,9 @@ npm-debug.log*
 plans/
 reports/
 tests/
+# ...but keep the tracked superpowers spec/plan docs (specs/ is already tracked).
+!docs/superpowers/plans/
+!docs/superpowers/plans/**
 
 # Docker
 docker-compose.override.yml
