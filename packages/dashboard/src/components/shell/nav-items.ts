@@ -74,7 +74,7 @@ export function buildNavGroups(features: Features, role: string | undefined): Na
             { to: '/panel', label: 'General', icon: SlidersHorizontal },
             { to: '/features', label: 'Features', icon: ToggleLeft },
             { to: '/branding', label: 'Branding', icon: Palette },
-            { to: '/users', label: 'Team', icon: UserCog },
+            { to: '/users', label: 'Users', icon: UserCog },
             { to: '/system', label: 'System', icon: Server },
           ]
         : [],
