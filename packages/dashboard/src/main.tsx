@@ -98,6 +98,9 @@ function AppRoutes() {
         <Route path="admin" element={<Navigate to="/" replace />} />
         <Route path="admin/*" element={<Navigate to="/" replace />} />
         <Route path="launch/:blueprintId" element={<LaunchRedirect />} />
+
+        {/* Any unknown in-shell path lands on the dashboard rather than a blank screen. */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );
