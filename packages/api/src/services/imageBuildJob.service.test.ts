@@ -5,7 +5,6 @@ import { __setDbForTesting } from '../utils/db';
 
 // Mock the provisioner client so the runner never touches real Docker.
 vi.mock('./docker.service', () => ({
-  listWplImages: vi.fn(async () => [{ tag: 'wp-launcher/wordpress:php8.3', id: 'x', size: 1, created: 1 }]),
   buildImageStream: vi.fn(async (_tar: unknown, _tag: string, _args: unknown, onLine: (l: string) => void) => {
     onLine('Step 1/1 : FROM base');
   }),
@@ -56,10 +55,10 @@ describe('imageBuildJob.service', () => {
     expect(listBuildJobs(10).length).toBe(2);
   });
 
-  it('runs a custom build to success and logs output', async () => {
+  it('runs a base build to success and logs output', async () => {
     const job = createBuildJob({
-      tag: 'wp-launcher/shop:latest', kind: 'custom', createdBy: 'u1',
-      spec: { kind: 'custom', name: 'shop', phpVersion: '8.3', plugins: [], themes: [] },
+      tag: 'wp-launcher/wordpress:php8.3', kind: 'base', createdBy: 'u1',
+      spec: { phpVersion: '8.3', wpVersion: '6.9' },
     });
     await runBuildJob(job.id, '/app/wordpress');
     const done = getBuildJob(job.id)!;
@@ -69,14 +68,14 @@ describe('imageBuildJob.service', () => {
 
   it('marks failure when the build stream throws', async () => {
     const mod = await import('./docker.service');
-    (mod.buildImageStream as any).mockRejectedValueOnce(new Error('unzip failed'));
+    (mod.buildImageStream as any).mockRejectedValueOnce(new Error('manifest unknown'));
     const job = createBuildJob({
-      tag: 'wp-launcher/shop2:latest', kind: 'custom', createdBy: 'u1',
-      spec: { kind: 'custom', name: 'shop2', phpVersion: '8.3', plugins: [], themes: [] },
+      tag: 'wp-launcher/wordpress:php8.5-wp6.7', kind: 'base', createdBy: 'u1',
+      spec: { phpVersion: '8.5', wpVersion: '6.7' },
     });
     await runBuildJob(job.id, '/app/wordpress');
     const done = getBuildJob(job.id)!;
     expect(done.status).toBe('failed');
-    expect(done.error).toContain('unzip failed');
+    expect(done.error).toContain('manifest unknown');
   });
 });

@@ -1,22 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Boxes, Hammer, Loader2, Trash2 } from 'lucide-react';
+import { Boxes, Hammer, Trash2 } from 'lucide-react';
 import { apiFetch } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { BuildImageDialog } from './images/BuildImageDialog';
 import { BuildLogPanel, BuildStatusBadge } from './images/BuildLogPanel';
-import { PHP_VERSIONS } from './images/php-versions';
 
 interface WplImage { tag: string; id: string; size: number; created: number; usedByBlueprints: string[]; }
 interface BuildMeta { id: string; tag: string; kind: string; status: string; created_at: string; }
-
-const baseTag = (v: string) => `wp-launcher/wordpress:php${v}`;
 
 function formatBytes(n: number): string {
   if (!n) return '—';
@@ -33,7 +29,6 @@ export default function ImagesPage() {
   const [builds, setBuilds] = useState<BuildMeta[]>([]);
   const [activeJob, setActiveJob] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [busyPhp, setBusyPhp] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -47,26 +42,6 @@ export default function ImagesPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  const byTag = (t: string) => images.find((i) => i.tag === t);
-  const customImages = images.filter((i) => !i.tag.startsWith('wp-launcher/wordpress:'));
-
-  async function buildBase(v: string) {
-    setBusyPhp(v);
-    try {
-      const fd = new FormData();
-      fd.append('spec', JSON.stringify({ kind: 'base', phpVersion: v }));
-      const res = await apiFetch('/api/admin/images/builds', { method: 'POST', body: fd });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(data.error || 'Failed to start build'); return; }
-      setActiveJob(data.jobId);
-      load();
-    } catch {
-      toast.error('Failed to start build');
-    } finally {
-      setBusyPhp(null);
-    }
-  }
 
   async function removeImage(img: WplImage) {
     const inUse = img.usedByBlueprints.length > 0;
@@ -104,13 +79,13 @@ export default function ImagesPage() {
           <div>
             <h2 className="text-xl font-semibold text-foreground">Images</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Build and manage the WordPress Docker images sites launch from.
+              Base WordPress runtimes (PHP + WordPress version) that sites launch from. Plugins and themes live in blueprints.
             </p>
           </div>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
           <Hammer />
-          Build image
+          Build base image
         </Button>
       </div>
 
@@ -118,54 +93,12 @@ export default function ImagesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Base images</CardTitle>
-          <CardDescription>PHP variants every custom image builds on. Rebuild to pick up WordPress updates.</CardDescription>
+          <CardDescription>Built runtimes on this host. A blueprint's Docker Image field selects one.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>PHP version</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {PHP_VERSIONS.map((v) => {
-                const img = byTag(baseTag(v));
-                return (
-                  <TableRow key={v}>
-                    <TableCell className="font-medium">PHP {v}</TableCell>
-                    <TableCell>
-                      {img
-                        ? <Badge className="border-transparent bg-success text-success-foreground">built</Badge>
-                        : <Badge variant="secondary">not built</Badge>}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{img ? formatBytes(img.size) : '—'}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="outline" size="sm" disabled={busyPhp === v} onClick={() => buildBase(v)}>
-                        {busyPhp === v ? <Loader2 className="animate-spin" /> : <Hammer />}
-                        {img ? 'Rebuild' : 'Build'}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* ── Custom images ── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Custom images</CardTitle>
-          <CardDescription>Images with plugins and themes baked in. Selectable when creating a blueprint.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {customImages.length === 0 ? (
+          {images.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              No custom images yet. Use “Build image” to create one.
+              No images yet. Use “Build base image” to create one.
             </p>
           ) : (
             <Table>
@@ -178,7 +111,7 @@ export default function ImagesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customImages.map((img) => (
+                {images.map((img) => (
                   <TableRow key={img.tag}>
                     <TableCell className="font-mono text-xs">{img.tag}</TableCell>
                     <TableCell className="text-muted-foreground">{formatBytes(img.size)}</TableCell>

@@ -65,9 +65,9 @@ npm run dev:dashboard      # Dashboard Vite dev server (port 4000)
 npm run build              # Build all packages
 
 # WordPress images
-# NOTE: base + custom images can now also be built from the panel (Settings >
-# Images), which ports this script's logic to TypeScript. The script remains for
-# CLI/CI use but is optional for a panel-driven setup.
+# NOTE: base images (PHP + WordPress version) can now also be built from the
+# panel (Settings > Images). Custom product images with baked-in plugins/themes
+# are still this script's job; the panel leaves plugins/themes to blueprints.
 bash scripts/build-wp-image.sh                  # Base image only
 bash scripts/build-wp-image.sh my-product       # Product-specific image
 bash scripts/build-wp-image.sh my-product tag   # Custom tag
@@ -147,12 +147,13 @@ Tables in `data/wp-launcher.db`:
 - `GET /logs` — site logs
 
 ### Admin Images (`/api/admin/images/*`) — adminAuth (owner/admin or API key)
+Base runtime images only (PHP + WordPress version). Plugins/themes are a blueprint concern, not baked into images.
 - `GET /` — built `wp-launcher/*` images with `usedByBlueprints[]`
-- `POST /builds` — start a build (multipart: `spec` JSON + optional `plugin_files`/`theme_files` zips). `spec.kind` = `base` (PHP variant) or `custom` (plugins/themes baked on a base, auto-building the base if missing). Returns `{ jobId, tag }`
+- `POST /builds` — build a base image for `{ phpVersion, wpVersion }` (JSON). Validated against buildable PHP×WP pairs (PHP 8.1–8.5 × WP 6.7–6.9; PHP 7.4 × WP 6.1). Returns `{ jobId, tag }`. Tag is `wp-launcher/wordpress:php<php>` for the default WP pairing (backward-compatible) or `…:php<php>-wp<wp>` otherwise
 - `GET /builds` — recent build jobs (metadata)
 - `GET /builds/:id` — one job with live `log` (poll endpoint)
 - `DELETE /:tag` — remove an image (409 if a blueprint uses it, unless `?force=true`)
-- Builds run as one-at-a-time background jobs (API assembles a tar context, streams it to the provisioner's `POST /images/build-stream`, relays the ndjson build log into the `image_builds` row). Stuck `building` jobs are failed on API restart.
+- Builds run as one-at-a-time background jobs: the API tars its read-only `/app/wordpress` context and streams it to the provisioner's `POST /images/build-stream` with `PHP_VERSION`/`WP_VERSION` build-args, relaying the ndjson build log into the `image_builds` row. Stuck `building` jobs are failed on API restart. Blueprints select a built image via their `docker.image` field.
 
 ### Sync (`/api/sync/*`) — JWT required
 - `GET /connections` — list remote connections

@@ -6,85 +6,44 @@ export const DEFAULT_WP = '6.9';
 export const ALL_PHP_VERSIONS = ['8.5', '8.4', '8.3', '8.2', '8.1', '7.4'] as const;
 export type PhpVersion = typeof ALL_PHP_VERSIONS[number];
 
-/** WP 6.9 only ships PHP 8.x base images; 7.4 must use WP 6.1's last 7.4 tag. */
+// WordPress versions with published base images across the PHP 8.x range. PHP 7.4
+// is legacy and only pairs with the older WP 6.1 tag. These lists gate which
+// PHP×WP combinations can be built so we never request a tag that doesn't exist.
+export const WP_VERSIONS_MODERN = ['6.9', '6.8', '6.7'] as const;
+export const WP_VERSION_LEGACY = '6.1';
+
+/** Default WordPress version paired with a PHP version. */
 export function wpVersionForPhp(php: string): string {
   if (!ALL_PHP_VERSIONS.includes(php as PhpVersion)) {
     throw new ValidationError(`Unsupported PHP version: ${php}`);
   }
-  return php === '7.4' ? '6.1' : DEFAULT_WP;
+  return php === '7.4' ? WP_VERSION_LEGACY : DEFAULT_WP;
 }
 
-function slug(input: string): string {
-  return input.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+/** WordPress versions selectable for a given PHP version, newest first. */
+export function allowedWpVersions(php: string): string[] {
+  return php === '7.4' ? [WP_VERSION_LEGACY] : [...WP_VERSIONS_MODERN];
 }
 
-/** Returns a safe `wp-launcher/<slug>:<tag>` image reference. */
-export function sanitizeImageTag(name: string, tag = 'latest'): string {
-  const s = slug(name);
-  if (!s) throw new ValidationError('Image name must contain letters or numbers');
-  const t = slug(tag) || 'latest';
-  return `${IMAGE_PREFIX}${s}:${t}`;
-}
-
-/** The tag for a base image of a given PHP version. */
-export function baseImageTag(php: string): string {
-  wpVersionForPhp(php); // validates
-  return `${IMAGE_PREFIX}wordpress:php${php}`;
-}
-
-export interface BuildSource {
-  source: 'wordpress.org' | 'url' | 'local';
-  slug?: string;
-  url?: string;
-  filename?: string;
-}
-
-export interface CustomBuildSpec {
-  kind: 'custom';
-  name: string;
-  tag?: string;
-  phpVersion: string;
-  plugins: BuildSource[];
-  themes: BuildSource[];
+/** Throw unless (php, wp) is a supported, buildable combination. */
+export function validatePhpWp(php: string, wp: string): void {
+  if (!ALL_PHP_VERSIONS.includes(php as PhpVersion)) {
+    throw new ValidationError(`Unsupported PHP version: ${php}`);
+  }
+  if (!allowedWpVersions(php).includes(wp)) {
+    throw new ValidationError(`WordPress ${wp} is not available for PHP ${php}`);
+  }
 }
 
 /**
- * Build the RUN/COPY lines that install plugins or themes into the WordPress
- * source tree. Ported from scripts/build-wp-image.sh — the upstream `wordpress`
- * image stages content at /usr/src/wordpress, which the entrypoint copies into
- * the webroot on first boot. Sources missing their required field are skipped.
+ * The tag for a base image. The default WordPress pairing keeps the legacy
+ * php-only tag (backward compatible with existing bases and the
+ * wp-launcher/wordpress:latest default); any other WordPress version gets a
+ * `-wp<ver>` suffix so the two coexist without clobbering each other.
  */
-function installBlock(kind: 'plugins' | 'themes', sources: BuildSource[]): string {
-  const dest = `/usr/src/wordpress/wp-content/${kind}/`;
-  const wpType = kind === 'plugins' ? 'plugin' : 'theme';
-  const lines: string[] = [];
-  for (const s of sources) {
-    if (s.source === 'wordpress.org' && s.slug) {
-      const slug = s.slug.replace(/[^a-z0-9-]/gi, '');
-      lines.push(
-        `RUN curl -L "https://downloads.wordpress.org/${wpType}/${slug}.latest-stable.zip" -o /tmp/${slug}.zip \\\n` +
-        `    && unzip /tmp/${slug}.zip -d ${dest} && rm /tmp/${slug}.zip`,
-      );
-    } else if (s.source === 'url' && s.url) {
-      const file = (s.url.split('/').pop() || 'download.zip').replace(/[^a-z0-9._-]/gi, '_');
-      lines.push(
-        `RUN curl -L "${s.url}" -o /tmp/${file} \\\n` +
-        `    && unzip /tmp/${file} -d ${dest} && rm /tmp/${file}`,
-      );
-    } else if (s.source === 'local' && s.filename) {
-      const file = s.filename.replace(/[^a-z0-9._-]/gi, '_');
-      lines.push(`COPY ${file} /tmp/${file}\nRUN unzip /tmp/${file} -d ${dest} && rm /tmp/${file}`);
-    }
-  }
-  return lines.join('\n');
-}
-
-/** Generate a Dockerfile that layers plugins/themes onto the chosen PHP base. */
-export function generateDockerfile(spec: CustomBuildSpec): string {
-  const parts = [`FROM ${baseImageTag(spec.phpVersion)}`];
-  const plugins = installBlock('plugins', spec.plugins);
-  const themes = installBlock('themes', spec.themes);
-  if (plugins) parts.push(plugins);
-  if (themes) parts.push(themes);
-  return parts.join('\n') + '\n';
+export function baseImageTag(php: string, wp?: string): string {
+  const w = wp || wpVersionForPhp(php);
+  return w === wpVersionForPhp(php)
+    ? `${IMAGE_PREFIX}wordpress:php${php}`
+    : `${IMAGE_PREFIX}wordpress:php${php}-wp${w}`;
 }
