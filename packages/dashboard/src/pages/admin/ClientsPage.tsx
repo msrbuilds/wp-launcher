@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Client } from './shared';
@@ -27,6 +27,36 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+
+/**
+ * Renders a client's contact detail masked by default, with an eye toggle to
+ * reveal it — client PII (email, phone) shouldn't sit in plain view on a shared
+ * screen. The mask is a display convenience, not a security boundary.
+ */
+function SensitiveCell({ value }: { value?: string | null }) {
+  const [shown, setShown] = useState(false);
+  if (!value) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {shown ? (
+        <span>{value}</span>
+      ) : (
+        <span className="select-none tracking-widest text-muted-foreground" aria-hidden="true">••••••••</span>
+      )}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        className="text-muted-foreground hover:text-foreground"
+        onClick={() => setShown(s => !s)}
+        title={shown ? 'Hide' : 'Show'}
+      >
+        {shown ? <EyeOff /> : <Eye />}
+        <span className="sr-only">{shown ? 'Hide' : 'Show'} value</span>
+      </Button>
+    </span>
+  );
+}
 
 export default function ClientsPage() {
   const headers = useAdminHeaders();
@@ -145,9 +175,9 @@ export default function ClientsPage() {
               {clients.map(c => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell>{c.email || '—'}</TableCell>
+                  <TableCell><SensitiveCell value={c.email} /></TableCell>
                   <TableCell>{c.company || '—'}</TableCell>
-                  <TableCell>{c.phone || '—'}</TableCell>
+                  <TableCell><SensitiveCell value={c.phone} /></TableCell>
                   <TableCell><Badge variant="secondary">{c.projectCount || 0}</Badge></TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-2">
