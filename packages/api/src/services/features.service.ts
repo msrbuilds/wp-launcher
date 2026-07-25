@@ -1,3 +1,5 @@
+import { getDb } from '../utils/db';
+
 /**
  * Feature resolution. There are two audiences: the panel operator (owner/admin)
  * and members who launch their own sites. The operator's flags stay in the
@@ -69,4 +71,29 @@ export function resolveFeature(input: {
   if (isAdminRole(input.role)) return input.adminOn;
   if (isAdminOnlyFeature(input.key)) return false;
   return input.demoOn;
+}
+
+function readFlag(settingKey: string): boolean {
+  const row = getDb()
+    .prepare('SELECT value FROM settings WHERE key = ?')
+    .get(settingKey) as { value: string } | undefined;
+  return row?.value === 'true';
+}
+
+/** Is `key` available to a caller with this role? */
+export function isFeatureEnabled(key: string, role: FeatureRole): boolean {
+  if (!ALL_FEATURES.includes(key)) return false;
+  // Read only the namespace this role actually resolves against.
+  if (isAdminRole(role)) {
+    return resolveFeature({ key, role, adminOn: readFlag(adminSettingKey(key)), demoOn: false });
+  }
+  if (isAdminOnlyFeature(key)) return false;
+  return resolveFeature({ key, role, adminOn: false, demoOn: readFlag(demoSettingKey(key)) });
+}
+
+/** Every feature resolved for this role — what the dashboard should render from. */
+export function effectiveFeatures(role: FeatureRole): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const key of ALL_FEATURES) out[key] = isFeatureEnabled(key, role);
+  return out;
 }

@@ -1,7 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import type Database from 'better-sqlite3';
+import { createTestDb } from '../test-helpers/db';
+import { __setDbForTesting } from '../utils/db';
 import {
   ADMIN_ONLY_FEATURES, GRANTABLE_FEATURES, ALL_FEATURES,
   isAdminRole, isAdminOnlyFeature, adminSettingKey, demoSettingKey, resolveFeature,
+  isFeatureEnabled, effectiveFeatures,
 } from './features.service';
 
 describe('catalogs', () => {
@@ -66,5 +70,57 @@ describe('resolveFeature', () => {
 
   it('denies unknown keys outright', () => {
     expect(resolveFeature({ key: 'notAFeature', role: 'owner', adminOn: true, demoOn: true })).toBe(false);
+  });
+});
+
+describe('DB-backed lookups', () => {
+  let db: Database.Database;
+
+  beforeEach(() => {
+    db = createTestDb();
+    __setDbForTesting(db);
+    const set = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
+    set.run('feature.cloning', 'true');        // admin: on
+    set.run('feature.demo.cloning', 'false');  // demo: off
+    set.run('feature.adminer', 'false');       // admin: off
+    set.run('feature.demo.adminer', 'true');   // demo: on
+    set.run('feature.projects', 'true');       // admin-only, on
+  });
+
+  afterEach(() => { __setDbForTesting(null); db.close(); });
+
+  it('reads the admin namespace for an admin', () => {
+    expect(isFeatureEnabled('cloning', 'admin')).toBe(true);
+    expect(isFeatureEnabled('adminer', 'owner')).toBe(false);
+  });
+
+  it('reads the demo namespace for a member', () => {
+    expect(isFeatureEnabled('cloning', 'member')).toBe(false);
+    expect(isFeatureEnabled('adminer', 'member')).toBe(true);
+  });
+
+  it('withholds admin-only features from members regardless of rows', () => {
+    expect(isFeatureEnabled('projects', 'admin')).toBe(true);
+    expect(isFeatureEnabled('projects', 'member')).toBe(false);
+  });
+
+  it('treats a missing row as off', () => {
+    expect(isFeatureEnabled('snapshots', 'admin')).toBe(false);
+    expect(isFeatureEnabled('snapshots', 'member')).toBe(false);
+  });
+
+  it('builds an effective map covering all features for an admin', () => {
+    const map = effectiveFeatures('admin');
+    expect(Object.keys(map).length).toBe(17);
+    expect(map.cloning).toBe(true);
+    expect(map.projects).toBe(true);
+  });
+
+  it('builds an effective map where members see no admin-only features', () => {
+    const map = effectiveFeatures('member');
+    expect(map.adminer).toBe(true);
+    expect(map.cloning).toBe(false);
+    expect(map.projects).toBe(false);
+    expect(map.siteSync).toBe(false);
   });
 });
