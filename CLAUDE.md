@@ -286,11 +286,21 @@ Each demo site gets:
 
 ## Feature Flags
 
-Stored in `settings` table as `feature.*` keys. Controlled via Admin > Features tab.
+Stored in the `settings` table. Controlled via Admin > Features.
 
-`cloning`, `snapshots`, `templates`, `customDomains`, `phpConfig`, `siteExtend` (agency only), `sitePassword`, `exportZip`, `webhooks`, `healthMonitoring`, `scheduledLaunch`, `collaborativeSites`, `adminer`, `publicSharing`, `siteSync`, `projects`, `productivityMonitor`
+Two scopes. `feature.<key>` is the **admin/owner** set (the original rows — unchanged). `feature.demo.<key>` is the **member** set, and absent means off, so members start with nothing until granted.
 
-`productivityMonitor` works on any deployment, local or VPS — it is off by default, not local-only. Reads are gated to owner/admin (`requireGlobalReader`), and heartbeat ingestion additionally requires the cloud account to be linked plus a matching per-install heartbeat secret.
+**Admin-only (5)** — no member counterpart, never granted:
+`projects`, `productivityMonitor`, `siteSync`, `webhooks`, `collaborativeSites`
+
+**Grantable (12)** — one toggle per audience:
+`cloning`, `snapshots`, `templates`, `customDomains`, `phpConfig`, `siteExtend`, `sitePassword`, `exportZip`, `healthMonitoring`, `scheduledLaunch`, `adminer`, `publicSharing`
+
+Resolution lives in `services/features.service.ts`: `isFeatureEnabled(key, role)` reads the admin namespace for owner/admin and the demo namespace for members, with anonymous callers treated as members. The two toggles are independent. The Members column in the UI appears only when `panel.publicRegistration` or `panel.demoPortalEnabled` is on; enforcement is unconditional either way. `GET /api/settings` returns the **effective** map for the caller, so member UI cannot offer actions the API would refuse.
+
+`collaborativeSites` is admin-only because it invites users by email. `share.service.ts` resolves the role from the `userId` it already receives rather than taking a role parameter. The productivity heartbeat and `/cloud/status` endpoints use a separate machine-client guard: they have no session and are authenticated by the heartbeat secret, so resolving them by role would reject every client as anonymous.
+
+`productivityMonitor` works on any deployment, local or VPS — it is off by default, not local-only. Reads are gated to owner/admin (`requireGlobalReader`), and heartbeat ingestion additionally requires a matching per-install heartbeat secret.
 
 ## CSS Architecture
 
