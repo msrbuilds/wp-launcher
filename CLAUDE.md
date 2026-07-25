@@ -283,7 +283,9 @@ Each demo site gets:
 
 Stored in `settings` table as `feature.*` keys. Controlled via Admin > Features tab.
 
-`cloning`, `snapshots`, `templates`, `customDomains`, `phpConfig`, `siteExtend` (agency only), `sitePassword`, `exportZip`, `webhooks`, `healthMonitoring`, `scheduledLaunch`, `collaborativeSites`, `adminer`, `publicSharing`, `siteSync`, `projects`, `productivityMonitor` (local only)
+`cloning`, `snapshots`, `templates`, `customDomains`, `phpConfig`, `siteExtend` (agency only), `sitePassword`, `exportZip`, `webhooks`, `healthMonitoring`, `scheduledLaunch`, `collaborativeSites`, `adminer`, `publicSharing`, `siteSync`, `projects`, `productivityMonitor`
+
+`productivityMonitor` works on any deployment, local or VPS — it is off by default, not local-only. Reads are gated to owner/admin (`requireGlobalReader`), and heartbeat ingestion additionally requires the cloud account to be linked plus a matching per-install heartbeat secret.
 
 ## CSS Architecture
 
