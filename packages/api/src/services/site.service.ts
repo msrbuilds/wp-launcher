@@ -14,6 +14,7 @@ import {
 import { fireWebhookEvent } from './webhook.service';
 import { getBlueprint } from './blueprint.service';
 import { getCloudConfig } from './productivity.service';
+import { publicApiBaseUrl } from '../utils/deployment';
 import { ConflictError, ValidationError, NotFoundError, ForbiddenError } from '../utils/errors';
 import { policy } from '../policy';
 
@@ -233,6 +234,11 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       if (cloudCfg.heartbeat_secret) heartbeatSecret = cloudCfg.heartbeat_secret;
     } catch { /* cloud config may not exist yet */ }
 
+    // Hand the container a browser-reachable API URL. The mu-plugin runs in the
+    // visitor's browser, so the internal http://api:3737 address is useless to it
+    // and deriving one by stripping the subdomain breaks on custom domains.
+    const publicApiUrl = publicApiBaseUrl();
+
     const containerId = await createSiteContainer({
       subdomain,
       image,
@@ -255,6 +261,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       enforceResourceLimits: policy.enforcesResourceLimits(),
       phpConfig: req.phpConfig,
       heartbeatSecret,
+      publicApiUrl,
       directFileAccess: req.directFileAccess,
     });
 

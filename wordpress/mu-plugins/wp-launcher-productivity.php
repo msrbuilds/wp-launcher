@@ -20,16 +20,26 @@ if ( ! is_admin() ) {
  */
 add_action( 'admin_footer', function () {
     $api_url_internal = getenv( 'WP_LAUNCHER_API_URL' );
+    $api_url_public   = getenv( 'WP_LAUNCHER_PUBLIC_API_URL' );
     $subdomain        = getenv( 'WP_SUBDOMAIN' );
     $site_url         = getenv( 'WP_SITE_URL' );
 
-    if ( empty( $api_url_internal ) && empty( $site_url ) ) {
+    if ( empty( $api_url_public ) && empty( $api_url_internal ) && empty( $site_url ) ) {
         return;
     }
 
-    // Build the public API URL from the site URL.
+    // Prefer the panel-resolved public URL: this tracker runs in the visitor's
+    // browser, so WP_LAUNCHER_API_URL (the internal http://api:3737) is not
+    // reachable, and deriving a host from the site URL guesses wrong on custom
+    // domains. Sites created before that env var existed fall through to the
+    // derivation below, which still works for standard subdomain routing.
     $api_url = '';
-    if ( $site_url ) {
+    if ( $api_url_public ) {
+        $api_url = rtrim( $api_url_public, '/' );
+    }
+
+    // Build the public API URL from the site URL.
+    if ( empty( $api_url ) && $site_url ) {
         $parsed = wp_parse_url( $site_url );
         $host   = $parsed['host'] ?? '';
         $parts  = explode( '.', $host );

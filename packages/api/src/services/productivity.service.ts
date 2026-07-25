@@ -611,6 +611,49 @@ export function deleteCloudConfig(): void {
   db.prepare('DELETE FROM productivity_cloud_config').run();
 }
 
+/**
+ * Unlink the cloud account while preserving the install's heartbeat secret and
+ * device identity. Wiping the secret here would stop every running demo site
+ * from reporting, even though unlinking should only turn off the cloud
+ * destination — local tracking is independent of it.
+ */
+export function deleteCloudAccount(): void {
+  const db = getDb();
+  db.prepare(
+    "DELETE FROM productivity_cloud_config WHERE key IN ('cloud_url', 'cloud_api_key', 'last_synced_at')",
+  ).run();
+}
+
+// ── Heartbeat secret ──
+//
+// The secret authenticates non-browser clients (the editor extension, demo-site
+// browser JS via sendBeacon) that cannot use cookie auth. It belongs to the
+// install, not to any cloud account: tracking works with no cloud linked, so
+// minting is tied to enabling the feature instead. It is deliberately never
+// rotated implicitly — every running demo site carries it as a baked-in env var,
+// so a silent rotation would stop those sites reporting with no visible cause.
+
+function newHeartbeatSecret(): string {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  return require('crypto').randomBytes(32).toString('base64url');
+}
+
+/** Mint a heartbeat secret if this install doesn't have one yet. Idempotent. */
+export function ensureHeartbeatSecret(): string {
+  const existing = getCloudConfig().heartbeat_secret;
+  if (existing) return existing;
+  const secret = newHeartbeatSecret();
+  setCloudConfig('heartbeat_secret', secret);
+  return secret;
+}
+
+/** Replace the heartbeat secret. Callers must warn that running sites go quiet. */
+export function rotateHeartbeatSecret(): string {
+  const secret = newHeartbeatSecret();
+  setCloudConfig('heartbeat_secret', secret);
+  return secret;
+}
+
 // ── Sync helpers ──
 
 export function getUnsyncedHeartbeats(limit: number): HeartbeatRow[] {

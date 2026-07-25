@@ -111,7 +111,7 @@ Tables in `data/wp-launcher.db`:
 - **invoices** — id, invoice_number (INV-0001), user_id, client_id, project_id, items (JSON line items), subtotal, tax_rate, tax_amount, total, currency, status (draft/sent/paid/overdue/cancelled), issue_date, due_date, notes, created_at, updated_at
 - **productivity_heartbeats** — id, source (editor|wordpress), entity, entity_type, project, language, category, editor, site_id, machine_id, branch, is_write, created_at, synced
 - **productivity_goals** — id, daily_goal_seconds, updated_at
-- **productivity_cloud_config** — key, value (cloud_url, cloud_api_key, device_name, last_synced_at)
+- **productivity_cloud_config** — key, value (cloud_url, cloud_api_key, device_name, machine_id, last_synced_at, heartbeat_secret — the secret is per-install and outlives cloud linking)
 - **productivity_sync_log** — id, heartbeats_count, status, error, started_at, completed_at
 - **image_builds** — id, tag, kind (base|custom), status (queued/building/success/failed), log, error, spec (JSON), created_by, started_at, completed_at, created_at
 
@@ -187,10 +187,15 @@ Base runtime images only (PHP + WordPress version). Plugins/themes are a bluepri
 - `GET /stats/screens` — WordPress screen breakdown
 - `GET /stats/summary?days=14` — summary with best day, write count
 - `GET|PUT /goals` — daily goal (seconds)
-- `GET|PUT|DELETE /cloud/config` — cloud connection (URL, API key, device name)
-- `GET /cloud/status` — check if cloud linked (no auth, CSRF exempt)
+- `GET|PUT|DELETE /cloud/config` — cloud connection (URL, API key, device name). `PUT` never rotates the heartbeat secret; `DELETE` unlinks the account but keeps the secret so local tracking survives
+- `GET /cloud/status` — tracking/cloud state (no auth, CSRF exempt): `{ tracking, cloudLinked, isLocal, destination, syncing, apiBaseUrl }`
 - `POST /cloud/sync` — trigger manual sync to cloud
 - `GET /cloud/sync-log` — recent sync history
+- `GET /secret` — the install's heartbeat secret (+ the public API base URL clients should post to)
+- `POST /secret/rotate` — mint a new secret; running demo sites keep the old one and stop reporting until relaunched
+- `GET|PUT /destination` — heartbeat destination: `auto` (default) | `local` | `cloud`
+
+**Hybrid routing.** Heartbeats always land in local SQLite (that's what the dashboard reads) and are optionally forwarded to a linked cloud account. Ingestion requires the feature enabled + a valid heartbeat secret — **not** a cloud account — so a localhost install tracks standalone. The secret is minted when `productivityMonitor` is enabled (and backfilled at boot for installs enabled earlier). `auto` syncs only on a non-local deployment with a linked account; `local` never syncs; `cloud` syncs whenever linked. Cloud push runs every 15 min and is a no-op unless the resolved destination says otherwise. Local vs public is derived by `utils/deployment.ts` from `PUBLIC_URL`/`BASE_DOMAIN` (loopback, RFC1918, `*.local`, `*.localhost` → local).
 
 ### Other
 - `GET /health` — health check
@@ -220,7 +225,7 @@ Products defined in `products/[id].json`. Key fields:
 - **wp-launcher-restrictions.php** — Blocks dangerous capabilities (install/edit plugins/themes, update_core, export/import), removes admin menus, blocks direct page access. Skipped entirely when `WP_LOCAL_MODE=true`
 - **wp-launcher-branding.php** — Admin bar countdown timer, auto-redirect on expiry
 - **wp-launcher-autologin.php** — `?autologin={token}` for instant demo access
-- **wp-launcher-productivity.php** — Tracks wp-admin activity (editing, customizer, media, plugins, themes, settings, WooCommerce). Sends heartbeats via `sendBeacon(text/plain)` to WP Launcher API. Uses `WP_SITE_URL` to derive public API URL (strips subdomain, adds `:3737` for localhost)
+- **wp-launcher-productivity.php** — Tracks wp-admin activity (editing, customizer, media, plugins, themes, settings, WooCommerce). Sends heartbeats via `sendBeacon(text/plain)` to the WP Launcher API. Prefers `WP_LAUNCHER_PUBLIC_API_URL` (the panel-resolved, browser-reachable URL, injected at container creation); falls back to deriving one from `WP_SITE_URL` (strips subdomain, adds `:3737` for localhost) for sites created before that env var existed. Note `WP_LAUNCHER_API_URL` is the *internal* `http://api:3737` and is not usable from a browser
 
 ## WP Launcher Connector Plugin
 

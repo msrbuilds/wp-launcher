@@ -61,6 +61,8 @@ export interface CreateContainerOptions {
   /** Apply CPU/memory limits and upload/disk quotas to the container. */
   enforceResourceLimits?: boolean;
   heartbeatSecret?: string;
+  /** Browser-reachable API base URL, for the productivity mu-plugin's client JS. */
+  publicApiUrl?: string;
   directFileAccess?: boolean;
   phpConfig?: {
     memoryLimit?: string;

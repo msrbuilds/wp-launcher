@@ -7,8 +7,27 @@ import {
   addSyncLog,
   setCloudConfig,
 } from './productivity.service';
+import { getSetting } from './settings.service';
+import { isLocalDeployment } from '../utils/deployment';
+import {
+  DESTINATION_SETTING_KEY, parseDestination, resolveSyncEnabled,
+} from './productivity-destination';
 
 const BATCH_SIZE = 1000;
+
+/**
+ * Whether this install should be pushing to a cloud account right now. Heartbeats
+ * are always stored locally; this only gates the outbound push, so a localhost
+ * install stays self-contained and a public one feeds its central account.
+ */
+export function isCloudSyncEnabled(): boolean {
+  const cfg = getCloudConfig();
+  return resolveSyncEnabled({
+    destination: parseDestination(getSetting(DESTINATION_SETTING_KEY)),
+    cloudLinked: !!(cfg.cloud_url && cfg.cloud_api_key),
+    isLocal: isLocalDeployment(),
+  });
+}
 
 async function pushHeartbeatsToCloud(): Promise<{ pushed: number; status: string; error?: string }> {
   const config = getCloudConfig();
@@ -76,16 +95,23 @@ async function pushHeartbeatsToCloud(): Promise<{ pushed: number; status: string
 }
 
 export function startProductivitySync(): void {
-  // Run every 6 hours
-  cron.schedule('0 */6 * * *', () => {
+  // Every 15 minutes. Each tick is a no-op unless this install is configured to
+  // push, so a localhost or local-only install costs nothing but a settings read.
+  cron.schedule('*/15 * * * *', () => {
+    if (!isCloudSyncEnabled()) return;
     console.log('[productivity-sync] Starting scheduled cloud sync...');
     pushHeartbeatsToCloud().catch(err => {
       console.error('[productivity-sync] Scheduled sync error:', err.message);
     });
   });
-  console.log('[productivity-sync] Scheduled cloud sync every 6 hours');
+  console.log('[productivity-sync] Scheduled cloud sync every 15 minutes (when a cloud destination is active)');
 }
 
+/**
+ * Manual sync from the panel. Unlike the scheduled tick this does not check the
+ * destination setting: an explicit "sync now" should push if an account is linked,
+ * which pushHeartbeatsToCloud already requires.
+ */
 export async function triggerManualSync(): Promise<{ pushed: number; status: string; error?: string }> {
   return pushHeartbeatsToCloud();
 }

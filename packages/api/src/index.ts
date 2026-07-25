@@ -24,6 +24,9 @@ import monitoringRouter from './routes/monitoring';
 import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cleanup.service';
 import { startScheduleProcessor } from './services/schedule.service';
 import { startProductivitySync } from './services/productivity-sync.service';
+import { ensureHeartbeatSecret } from './services/productivity.service';
+import { reconcileStuckImageBuilds } from './services/imageBuildJob.service';
+import { publicApiBaseUrl, isLocalDeployment } from './utils/deployment';
 import { closeDb, getDb } from './utils/db';
 import { getPanelSettings } from './services/settings.service';
 import { policy } from './policy';
@@ -415,6 +418,16 @@ app.put('/api/admin/features', adminAuth, (req, res) => {
       update.run(`feature.${name}`, String(enabled));
     }
   }
+  // Tracking needs a heartbeat secret to authenticate its clients, and that is
+  // independent of any cloud account — mint it when the feature is switched on so
+  // a localhost install works with no further setup.
+  if (features.productivityMonitor === true) {
+    try {
+      ensureHeartbeatSecret();
+    } catch (err: any) {
+      console.error('[productivity] could not mint heartbeat secret:', err.message);
+    }
+  }
   res.json({ status: 'updated' });
 });
 
@@ -560,7 +573,28 @@ const server = app.listen(config.port, () => {
   console.log(`[api] WP Launcher API running on port ${config.port}`);
   console.log(`[api] Base domain: ${config.baseDomain}`);
   console.log(`[api] Environment: ${config.nodeEnv}`);
+  console.log(`[api] Public API URL for clients: ${publicApiBaseUrl()} (${isLocalDeployment() ? 'local' : 'public'} deployment)`);
 });
+
+// Backfill a heartbeat secret for installs that enabled tracking before it was
+// decoupled from cloud linking — without one, ingestion would reject every client.
+try {
+  const row = getDb().prepare("SELECT value FROM settings WHERE key = 'feature.productivityMonitor'").get() as { value?: string } | undefined;
+  if (row?.value === 'true') ensureHeartbeatSecret();
+} catch (err: any) {
+  console.error('[productivity] heartbeat secret backfill failed:', err.message);
+}
+
+// An image build's runner lives in this process, so a build still marked
+// 'building' when the API starts can never finish and is failed here. This must
+// run only on API startup, NOT from initDb(): getDb() initialises lazily, so any
+// one-off script or CLI process that opens the database would otherwise reconcile
+// — and silently kill a build running in the real server.
+try {
+  reconcileStuckImageBuilds();
+} catch (err: any) {
+  console.error('[images] stuck build reconcile failed:', err.message);
+}
 
 // Start cleanup scheduler
 startCleanupScheduler();

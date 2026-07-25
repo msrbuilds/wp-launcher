@@ -132,6 +132,7 @@ interface CreateBody {
   /** Apply CPU/memory limits and upload/disk quotas to the container. */
   enforceResourceLimits?: boolean;
   heartbeatSecret?: string;
+  publicApiUrl?: string;
   directFileAccess?: boolean;
   phpConfig?: {
     memoryLimit?: string;
@@ -266,6 +267,9 @@ app.post('/containers', async (req: Request, res: Response) => {
     env.push('WP_CLI_CACHE_DIR=/var/www/.wp-cli-cache');
     // SBP-004: Pass heartbeat secret for authenticated productivity tracking
     if (opts.heartbeatSecret) env.push(`WP_HEARTBEAT_SECRET=${opts.heartbeatSecret}`);
+    // Browser-reachable API URL for the productivity tracker's client JS. Distinct
+    // from WP_LAUNCHER_API_URL above, which is the internal address for PHP.
+    if (opts.publicApiUrl) env.push(`WP_LAUNCHER_PUBLIC_API_URL=${opts.publicApiUrl}`);
 
     // Generate unique WordPress salts per container
     const wpSaltKeys = [

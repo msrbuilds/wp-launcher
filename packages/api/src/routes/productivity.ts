@@ -15,12 +15,18 @@ import {
   getHourlyActivity, getWeekdayActivity, getScreenBreakdown, getWriteEvents, getSummaryStats,
   getGoal, setGoal,
   getCurrentStreak,
-  getCloudConfig, setCloudConfig, deleteCloudConfig,
+  getCloudConfig, setCloudConfig, deleteCloudAccount,
+  ensureHeartbeatSecret, rotateHeartbeatSecret,
   getSyncLogs,
   clearOldData, clearAllData,
   HeartbeatInput,
 } from '../services/productivity.service';
 import { triggerManualSync } from '../services/productivity-sync.service';
+import { isLocalDeployment, publicApiBaseUrl } from '../utils/deployment';
+import { getSetting, setSetting } from '../services/settings.service';
+import {
+  DESTINATION_SETTING_KEY, DESTINATIONS, parseDestination, resolveSyncEnabled,
+} from '../services/productivity-destination';
 
 const router = Router();
 
@@ -93,27 +99,39 @@ function requireFeature(_req: AuthRequest, res: Response, next: () => void) {
 const heartbeatLimiter = rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false });
 router.use('/heartbeats', heartbeatLimiter);
 
-// Cloud status — no auth, used by extensions and MU-plugin to check if tracking is active
+// Cloud status — no auth, used by extensions and MU-plugin to check if tracking is active.
+// `linked` is kept for older clients that only understand cloud linking.
 router.get('/cloud/status', requireFeature, (_req: AuthRequest, res: Response) => {
   try {
-    const config = getCloudConfig();
-    const linked = !!(config.cloud_url && config.cloud_api_key);
-    res.json({ linked, featureEnabled: true });
+    const cfg = getCloudConfig();
+    const cloudLinked = !!(cfg.cloud_url && cfg.cloud_api_key);
+    const isLocal = isLocalDeployment();
+    const destination = parseDestination(getSetting(DESTINATION_SETTING_KEY));
+    res.json({
+      linked: cloudLinked,
+      featureEnabled: true,
+      // Tracking is live as soon as the install has a secret — a cloud account is
+      // no longer a prerequisite, only a destination.
+      tracking: !!cfg.heartbeat_secret,
+      cloudLinked,
+      isLocal,
+      destination,
+      syncing: resolveSyncEnabled({ destination, cloudLinked, isLocal }),
+      apiBaseUrl: publicApiBaseUrl(),
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Heartbeat endpoint requires feature enabled, cloud linked, AND a valid heartbeat secret.
-// SBP-004: The secret authenticates non-browser clients (extensions, MU-plugin) that
-// cannot use cookie auth or custom headers via sendBeacon.
+// Heartbeat ingestion requires the feature enabled AND a valid heartbeat secret.
+// SBP-004: the secret authenticates non-browser clients (extensions, MU-plugin)
+// that cannot use cookie auth or custom headers via sendBeacon. A linked cloud
+// account is deliberately NOT required — a localhost install stores locally and
+// shows its own dashboard without any cloud involvement.
 router.post('/heartbeats', requireFeature, (req: AuthRequest, res: Response) => {
   try {
     const cloudCfg = getCloudConfig();
-    if (!cloudCfg.cloud_url || !cloudCfg.cloud_api_key) {
-      res.status(403).json({ error: 'Cloud account not linked. Connect your account in the Productivity page to start tracking.' });
-      return;
-    }
 
     // SBP-004: Validate per-install heartbeat secret
     const secret = req.body?.secret;
@@ -408,10 +426,10 @@ router.put('/cloud/config', async (req: AuthRequest, res: Response) => {
     if (device_name) setCloudConfig('device_name', device_name);
     if (machine_id) setCloudConfig('machine_id', machine_id);
 
-    // SBP-004: Generate a per-install heartbeat secret for authenticating ingestion clients
-    const crypto = await import('crypto');
-    const heartbeatSecret = crypto.randomBytes(32).toString('base64url');
-    setCloudConfig('heartbeat_secret', heartbeatSecret);
+    // Linking a cloud account must NOT rotate the heartbeat secret: running demo
+    // sites carry it as a baked-in env var and would silently stop reporting.
+    // Mint one only if this install somehow has none yet.
+    const heartbeatSecret = ensureHeartbeatSecret();
 
     res.json({ message: 'Cloud account linked successfully', verified: true, heartbeat_secret: heartbeatSecret });
   } catch (err: any) {
@@ -421,8 +439,73 @@ router.put('/cloud/config', async (req: AuthRequest, res: Response) => {
 
 router.delete('/cloud/config', (_req: AuthRequest, res: Response) => {
   try {
-    deleteCloudConfig();
-    res.json({ message: 'Cloud config removed' });
+    // Unlink the account but keep the heartbeat secret — local tracking survives.
+    deleteCloudAccount();
+    res.json({ message: 'Cloud account unlinked. Local tracking continues.' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Heartbeat secret ──
+
+router.get('/secret', (_req: AuthRequest, res: Response) => {
+  try {
+    res.json({ heartbeat_secret: ensureHeartbeatSecret(), apiBaseUrl: publicApiBaseUrl() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Rotating invalidates the secret baked into every running demo site, so it is an
+// explicit action and the response says what breaks.
+router.post('/secret/rotate', (_req: AuthRequest, res: Response) => {
+  try {
+    res.json({
+      heartbeat_secret: rotateHeartbeatSecret(),
+      warning: 'Existing demo sites keep the previous secret and stop reporting until they are relaunched.',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Tracking destination ──
+
+router.get('/destination', (_req: AuthRequest, res: Response) => {
+  try {
+    const cfg = getCloudConfig();
+    const cloudLinked = !!(cfg.cloud_url && cfg.cloud_api_key);
+    const isLocal = isLocalDeployment();
+    const destination = parseDestination(getSetting(DESTINATION_SETTING_KEY));
+    res.json({
+      destination,
+      options: DESTINATIONS,
+      isLocal,
+      cloudLinked,
+      syncing: resolveSyncEnabled({ destination, cloudLinked, isLocal }),
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/destination', (req: AuthRequest, res: Response) => {
+  try {
+    const requested = String(req.body?.destination ?? '');
+    if (!(DESTINATIONS as readonly string[]).includes(requested)) {
+      res.status(400).json({ error: `destination must be one of: ${DESTINATIONS.join(', ')}` });
+      return;
+    }
+    setSetting(DESTINATION_SETTING_KEY, requested);
+    const cfg = getCloudConfig();
+    const cloudLinked = !!(cfg.cloud_url && cfg.cloud_api_key);
+    const isLocal = isLocalDeployment();
+    const destination = parseDestination(requested);
+    res.json({
+      destination,
+      syncing: resolveSyncEnabled({ destination, cloudLinked, isLocal }),
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

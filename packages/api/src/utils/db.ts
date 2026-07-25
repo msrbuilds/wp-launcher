@@ -535,14 +535,6 @@ function initSchema(db: Database.Database): void {
     }
   }
 
-  // Any image build left mid-flight by a restart can never resume (the runner is
-  // in-process); fail it so the UI doesn't show a permanently 'building' job.
-  // Lazy require avoids a module cycle (the service imports from this file).
-  try {
-    require('../services/imageBuildJob.service').reconcileStuckImageBuilds();
-  } catch {
-    // Service or table may not be present on a very old DB — safe to skip.
-  }
 }
 
 export function closeDb(): void {

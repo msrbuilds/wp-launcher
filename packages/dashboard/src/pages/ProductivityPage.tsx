@@ -276,6 +276,12 @@ export default function ProductivityPage() {
   const [syncMsg, setSyncMsg] = useState('');
   const [showIntegrations, setShowIntegrations] = useState(false);
 
+  // Where heartbeats go. Local storage always happens; this is the cloud leg.
+  const [dest, setDest] = useState<{
+    destination: string; isLocal: boolean; cloudLinked: boolean; syncing: boolean;
+  } | null>(null);
+  const [savingDest, setSavingDest] = useState(false);
+
   // Goal editing
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalHours, setGoalHours] = useState(6);
@@ -298,7 +304,7 @@ export default function ProductivityPage() {
       const startParam = `${rangeStart.toISOString().slice(0, 10)} 00:00:00`;
       const endParam = `${today} 23:59:59`;
 
-      const [statsRes, rangeRes, dailyRes, hourlyRes, weekdayRes, screenRes, summaryRes, cloudRes, logsRes] = await Promise.all([
+      const [statsRes, rangeRes, dailyRes, hourlyRes, weekdayRes, screenRes, summaryRes, cloudRes, logsRes, destRes] = await Promise.all([
         apiFetch(`/api/productivity/stats/today${sourceParam ? '?' + sourceParam.slice(1) : ''}`, { headers }),
         apiFetch(`/api/productivity/stats/range?days=${days}${sourceParam}`, { headers }),
         apiFetch(`/api/productivity/stats/daily?days=${days}${sourceParam}`, { headers }),
@@ -308,6 +314,7 @@ export default function ProductivityPage() {
         apiFetch(`/api/productivity/stats/summary?days=${days}${sourceParam}`, { headers }),
         apiFetch('/api/productivity/cloud/config', { headers }),
         apiFetch('/api/productivity/cloud/sync-log?limit=10', { headers }),
+        apiFetch('/api/productivity/destination', { headers }),
       ]);
 
       if (statsRes.ok) {
@@ -323,6 +330,7 @@ export default function ProductivityPage() {
       if (summaryRes.ok) setSummary(await summaryRes.json());
       if (cloudRes.ok) setCloudConfig(await cloudRes.json());
       if (logsRes.ok) setSyncLogs(await logsRes.json());
+      if (destRes.ok) setDest(await destRes.json());
 
       setError('');
     } catch (err: any) {
@@ -373,6 +381,20 @@ export default function ProductivityPage() {
     await apiFetch('/api/productivity/cloud/config', { method: 'DELETE', headers });
     setCloudConfig({});
     fetchData();
+  };
+
+  const saveDestination = async (destination: string) => {
+    setSavingDest(true);
+    try {
+      const res = await apiFetch('/api/productivity/destination', {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destination }),
+      });
+      if (res.ok) fetchData();
+    } finally {
+      setSavingDest(false);
+    }
   };
 
   const triggerSync = async () => {
@@ -536,13 +558,65 @@ export default function ProductivityPage() {
         <div className={statCard}>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-card-foreground">Cloud Sync</h3>
-              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Link this install to your WP Launcher cloud account to back up productivity heartbeats and sync them across devices.</p>
+              <h3 className="text-sm font-semibold text-card-foreground">Tracking &amp; Cloud Sync</h3>
+              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">Heartbeats are always stored on this install, which is what the dashboard above reads. Linking a cloud account adds a second destination so several installs or devices can report into one place.</p>
             </div>
             <Button variant="ghost" size="icon-sm" onClick={() => setShowCloud(false)} aria-label="Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
+
+          {/* This install — visible with or without a cloud account, because local
+              tracking no longer depends on one. */}
+          {dest && (
+            <div className="mt-4 rounded-xl border border-border p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="text-sm font-semibold text-card-foreground">This install</h4>
+                <Badge variant="secondary">{dest.isLocal ? 'Local deployment' : 'Public deployment'}</Badge>
+                <Badge variant={dest.syncing ? 'default' : 'secondary'}>
+                  {dest.syncing ? 'Syncing to cloud' : 'Local only'}
+                </Badge>
+              </div>
+
+              <div className="mt-3 flex flex-col gap-2">
+                <Label htmlFor="prod-destination">Heartbeat destination</Label>
+                <Select
+                  value={dest.destination}
+                  onValueChange={saveDestination}
+                  disabled={savingDest}
+                >
+                  <SelectTrigger id="prod-destination" className="w-full sm:max-w-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">
+                      Auto — {dest.isLocal ? 'local only (detected local install)' : 'sync to cloud when linked'}
+                    </SelectItem>
+                    <SelectItem value="local">Local only — never send to the cloud</SelectItem>
+                    <SelectItem value="cloud">Cloud — send whenever an account is linked</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground">
+                  {dest.cloudLinked
+                    ? 'A cloud account is linked; this decides whether it receives data.'
+                    : 'No cloud account is linked, so nothing leaves this install yet.'}
+                </span>
+              </div>
+
+              {cloudConfig.heartbeat_secret && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-card-foreground">Heartbeat secret</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <code className="rounded-lg bg-muted px-2 py-1 font-mono text-xs text-foreground">{cloudConfig.heartbeat_secret}</code>
+                    <Button size="sm" variant="secondary" title="Copy secret" onClick={() => { navigator.clipboard.writeText(cloudConfig.heartbeat_secret!); }}>Copy</Button>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Paste into VS Code Settings &gt; WP Launcher Productivity &gt; Heartbeat Secret. Demo sites receive it automatically when launched.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="mt-4">
             {cloudConfig.cloud_url ? (
@@ -551,16 +625,6 @@ export default function ProductivityPage() {
                   <p><strong className="font-medium text-card-foreground">Cloud URL:</strong> {cloudConfig.cloud_url}</p>
                   <p><strong className="font-medium text-card-foreground">API Key:</strong> {cloudConfig.cloud_api_key}</p>
                   <p><strong className="font-medium text-card-foreground">Last Synced:</strong> {cloudConfig.last_synced_at ? new Date(cloudConfig.last_synced_at).toLocaleString() : 'Never'}</p>
-                  {cloudConfig.heartbeat_secret && (
-                    <div className="pt-2">
-                      <p><strong className="font-medium text-card-foreground">VS Code Secret:</strong></p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <code className="rounded-lg bg-muted px-2 py-1 font-mono text-xs text-foreground">{cloudConfig.heartbeat_secret}</code>
-                        <Button size="sm" variant="secondary" title="Copy secret" onClick={() => { navigator.clipboard.writeText(cloudConfig.heartbeat_secret!); }}>Copy</Button>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">Paste this into VS Code Settings &gt; WP Launcher Productivity &gt; Heartbeat Secret</p>
-                    </div>
-                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" onClick={triggerSync} disabled={syncing}>
