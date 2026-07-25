@@ -16,11 +16,7 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors';
 import { validatePhpConfig } from '../utils/phpConfigValidation';
 import { getDb } from '../utils/db';
-
-function isFeatureEnabled(key: string): boolean {
-  const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(`feature.${key}`) as { value: string } | undefined;
-  return row?.value === 'true';
-}
+import { isFeatureEnabled } from '../services/features.service';
 
 const router = Router();
 
@@ -139,7 +135,7 @@ router.get('/', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Respon
 // --- Scheduled Site Launch (must be before /:id to avoid route conflict) ---
 
 router.post('/schedule', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!isFeatureEnabled('scheduledLaunch')) throw new ForbiddenError('Scheduled launches are disabled');
+  if (!isFeatureEnabled('scheduledLaunch', req.userRole)) throw new ForbiddenError('Scheduled launches are disabled');
   const { scheduledAt, config } = req.body;
   const blueprintId = req.body.blueprintId ?? req.body.productId;
   if (!blueprintId) throw new ValidationError('blueprintId is required');
@@ -149,13 +145,13 @@ router.post('/schedule', siteWriteLimiter, conditionalAuth, asyncHandler(async (
 }));
 
 router.get('/scheduled', siteReadLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!isFeatureEnabled('scheduledLaunch')) throw new ForbiddenError('Scheduled launches are disabled');
+  if (!isFeatureEnabled('scheduledLaunch', req.userRole)) throw new ForbiddenError('Scheduled launches are disabled');
   const launches = listScheduledLaunches(req.userId);
   res.json({ launches });
 }));
 
 router.delete('/scheduled/:id', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!isFeatureEnabled('scheduledLaunch')) throw new ForbiddenError('Scheduled launches are disabled');
+  if (!isFeatureEnabled('scheduledLaunch', req.userRole)) throw new ForbiddenError('Scheduled launches are disabled');
   cancelScheduledLaunch(req.params.id, req.userId);
   res.json({ message: 'Scheduled launch cancelled' });
 }));
@@ -382,7 +378,7 @@ router.post('/:id/export-template', siteWriteLimiter, conditionalAuth, asyncHand
 // --- Site Health Monitoring ---
 
 router.get('/:id/stats', siteReadLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!isFeatureEnabled('healthMonitoring')) throw new ForbiddenError('Health monitoring is disabled');
+  if (!isFeatureEnabled('healthMonitoring', req.userRole)) throw new ForbiddenError('Health monitoring is disabled');
   const site = getSite(req.params.id);
   if (!site) throw new NotFoundError('Site not found');
   if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only view your own sites');
@@ -394,7 +390,7 @@ router.get('/:id/stats', siteReadLimiter, conditionalAuth, asyncHandler(async (r
 // --- Site Password Protection ---
 
 router.get('/:id/password', siteReadLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!isFeatureEnabled('sitePassword')) throw new ForbiddenError('Site password protection is disabled');
+  if (!isFeatureEnabled('sitePassword', req.userRole)) throw new ForbiddenError('Site password protection is disabled');
   const site = getSite(req.params.id);
   if (!site) throw new NotFoundError('Site not found');
   if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only view your own sites');
@@ -404,7 +400,7 @@ router.get('/:id/password', siteReadLimiter, conditionalAuth, asyncHandler(async
 }));
 
 router.patch('/:id/password', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!isFeatureEnabled('sitePassword')) throw new ForbiddenError('Site password protection is disabled');
+  if (!isFeatureEnabled('sitePassword', req.userRole)) throw new ForbiddenError('Site password protection is disabled');
   const site = getSite(req.params.id);
   if (!site) throw new NotFoundError('Site not found');
   if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only modify your own sites');
@@ -420,7 +416,7 @@ router.patch('/:id/password', siteWriteLimiter, conditionalAuth, asyncHandler(as
 // --- Export Site as ZIP ---
 
 router.post('/:id/export-zip', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!isFeatureEnabled('exportZip')) throw new ForbiddenError('Site export is disabled');
+  if (!isFeatureEnabled('exportZip', req.userRole)) throw new ForbiddenError('Site export is disabled');
   const site = getSite(req.params.id);
   if (!site) throw new NotFoundError('Site not found');
   if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only export your own sites');
@@ -467,7 +463,7 @@ router.get('/:id/export-zip/:exportId/download', conditionalAuth, asyncHandler(a
 // --- Database Credentials (Adminer) ---
 
 router.get('/:id/db-credentials', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!isFeatureEnabled('adminer')) throw new ForbiddenError('Database manager is disabled');
+  if (!isFeatureEnabled('adminer', req.userRole)) throw new ForbiddenError('Database manager is disabled');
   const site = getSite(req.params.id);
   if (!site) throw new NotFoundError('Site not found');
   if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only access your own sites');
@@ -498,7 +494,7 @@ router.get('/:id/db-credentials', conditionalAuth, asyncHandler(async (req: Auth
 // --- Public Sharing (Tunnels) ---
 
 router.post('/:id/tunnel', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!isFeatureEnabled('publicSharing')) throw new ForbiddenError('Public sharing is disabled');
+  if (!isFeatureEnabled('publicSharing', req.userRole)) throw new ForbiddenError('Public sharing is disabled');
   const site = getSite(req.params.id);
   if (!site) throw new NotFoundError('Site not found');
   if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('You can only share your own sites');
@@ -517,7 +513,7 @@ router.post('/:id/tunnel', conditionalAuth, asyncHandler(async (req: AuthRequest
 }));
 
 router.get('/:id/tunnel', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!isFeatureEnabled('publicSharing')) throw new ForbiddenError('Public sharing is disabled');
+  if (!isFeatureEnabled('publicSharing', req.userRole)) throw new ForbiddenError('Public sharing is disabled');
   const site = getSite(req.params.id);
   if (!site) throw new NotFoundError('Site not found');
   if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('Access denied');
@@ -527,7 +523,7 @@ router.get('/:id/tunnel', conditionalAuth, asyncHandler(async (req: AuthRequest,
 }));
 
 router.delete('/:id/tunnel', conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
-  if (!isFeatureEnabled('publicSharing')) throw new ForbiddenError('Public sharing is disabled');
+  if (!isFeatureEnabled('publicSharing', req.userRole)) throw new ForbiddenError('Public sharing is disabled');
   const site = getSite(req.params.id);
   if (!site) throw new NotFoundError('Site not found');
   if (req.userId !== 'admin' && site.user_id !== req.userId) throw new ForbiddenError('Access denied');

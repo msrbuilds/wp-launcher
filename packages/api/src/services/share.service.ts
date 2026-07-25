@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../utils/db';
 import { ForbiddenError, NotFoundError, ValidationError, ConflictError } from '../utils/errors';
 import { sendShareNotificationEmail } from './email.service';
+import { getUserById } from './user.service';
+import { isFeatureEnabled } from './features.service';
 
 export interface SiteShare {
   id: string;
@@ -14,13 +16,20 @@ export interface SiteShare {
   created_at: string;
 }
 
-function isFeatureEnabled(): boolean {
-  const row = getDb().prepare("SELECT value FROM settings WHERE key = 'feature.collaborativeSites'").get() as { value: string } | undefined;
-  return row?.value === 'true';
+/**
+ * Sharing is admin-only (see ADMIN_ONLY_FEATURES): it invites other users by
+ * email, which is an access-granting and outbound-mail vector that should not
+ * sit behind self-service signup. These functions receive a userId rather than a
+ * role, so the role is resolved here instead of threading it through six
+ * signatures and every caller.
+ */
+function sharingAllowedFor(userId: string | undefined): boolean {
+  const role = userId ? getUserById(userId)?.role : undefined;
+  return isFeatureEnabled('collaborativeSites', role);
 }
 
 export function shareSite(siteId: string, ownerUserId: string, targetEmail: string, role: 'viewer' | 'admin' = 'viewer'): SiteShare {
-  if (!isFeatureEnabled()) throw new ForbiddenError('Collaborative sites is disabled');
+  if (!sharingAllowedFor(ownerUserId)) throw new ForbiddenError('Collaborative sites is disabled');
   const db = getDb();
 
   // Verify the site exists and the caller owns it
@@ -59,7 +68,7 @@ export function shareSite(siteId: string, ownerUserId: string, targetEmail: stri
 }
 
 export function listSiteShares(siteId: string, userId: string): SiteShare[] {
-  if (!isFeatureEnabled()) return [];
+  if (!sharingAllowedFor(userId)) return [];
   const db = getDb();
 
   // Owner or admin can see all shares for a site
@@ -71,7 +80,7 @@ export function listSiteShares(siteId: string, userId: string): SiteShare[] {
 }
 
 export function listSharedWithMe(userId: string, userEmail: string): any[] {
-  if (!isFeatureEnabled()) return [];
+  if (!sharingAllowedFor(userId)) return [];
   const db = getDb();
 
   // Find shares by user ID or email
@@ -86,7 +95,7 @@ export function listSharedWithMe(userId: string, userEmail: string): any[] {
 }
 
 export function revokeShare(shareId: string, userId: string): void {
-  if (!isFeatureEnabled()) throw new ForbiddenError('Collaborative sites is disabled');
+  if (!sharingAllowedFor(userId)) throw new ForbiddenError('Collaborative sites is disabled');
   const db = getDb();
 
   const share = db.prepare('SELECT * FROM site_shares WHERE id = ?').get(shareId) as SiteShare | undefined;
@@ -101,7 +110,7 @@ export function revokeShare(shareId: string, userId: string): void {
 }
 
 export function updateShareRole(shareId: string, userId: string, role: 'viewer' | 'admin'): void {
-  if (!isFeatureEnabled()) throw new ForbiddenError('Collaborative sites is disabled');
+  if (!sharingAllowedFor(userId)) throw new ForbiddenError('Collaborative sites is disabled');
   const db = getDb();
 
   const share = db.prepare('SELECT * FROM site_shares WHERE id = ?').get(shareId) as SiteShare | undefined;
@@ -119,7 +128,7 @@ export function hasAccessToSite(siteId: string, userId: string, userEmail?: stri
   if (!site) return { access: false, role: 'viewer' };
   if (site.user_id === userId || userId === 'admin') return { access: true, role: 'owner' };
 
-  if (!isFeatureEnabled()) return { access: false, role: 'viewer' };
+  if (!sharingAllowedFor(userId)) return { access: false, role: 'viewer' };
 
   // Check shares
   const share = db.prepare(

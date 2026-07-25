@@ -20,16 +20,15 @@ import {
   pullSelective,
 } from '../services/sync-incremental.service';
 import { getDb } from '../utils/db';
+import { isFeatureEnabled } from '../services/features.service';
 
 const router = Router();
 
-function isFeatureEnabled(key: string): boolean {
-  const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(`feature.${key}`) as { value: string } | undefined;
-  return row?.value === 'true';
-}
-
-function requireSync(_req: Request, res: Response, next: () => void) {
-  if (!isFeatureEnabled('siteSync')) {
+function requireSync(req: AuthRequest, res: Response, next: () => void) {
+  // siteSync is admin-only, so this is false for members by construction —
+  // see ADMIN_ONLY_FEATURES in features.service. Every route applies
+  // conditionalAuth before this, so userRole is populated by now.
+  if (!isFeatureEnabled('siteSync', req.userRole)) {
     res.status(403).json({ error: 'Site sync feature is disabled' });
     return;
   }

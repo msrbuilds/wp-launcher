@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { conditionalAuth, AuthRequest } from '../middleware/userAuth';
 import { getDb } from '../utils/db';
+import { isFeatureEnabled } from '../services/features.service';
 import {
   createClient, updateClient, deleteClient, getClient, listClients, getClientsCount,
   createProject, updateProject, deleteProject, getProject, listProjects, getProjectsCount,
@@ -11,13 +12,10 @@ import {
 
 const router = Router();
 
-function isFeatureEnabled(key: string): boolean {
-  const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get(`feature.${key}`) as { value: string } | undefined;
-  return row?.value === 'true';
-}
-
-function requireProjects(_req: AuthRequest, res: Response, next: () => void) {
-  if (!isFeatureEnabled('projects')) {
+function requireProjects(req: AuthRequest, res: Response, next: () => void) {
+  // projects is admin-only, so this is false for members by construction —
+  // see ADMIN_ONLY_FEATURES in features.service.
+  if (!isFeatureEnabled('projects', req.userRole)) {
     res.status(403).json({ error: 'Projects feature is disabled' });
     return;
   }

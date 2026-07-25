@@ -24,6 +24,7 @@ import {
 import { triggerManualSync } from '../services/productivity-sync.service';
 import { isLocalDeployment, publicApiBaseUrl } from '../utils/deployment';
 import { getSetting, setSetting } from '../services/settings.service';
+import { isFeatureEnabled } from '../services/features.service';
 import {
   DESTINATION_SETTING_KEY, DESTINATIONS, parseDestination, resolveSyncEnabled,
 } from '../services/productivity-destination';
@@ -82,13 +83,24 @@ router.use('/cloud/status', (req: any, res: Response, next: () => void) => {
   next();
 });
 
-function isFeatureEnabled(): boolean {
-  const row = getDb().prepare("SELECT value FROM settings WHERE key = ?").get('feature.productivityMonitor') as { value: string } | undefined;
-  return row?.value === 'true';
+function requireFeature(req: AuthRequest, res: Response, next: () => void) {
+  // productivityMonitor is admin-only, so this is false for members by
+  // construction — see ADMIN_ONLY_FEATURES in features.service.
+  if (!isFeatureEnabled('productivityMonitor', req.userRole)) {
+    res.status(403).json({ error: 'Productivity Monitor feature is disabled' });
+    return;
+  }
+  next();
 }
 
-function requireFeature(_req: AuthRequest, res: Response, next: () => void) {
-  if (!isFeatureEnabled()) {
+/**
+ * Ingestion and status are machine endpoints with no session: the heartbeat
+ * secret authenticates them, not a role. They ask whether the install has the
+ * feature enabled at all, which is the admin flag — resolving them by role
+ * would treat every client as anonymous and reject them.
+ */
+function requireFeatureForMachineClients(_req: AuthRequest, res: Response, next: () => void) {
+  if (!isFeatureEnabled('productivityMonitor', 'admin')) {
     res.status(403).json({ error: 'Productivity Monitor feature is disabled' });
     return;
   }
@@ -101,7 +113,7 @@ router.use('/heartbeats', heartbeatLimiter);
 
 // Cloud status — no auth, used by extensions and MU-plugin to check if tracking is active.
 // `linked` is kept for older clients that only understand cloud linking.
-router.get('/cloud/status', requireFeature, (_req: AuthRequest, res: Response) => {
+router.get('/cloud/status', requireFeatureForMachineClients, (_req: AuthRequest, res: Response) => {
   try {
     const cfg = getCloudConfig();
     const cloudLinked = !!(cfg.cloud_url && cfg.cloud_api_key);
@@ -129,7 +141,7 @@ router.get('/cloud/status', requireFeature, (_req: AuthRequest, res: Response) =
 // that cannot use cookie auth or custom headers via sendBeacon. A linked cloud
 // account is deliberately NOT required — a localhost install stores locally and
 // shows its own dashboard without any cloud involvement.
-router.post('/heartbeats', requireFeature, (req: AuthRequest, res: Response) => {
+router.post('/heartbeats', requireFeatureForMachineClients, (req: AuthRequest, res: Response) => {
   try {
     const cloudCfg = getCloudConfig();
 
