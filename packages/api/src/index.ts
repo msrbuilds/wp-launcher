@@ -7,6 +7,11 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { config } from './config';
 import { adminAuth } from './middleware/auth';
+import { optionalUserAuth, AuthRequest } from './middleware/userAuth';
+import {
+  ALL_FEATURES, ADMIN_ONLY_FEATURES, GRANTABLE_FEATURES,
+  adminSettingKey, demoSettingKey, isAdminOnlyFeature, effectiveFeatures,
+} from './services/features.service';
 import { csrfProtection } from './middleware/csrf';
 import sitesRouter from './routes/sites';
 import blueprintsRouter from './routes/blueprints';
@@ -174,16 +179,16 @@ app.get('/api/public/blueprints', publicReadLimiter, (_req, res) => {
 });
 
 // Public UI settings (includes feature flags + branding)
-app.get('/api/settings', (_req, res) => {
+app.get('/api/settings', optionalUserAuth, (req: AuthRequest, res) => {
   const db = getDb();
   const rows = db.prepare("SELECT key, value FROM settings").all() as { key: string; value: string }[];
-  const features: Record<string, boolean> = {};
+  // Resolved for the caller, not the raw admin set: a member must not be shown
+  // actions their role cannot use. Anonymous resolves as a member.
+  const features = effectiveFeatures(req.userRole);
   const branding: Record<string, string> = {};
   const colors: Record<string, string> = {};
   for (const row of rows) {
-    if (row.key.startsWith('feature.')) {
-      features[row.key.replace('feature.', '')] = row.value === 'true';
-    } else if (row.key.startsWith('branding.')) {
+    if (row.key.startsWith('branding.')) {
       branding[row.key.replace('branding.', '')] = row.value;
     } else if (row.key.startsWith('color.')) {
       colors[row.key.replace('color.', '')] = row.value;
@@ -397,31 +402,57 @@ app.get('/api/admin/features', adminAuth, (_req, res) => {
   const db = getDb();
   const rows = db.prepare("SELECT key, value FROM settings WHERE key LIKE 'feature.%'").all() as { key: string; value: string }[];
   const features: Record<string, boolean> = {};
+  const demoFeatures: Record<string, boolean> = {};
   for (const row of rows) {
-    const name = row.key.replace('feature.', '');
-    features[name] = row.value === 'true';
+    // Test the demo prefix first, or a demo row is misread as an admin feature
+    // literally named "demo.cloning".
+    if (row.key.startsWith('feature.demo.')) {
+      demoFeatures[row.key.replace('feature.demo.', '')] = row.value === 'true';
+    } else {
+      features[row.key.replace('feature.', '')] = row.value === 'true';
+    }
   }
-  res.json({ features });
+  // Absent rows read as off, so the UI gets a complete map either way.
+  for (const key of ALL_FEATURES) features[key] = features[key] ?? false;
+  for (const key of GRANTABLE_FEATURES) demoFeatures[key] = demoFeatures[key] ?? false;
+  res.json({
+    features,
+    demoFeatures,
+    // Served so the dashboard never keeps a second copy of the classification.
+    catalog: { adminOnly: ADMIN_ONLY_FEATURES, grantable: GRANTABLE_FEATURES },
+    // Only worth showing the members column once non-admin users can exist.
+    demoColumnVisible: policy.allowsPublicRegistration() || policy.demoPortalEnabled(),
+  });
 });
 
 app.put('/api/admin/features', adminAuth, (req, res) => {
   const db = getDb();
-  const { features } = req.body as { features: Record<string, boolean> };
-  if (!features || typeof features !== 'object') {
-    res.status(400).json({ error: 'features object is required' });
+  const { features, demoFeatures } = req.body as {
+    features?: Record<string, boolean>;
+    demoFeatures?: Record<string, boolean>;
+  };
+  if (!features && !demoFeatures) {
+    res.status(400).json({ error: 'features or demoFeatures object is required' });
     return;
   }
-  const allowed = ['cloning', 'snapshots', 'templates', 'customDomains', 'phpConfig', 'siteExtend', 'sitePassword', 'exportZip', 'webhooks', 'healthMonitoring', 'scheduledLaunch', 'collaborativeSites', 'adminer', 'publicSharing', 'siteSync', 'projects', 'productivityMonitor'];
+  // Granting an admin-only capability to members is not a silent no-op: it means
+  // the caller misunderstands the model, so say so.
+  const illegal = Object.keys(demoFeatures || {}).filter((k) => isAdminOnlyFeature(k));
+  if (illegal.length) {
+    res.status(400).json({ error: `These features cannot be granted to demo users: ${illegal.join(', ')}` });
+    return;
+  }
   const update = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
-  for (const [name, enabled] of Object.entries(features)) {
-    if (allowed.includes(name)) {
-      update.run(`feature.${name}`, String(enabled));
-    }
+  for (const [name, enabled] of Object.entries(features || {})) {
+    if (ALL_FEATURES.includes(name)) update.run(adminSettingKey(name), String(enabled));
+  }
+  for (const [name, enabled] of Object.entries(demoFeatures || {})) {
+    if (GRANTABLE_FEATURES.includes(name)) update.run(demoSettingKey(name), String(enabled));
   }
   // Tracking needs a heartbeat secret to authenticate its clients, and that is
   // independent of any cloud account — mint it when the feature is switched on so
   // a localhost install works with no further setup.
-  if (features.productivityMonitor === true) {
+  if (features?.productivityMonitor === true) {
     try {
       ensureHeartbeatSecret();
     } catch (err: any) {
