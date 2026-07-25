@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAdminHeaders } from './admin/AdminLayout';
 import { apiFetch } from '../utils/api';
 import { useTheme } from '../context/ThemeContext';
@@ -6,7 +6,7 @@ import {
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { AlertCircle, Blocks, Cloud, Loader2, X } from 'lucide-react';
+import { AlertCircle, Blocks, Check, Cloud, Copy, Loader2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EDITOR_COLORS } from '@/lib/editor-colors';
 import { Button } from '@/components/ui/button';
@@ -281,6 +281,10 @@ export default function ProductivityPage() {
     destination: string; isLocal: boolean; cloudLinked: boolean; syncing: boolean;
   } | null>(null);
   const [savingDest, setSavingDest] = useState(false);
+  const [secretCopied, setSecretCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Don't fire the reset into an unmounted component.
+  useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
 
   // Goal editing
   const [editingGoal, setEditingGoal] = useState(false);
@@ -381,6 +385,18 @@ export default function ProductivityPage() {
     await apiFetch('/api/productivity/cloud/config', { method: 'DELETE', headers });
     setCloudConfig({});
     fetchData();
+  };
+
+  // Confirms the copy landed — the clipboard write is otherwise invisible.
+  // Replacing any pending timer stops a rapid second click from having its
+  // confirmation cut short by the first click's timeout.
+  const copySecret = () => {
+    const secret = cloudConfig.heartbeat_secret;
+    if (!secret) return;
+    navigator.clipboard.writeText(secret);
+    setSecretCopied(true);
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setSecretCopied(false), 1500);
   };
 
   const saveDestination = async (destination: string) => {
@@ -608,7 +624,15 @@ export default function ProductivityPage() {
                   <p className="text-sm font-medium text-card-foreground">Heartbeat secret</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <code className="rounded-lg bg-muted px-2 py-1 font-mono text-xs text-foreground">{cloudConfig.heartbeat_secret}</code>
-                    <Button size="sm" variant="secondary" title="Copy secret" onClick={() => { navigator.clipboard.writeText(cloudConfig.heartbeat_secret!); }}>Copy</Button>
+                    <Button
+                      size="sm"
+                      variant={secretCopied ? 'default' : 'secondary'}
+                      title="Copy secret"
+                      onClick={copySecret}
+                    >
+                      {secretCopied ? <Check /> : <Copy />}
+                      {secretCopied ? 'Copied!' : 'Copy'}
+                    </Button>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Paste into VS Code Settings &gt; WP Launcher Productivity &gt; Heartbeat Secret. Demo sites receive it automatically when launched.
