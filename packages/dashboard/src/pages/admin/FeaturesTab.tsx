@@ -28,6 +28,11 @@ export default function FeaturesTab() {
   const confirm = useConfirm();
   const { baseDomain, smtpConfigured } = useSettings();
   const [features, setFeatures] = useState<Record<string, boolean>>({});
+  // The member set, and the server's classification of which features may be
+  // granted at all — kept server-side so this page holds no second copy of it.
+  const [demoFeatures, setDemoFeatures] = useState<Record<string, boolean>>({});
+  const [catalog, setCatalog] = useState<{ adminOnly: string[]; grantable: string[] }>({ adminOnly: [], grantable: [] });
+  const [demoColumnVisible, setDemoColumnVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
@@ -44,7 +49,12 @@ export default function FeaturesTab() {
   useEffect(() => {
     apiFetch('/api/admin/features', { headers })
       .then((r) => r.json())
-      .then((data) => setFeatures(data.features || {}))
+      .then((data) => {
+        setFeatures(data.features || {});
+        setDemoFeatures(data.demoFeatures || {});
+        if (data.catalog) setCatalog(data.catalog);
+        setDemoColumnVisible(!!data.demoColumnVisible);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -69,7 +79,7 @@ export default function FeaturesTab() {
       const res = await apiFetch('/api/admin/features', {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ features }),
+        body: JSON.stringify({ features, demoFeatures }),
       });
       if (res.ok) {
         setMsg('Features updated. Users will see changes on next page load.');
@@ -147,15 +157,81 @@ export default function FeaturesTab() {
   return (
     <>
       <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
-        <h3 className="text-base font-semibold">Feature Modules</h3>
+        <h3 className="text-base font-semibold">Site capabilities</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Enable or disable features for regular users. Admins always have access to all features.
+          {demoColumnVisible
+            ? 'The Admin switch applies to you and other admins. Members grants the capability to non-admin users who launch their own sites.'
+            : 'Applies to you and other admins.'}
         </p>
 
         <div className="mt-4 flex flex-col gap-2">
-          {FEATURE_META.map((f) => {
+          {FEATURE_META.filter((f) => catalog.grantable.includes(f.key)).map((f) => {
             // Every feature is toggleable. `hint` is advisory only: it warns
             // when this install cannot fully deliver the feature yet.
+            const hint =
+              f.requires === 'publicDomain' && (!baseDomain || baseDomain === 'localhost')
+                ? 'Needs a public domain'
+                : f.requires === 'smtp' && !smtpConfigured
+                  ? 'Needs email configured'
+                  : '';
+            const enabled = !!features[f.key];
+            return (
+              <div
+                key={f.key}
+                className={cn(
+                  'flex items-center justify-between gap-4 rounded-lg border border-border p-4',
+                  enabled ? 'bg-accent' : 'bg-muted',
+                )}
+              >
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
+                    {f.label}
+                    {hint && (
+                      <Badge variant="outline" title={hint}>
+                        {hint}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-1 text-sm text-muted-foreground">{f.description}</div>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="flex flex-col items-center gap-1">
+                    <Label htmlFor={`feature-${f.key}`} className="text-xs text-muted-foreground">Admin</Label>
+                    <Switch
+                      id={`feature-${f.key}`}
+                      aria-label={`${f.label} for admins`}
+                      checked={enabled}
+                      onCheckedChange={(checked) =>
+                        setFeatures((prev) => ({ ...prev, [f.key]: checked }))
+                      }
+                    />
+                  </div>
+                  {demoColumnVisible && (
+                    <div className="flex flex-col items-center gap-1">
+                      <Label htmlFor={`demo-${f.key}`} className="text-xs text-muted-foreground">Members</Label>
+                      <Switch
+                        id={`demo-${f.key}`}
+                        aria-label={`${f.label} for members`}
+                        checked={!!demoFeatures[f.key]}
+                        onCheckedChange={(checked) =>
+                          setDemoFeatures((prev) => ({ ...prev, [f.key]: checked }))
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <h3 className="mt-6 text-base font-semibold">Admin-only features</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Panel-wide tools. These are never available to members.
+        </p>
+
+        <div className="mt-4 flex flex-col gap-2">
+          {FEATURE_META.filter((f) => catalog.adminOnly.includes(f.key)).map((f) => {
             const hint =
               f.requires === 'publicDomain' && (!baseDomain || baseDomain === 'localhost')
                 ? 'Needs a public domain'

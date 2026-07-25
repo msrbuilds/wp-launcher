@@ -65,23 +65,23 @@ export const FEATURE_META: {
   description: string;
   requires?: 'publicDomain' | 'smtp';
 }[] = [
-  { key: 'cloning', label: 'Site Cloning', description: 'Allow users to clone their running sites' },
-  { key: 'snapshots', label: 'Snapshots', description: 'Allow users to take and restore site snapshots' },
-  { key: 'templates', label: 'Save as Blueprint', description: 'Allow users to export running sites as reusable blueprints' },
-  { key: 'customDomains', label: 'Custom Domains', description: 'Allow users to set custom domains on their sites', requires: 'publicDomain' },
-  { key: 'phpConfig', label: 'PHP Configuration', description: 'Allow users to modify PHP settings on running sites' },
-  { key: 'siteExtend', label: 'Site Extend', description: 'Allow users to extend the expiration of their running sites' },
-  { key: 'sitePassword', label: 'Site Password Protection', description: 'Allow users to set a password on their site frontend' },
-  { key: 'exportZip', label: 'Export Site as ZIP', description: 'Allow users to download their site as a portable ZIP archive' },
+  { key: 'cloning', label: 'Site Cloning', description: 'Clone a running site into a new one' },
+  { key: 'snapshots', label: 'Snapshots', description: 'Take and restore point-in-time site snapshots' },
+  { key: 'templates', label: 'Save as Blueprint', description: 'Export a running site as a reusable blueprint' },
+  { key: 'customDomains', label: 'Custom Domains', description: 'Point a custom domain at a site', requires: 'publicDomain' },
+  { key: 'phpConfig', label: 'PHP Configuration', description: 'Change PHP settings on a running site' },
+  { key: 'siteExtend', label: 'Site Extend', description: 'Push back a site expiry date' },
+  { key: 'sitePassword', label: 'Site Password Protection', description: 'Put a password in front of a site' },
+  { key: 'exportZip', label: 'Export Site as ZIP', description: 'Download a site as a portable ZIP archive' },
   { key: 'webhooks', label: 'Webhook Notifications', description: 'Fire HTTP webhooks on site events (created, expired, deleted)' },
-  { key: 'healthMonitoring', label: 'Site Health Monitoring', description: 'Track container CPU and memory usage for running sites' },
-  { key: 'scheduledLaunch', label: 'Scheduled Site Launch', description: 'Allow users to schedule sites to be created at a future time' },
-  { key: 'collaborativeSites', label: 'Collaborative Sites', description: 'Allow users to share sites with other users (viewer or admin access)', requires: 'smtp' },
-  { key: 'adminer', label: 'Database Manager (Adminer)', description: 'Allow users to access and manage site databases through Adminer' },
-  { key: 'publicSharing', label: 'Public Sharing (Tunnels)', description: 'Share sites publicly via LAN, Cloudflare Tunnel, or ngrok' },
-  { key: 'siteSync', label: 'Site Sync', description: 'Push/pull site content between this panel and remote instances' },
+  { key: 'healthMonitoring', label: 'Site Health Monitoring', description: 'Track container CPU and memory for running sites' },
+  { key: 'scheduledLaunch', label: 'Scheduled Site Launch', description: 'Queue sites to be created at a future time' },
+  { key: 'collaborativeSites', label: 'Collaborative Sites', description: 'Share a site with another user as viewer or admin', requires: 'smtp' },
+  { key: 'adminer', label: 'Database Manager (Adminer)', description: 'Browse and edit site databases through Adminer' },
+  { key: 'publicSharing', label: 'Public Sharing (Tunnels)', description: 'Expose a site publicly via LAN, Cloudflare Tunnel, or ngrok' },
+  { key: 'siteSync', label: 'Site Sync', description: 'Push and pull site content between this panel and remote instances' },
   { key: 'projects', label: 'Projects & Invoices', description: 'Manage clients, projects, and generate invoices' },
-  { key: 'productivityMonitor', label: 'Productivity Monitor', description: 'Track coding time and WordPress site activity with daily goals and breakdowns' },
+  { key: 'productivityMonitor', label: 'Productivity Monitor', description: 'Track coding time and WordPress activity with daily goals and breakdowns' },
 ];
 
 export interface Client {
