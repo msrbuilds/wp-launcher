@@ -7,6 +7,10 @@
     "packages/api",
     "packages/dashboard"
   ],
+  "//engines": "Matches the node:22-alpine images the services run on. better-sqlite3 is a native module, so a host on a different major rebuilds against the wrong ABI and every DB-backed test fails to load.",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
     "start": "docker compose up -d",
     "stop": "docker compose down",
