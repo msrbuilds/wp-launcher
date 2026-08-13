@@ -10,10 +10,22 @@ const TIER: Record<Exclude<StrengthScore, 0>, { bar: string; text: string }> = {
   4: { bar: 'bg-success', text: 'text-success' },
 };
 
-export function PasswordStrengthMeter({ password, className }: { password: string; className?: string }) {
+/**
+ * `minLength` must match whatever the surrounding form gates submission on,
+ * otherwise the meter can read "Strong" while the submit button stays disabled.
+ */
+export function PasswordStrengthMeter({
+  password,
+  className,
+  minLength,
+}: {
+  password: string;
+  className?: string;
+  minLength?: number;
+}) {
   if (!password) return null;
 
-  const { score, label, suggestions } = evaluatePassword(password);
+  const { score, label, suggestions } = evaluatePassword(password, minLength);
   const tier = score === 0 ? null : TIER[score];
 
   return (

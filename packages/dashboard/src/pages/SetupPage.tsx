@@ -29,7 +29,9 @@ export default function SetupPage() {
 
   const mismatch = confirm.length > 0 && confirm !== password;
   const matches = confirm.length > 0 && confirm === password;
-  const strongEnough = password.length >= MIN_OWNER_PASSWORD && evaluatePassword(password).ok;
+  // One minimum, passed to the meter too, so a password the button rejects can
+  // never render as "Strong".
+  const strongEnough = evaluatePassword(password, MIN_OWNER_PASSWORD).ok;
   const canSubmit = strongEnough && matches && email.length > 0 && !saving;
 
   async function handleSubmit(e: FormEvent) {
@@ -147,7 +149,7 @@ export default function SetupPage() {
             minLength={MIN_OWNER_PASSWORD}
             autoComplete="new-password"
           />
-          <PasswordStrengthMeter password={password} />
+          <PasswordStrengthMeter password={password} minLength={MIN_OWNER_PASSWORD} />
           <p className="text-xs text-muted-foreground">At least {MIN_OWNER_PASSWORD} characters.</p>
         </div>
 
