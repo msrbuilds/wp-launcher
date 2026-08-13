@@ -13,6 +13,7 @@ import {
 } from './docker.service';
 import { fireWebhookEvent } from './webhook.service';
 import { getBlueprint } from './blueprint.service';
+import { resolveRestrictions } from './restrictions.service';
 import { getCloudConfig } from './productivity.service';
 import { publicApiBaseUrl } from '../utils/deployment';
 import { ConflictError, ValidationError, NotFoundError, ForbiddenError } from '../utils/errors';
@@ -86,6 +87,15 @@ function logSiteAction(siteRecord: SiteRecord, action: string, userEmail?: strin
 export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & { oneTimePassword: string }> {
   const db = getDb();
   const blueprint = getBlueprint(req.blueprintId);
+
+  // What this site locks down. The blueprint decides — including when it
+  // declares an empty block, meaning the operator switched everything off. Only
+  // a blueprint with no restrictions at all defers to the panel-wide default,
+  // and an explicit per-request override still wins for API callers.
+  const restrictions = resolveRestrictions({
+    blueprint: blueprint.restrictions,
+    panelDefault: req.restrictCapabilities ?? policy.defaultRestrictCapabilities(),
+  });
 
   // Validate subdomain early (before transaction) if custom
   let subdomain = '';
@@ -168,7 +178,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
     db.prepare(`
       INSERT INTO sites (id, subdomain, blueprint_id, user_id, status, site_url, admin_url, admin_user, admin_password, auto_login_token, expires_at, direct_file_access, restrict_capabilities)
       VALUES (?, ?, ?, ?, 'creating', ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, subdomain, req.blueprintId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt, req.directFileAccess ? 1 : 0, (req.restrictCapabilities ?? policy.defaultRestrictCapabilities()) ? 1 : 0);
+    `).run(id, subdomain, req.blueprintId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt, req.directFileAccess ? 1 : 0, restrictions.restrict ? 1 : 0);
   });
 
   insertSiteTxn();
@@ -257,7 +267,10 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       landingPage,
       dbEngine,
       autoLoginToken,
-      restrictCapabilities: req.restrictCapabilities ?? policy.defaultRestrictCapabilities(),
+      restrictCapabilities: restrictions.restrict,
+      blockedCapabilities: restrictions.blockedCapabilities,
+      hiddenMenus: restrictions.hiddenMenus,
+      disableFileMods: restrictions.disableFileMods,
       enforceResourceLimits: policy.enforcesResourceLimits(),
       phpConfig: req.phpConfig,
       heartbeatSecret,

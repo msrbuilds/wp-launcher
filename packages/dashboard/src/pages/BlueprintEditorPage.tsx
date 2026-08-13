@@ -101,8 +101,11 @@ export default function BlueprintEditorPage() {
 
   // Restrictions
   const [disableFileMods, setDisableFileMods] = useState(true);
+  // All seven, matching the shipped blueprints. Omitting export/import here used
+  // to make a panel-created blueprint quietly weaker than _default.json.
   const [blockedCapabilities, setBlockedCapabilities] = useState<string[]>([
     'install_plugins', 'install_themes', 'edit_plugins', 'edit_themes', 'update_core',
+    'export', 'import',
   ]);
   const [hiddenMenuItems, setHiddenMenuItems] = useState<string[]>([]);
 

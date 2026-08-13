@@ -58,6 +58,12 @@ export interface CreateContainerOptions {
   autoLoginToken?: string;
   /** Lock down the WordPress admin (restrictions mu-plugin + DISALLOW_FILE_MODS). */
   restrictCapabilities?: boolean;
+  /** Resolved WordPress capabilities to strip. Empty means strip none. */
+  blockedCapabilities?: string[];
+  /** Top-level admin menu slugs to remove. */
+  hiddenMenus?: string[];
+  /** Whether to define DISALLOW_FILE_MODS / DISALLOW_FILE_EDIT. */
+  disableFileMods?: boolean;
   /** Apply CPU/memory limits and upload/disk quotas to the container. */
   enforceResourceLimits?: boolean;
   heartbeatSecret?: string;

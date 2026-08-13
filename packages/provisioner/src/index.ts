@@ -140,6 +140,9 @@ interface CreateBody {
   enforceResourceLimits?: boolean;
   heartbeatSecret?: string;
   publicApiUrl?: string;
+  blockedCapabilities?: string[];
+  hiddenMenus?: string[];
+  disableFileMods?: boolean;
   directFileAccess?: boolean;
   phpConfig?: {
     memoryLimit?: string;
@@ -268,6 +271,14 @@ app.post('/containers', async (req: Request, res: Response) => {
     // pre-v3 WordPress image; remove after the next release.
     env.push(`WPL_RESTRICT=${opts.restrictCapabilities ? 'true' : 'false'}`);
     if (!opts.restrictCapabilities) env.push('WP_LOCAL_MODE=true');
+    // The resolved lists the mu-plugin applies. Always emitted when restricting,
+    // because the plugin treats an ABSENT list as "fall back to the full legacy
+    // lockdown" — an empty list must be explicit to mean "block nothing".
+    if (opts.restrictCapabilities) {
+      env.push(`WPL_BLOCKED_CAPS=${(opts.blockedCapabilities || []).join(',')}`);
+      env.push(`WPL_HIDDEN_MENUS=${(opts.hiddenMenus || []).join(',')}`);
+      env.push(`WPL_DISABLE_FILE_MODS=${opts.disableFileMods ? 'true' : 'false'}`);
+    }
     env.push(`WP_LAUNCHER_API_URL=http://api:3737`);
     env.push(`WP_SUBDOMAIN=${opts.subdomain}`);
     // Shared wp-cli download cache — avoids re-downloading plugins/themes across site launches

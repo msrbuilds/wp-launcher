@@ -22,60 +22,93 @@ if ( 'true' !== $wpl_restrict ) {
 }
 
 /**
- * Ensure wp-config constants are set as fallback.
+ * What this site blocks, as resolved by the panel from its blueprint.
+ *
+ * Fail closed: an ABSENT WPL_BLOCKED_CAPS means the container predates
+ * blueprint-driven restrictions, or was created by an older panel, so apply the
+ * full legacy lockdown. Only an explicitly present (possibly empty) value means
+ * the operator chose what to block. getenv() returns false when unset and ''
+ * when set-but-empty, which is exactly the distinction needed.
  */
-if ( ! defined( 'DISALLOW_FILE_MODS' ) ) {
-    define( 'DISALLOW_FILE_MODS', true );
+$wpl_caps_raw = getenv( 'WPL_BLOCKED_CAPS' );
+if ( false === $wpl_caps_raw ) {
+    $wpl_blocked_caps = array(
+        'install_plugins', 'install_themes', 'edit_plugins', 'edit_themes',
+        'update_plugins', 'update_themes', 'update_core', 'delete_plugins',
+        'delete_themes', 'export', 'import', 'edit_files',
+    );
+    $wpl_hidden_menus     = array( 'tools.php' );
+    $wpl_disable_file_mods = true;
+} else {
+    $wpl_blocked_caps = array_filter( array_map( 'trim', explode( ',', $wpl_caps_raw ) ) );
+
+    $menus_raw        = getenv( 'WPL_HIDDEN_MENUS' );
+    $wpl_hidden_menus = ( false === $menus_raw || '' === $menus_raw )
+        ? array()
+        : array_filter( array_map( 'trim', explode( ',', $menus_raw ) ) );
+
+    $wpl_disable_file_mods = getenv( 'WPL_DISABLE_FILE_MODS' ) === 'true';
 }
-if ( ! defined( 'DISALLOW_FILE_EDIT' ) ) {
-    define( 'DISALLOW_FILE_EDIT', true );
+
+// A constant rather than a global: the hooks below run long after this file is
+// included, and constants do not depend on mu-plugins being loaded at global
+// scope the way `global $var` would.
+define( 'WPL_BLOCKED_CAPS_LIST', $wpl_blocked_caps );
+
+/** True when the site blocks a capability, used to derive submenu removals. */
+function wpl_blocks( $cap ) {
+    return in_array( $cap, WPL_BLOCKED_CAPS_LIST, true );
 }
 
 /**
- * Strip dangerous capabilities from all users.
+ * File modification constants, only when the blueprint asks for them.
  */
-add_filter( 'user_has_cap', function ( $allcaps, $caps, $args ) {
-    $restricted_caps = array(
-        'install_plugins',
-        'install_themes',
-        'edit_plugins',
-        'edit_themes',
-        'update_plugins',
-        'update_themes',
-        'update_core',
-        'delete_plugins',
-        'delete_themes',
-        'export',
-        'import',
-        'edit_files',
-    );
+if ( $wpl_disable_file_mods ) {
+    if ( ! defined( 'DISALLOW_FILE_MODS' ) ) {
+        define( 'DISALLOW_FILE_MODS', true );
+    }
+    if ( ! defined( 'DISALLOW_FILE_EDIT' ) ) {
+        define( 'DISALLOW_FILE_EDIT', true );
+    }
+}
 
-    foreach ( $restricted_caps as $cap ) {
-        $allcaps[ $cap ] = false;
+/**
+ * Strip exactly the capabilities this site blocks.
+ */
+if ( ! empty( $wpl_blocked_caps ) ) {
+    add_filter( 'user_has_cap', function ( $allcaps, $caps, $args ) use ( $wpl_blocked_caps ) {
+        foreach ( $wpl_blocked_caps as $cap ) {
+            $allcaps[ $cap ] = false;
+        }
+        return $allcaps;
+    }, 10, 3 );
+}
+
+/**
+ * Remove the menus the blueprint hides, plus the submenus implied by the
+ * blocked capabilities — leaving "Add New" in place while blocking
+ * install_plugins would only produce a dead link.
+ */
+add_action( 'admin_menu', function () use ( $wpl_hidden_menus ) {
+    foreach ( $wpl_hidden_menus as $menu ) {
+        remove_menu_page( $menu );
     }
 
-    return $allcaps;
-}, 10, 3 );
-
-/**
- * Remove restricted admin menu items.
- */
-add_action( 'admin_menu', function () {
-    // Remove plugin installation
-    remove_submenu_page( 'plugins.php', 'plugin-install.php' );
-
-    // Remove theme installation
-    remove_submenu_page( 'themes.php', 'theme-install.php' );
-
-    // Remove file editors
-    remove_submenu_page( 'themes.php', 'theme-editor.php' );
-    remove_submenu_page( 'plugins.php', 'plugin-editor.php' );
-
-    // Remove tools menu (import/export)
-    remove_menu_page( 'tools.php' );
-
-    // Remove update page
-    remove_submenu_page( 'index.php', 'update-core.php' );
+    if ( wpl_blocks( 'install_plugins' ) ) {
+        remove_submenu_page( 'plugins.php', 'plugin-install.php' );
+    }
+    if ( wpl_blocks( 'install_themes' ) ) {
+        remove_submenu_page( 'themes.php', 'theme-install.php' );
+    }
+    if ( wpl_blocks( 'edit_themes' ) ) {
+        remove_submenu_page( 'themes.php', 'theme-editor.php' );
+    }
+    if ( wpl_blocks( 'edit_plugins' ) ) {
+        remove_submenu_page( 'plugins.php', 'plugin-editor.php' );
+    }
+    if ( wpl_blocks( 'update_core' ) ) {
+        remove_submenu_page( 'index.php', 'update-core.php' );
+    }
 }, 999 );
 
 /**
@@ -90,15 +123,24 @@ add_action( 'admin_head', function () {
  * Block direct access to restricted admin pages.
  */
 add_action( 'admin_init', function () {
-    $blocked_pages = array(
-        'plugin-install.php',
-        'theme-install.php',
-        'plugin-editor.php',
-        'theme-editor.php',
-        'update-core.php',
-        'import.php',
-        'export.php',
+    // Derived from the blocked capabilities, so a page is only unreachable when
+    // the matching capability is actually withheld.
+    $page_for_cap = array(
+        'plugin-install.php' => 'install_plugins',
+        'theme-install.php'  => 'install_themes',
+        'plugin-editor.php'  => 'edit_plugins',
+        'theme-editor.php'   => 'edit_themes',
+        'update-core.php'    => 'update_core',
+        'import.php'         => 'import',
+        'export.php'         => 'export',
     );
+
+    $blocked_pages = array();
+    foreach ( $page_for_cap as $page => $cap ) {
+        if ( wpl_blocks( $cap ) ) {
+            $blocked_pages[] = $page;
+        }
+    }
 
     $current_page = basename( sanitize_text_field( $_SERVER['SCRIPT_NAME'] ?? '' ) );
 
@@ -115,10 +157,15 @@ add_action( 'admin_init', function () {
  * Block REST API write endpoints for plugins and themes.
  */
 add_filter( 'rest_dispatch_request', function ( $dispatch, $request, $route ) {
-    $blocked_patterns = array(
-        '#/wp/v2/plugins#',
-        '#/wp/v2/themes#',
-    );
+    // Mirrors the capability list: the REST route is the same privilege by
+    // another door, so blocking one without the other would be theatre.
+    $blocked_patterns = array();
+    if ( wpl_blocks( 'install_plugins' ) || wpl_blocks( 'edit_plugins' ) ) {
+        $blocked_patterns[] = '#/wp/v2/plugins#';
+    }
+    if ( wpl_blocks( 'install_themes' ) || wpl_blocks( 'edit_themes' ) ) {
+        $blocked_patterns[] = '#/wp/v2/themes#';
+    }
 
     foreach ( $blocked_patterns as $pattern ) {
         if ( preg_match( $pattern, $route ) && $request->get_method() !== 'GET' ) {
