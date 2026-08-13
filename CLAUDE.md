@@ -222,13 +222,16 @@ Products defined in `products/[id].json`. Key fields:
 - `plugins.remove[]`: plugins to uninstall
 - `themes.install[]`: source, slug, activate
 - `demo`: default_expiration, max_concurrent_sites, admin_user, landing_page
-- `restrictions`: disable_file_mods, blocked_capabilities[]
+- `restrictions`: disable_file_mods, blocked_capabilities[], hidden_menu_items[] — **authoritative**: these decide what a launched site locks down. A blueprint with an empty block restricts nothing; only a blueprint with *no* block falls back to `panel.defaultRestrictCapabilities`
 - `branding`: banner_text, description, image_url
 - `docker.image`: custom Docker image tag
 
 ## WordPress MU-Plugins
 
-- **wp-launcher-restrictions.php** — Blocks dangerous capabilities (install/edit plugins/themes, update_core, export/import), removes admin menus, blocks direct page access. Skipped entirely when `WP_LOCAL_MODE=true`
+- **wp-launcher-restrictions.php** — Applies the blueprint's lockdown. Reads `WPL_BLOCKED_CAPS`, `WPL_HIDDEN_MENUS` and `WPL_DISABLE_FILE_MODS`, injected at container creation from the blueprint's `restrictions`. Submenu removals, admin-page blocks and REST write blocks are all derived from the capability list rather than hardcoded. Skipped entirely when `WPL_RESTRICT` is not `true` (or legacy `WP_LOCAL_MODE=true`).
+  **Fails closed:** an *absent* `WPL_BLOCKED_CAPS` (a container predating this, or an older panel) applies the full legacy 12-capability lockdown. Only an explicitly empty value means block nothing.
+
+  Capability grouping lives in `services/restrictions.service.ts`, not the plugin: the 7 UI toggles expand to 12 capabilities (`install_plugins` → install/update/delete plugins; `edit_plugins` → edit_plugins + edit_files, etc.). Blocking install while allowing update would be no restriction at all, since an "update" can carry arbitrary code. A test asserts all 7 toggles expand to exactly the 12 stripped historically, so a fully-checked blueprint can never be weaker than the old behaviour.
 - **wp-launcher-branding.php** — Admin bar countdown timer, auto-redirect on expiry
 - **wp-launcher-autologin.php** — `?autologin={token}` for instant demo access
 - **wp-launcher-productivity.php** — Tracks wp-admin activity (editing, customizer, media, plugins, themes, settings, WooCommerce). Sends heartbeats via `sendBeacon(text/plain)` to the WP Launcher API. Prefers `WP_LAUNCHER_PUBLIC_API_URL` (the panel-resolved, browser-reachable URL, injected at container creation); falls back to deriving one from `WP_SITE_URL` (strips subdomain, adds `:3737` for localhost) for sites created before that env var existed. Note `WP_LAUNCHER_API_URL` is the *internal* `http://api:3737` and is not usable from a browser
@@ -286,8 +289,8 @@ Each demo site gets:
 - CORS with configurable origins
 - bcryptjs password hashing
 - Input validation (subdomain regex, image prefix whitelist)
-- DISALLOW_FILE_MODS in WordPress (agency mode only; disabled in local mode via `WP_LOCAL_MODE` env check in wp-config)
-- Capability restrictions via MU-plugin (skipped in local mode)
+- DISALLOW_FILE_MODS in WordPress, driven by the blueprint's `disable_file_mods`
+- Capability restrictions via MU-plugin, driven by the blueprint's `blocked_capabilities` (fails closed when the env is absent)
 - Docker socket proxy (limited API surface)
 
 ## Feature Flags
