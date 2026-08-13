@@ -43,7 +43,13 @@ function isSequential(pw: string): boolean {
   return ascending || sameRun;
 }
 
-export function evaluatePassword(pw: string): PasswordStrength {
+/**
+ * `minLength` lets a caller raise the bar above the default. It must, because
+ * the meter and the submit gate have to agree: the setup page requires 12, and
+ * when this function assumed 8 an 11-character password rendered a green
+ * "Strong" while the button stayed disabled with nothing explaining why.
+ */
+export function evaluatePassword(pw: string, minLength: number = MIN_LENGTH): PasswordStrength {
   if (!pw) {
     return { score: 0, label: '', suggestions: [], ok: false };
   }
@@ -56,7 +62,7 @@ export function evaluatePassword(pw: string): PasswordStrength {
   const classes = [hasLower, hasUpper, hasDigit, hasSymbol].filter(Boolean).length;
 
   let raw = 0;
-  if (len >= MIN_LENGTH) raw++;
+  if (len >= minLength) raw++;
   if (len >= 12) raw++;
   if (classes >= 2) raw++;
   if (classes >= 3) raw++;
@@ -67,8 +73,12 @@ export function evaluatePassword(pw: string): PasswordStrength {
   if (COMMON.has(lower) || isSequential(pw)) raw = 1;
 
   const suggestions: string[] = [];
-  if (len < MIN_LENGTH) suggestions.push(`Use at least ${MIN_LENGTH} characters`);
-  else if (len < 12) suggestions.push('Longer passwords are stronger (12+)');
+  if (len < minLength) {
+    const short = minLength - len;
+    suggestions.push(`${short} more character${short === 1 ? '' : 's'} (minimum ${minLength})`);
+  } else if (len < 12) {
+    suggestions.push('Longer passwords are stronger (12+)');
+  }
   if (!hasUpper || !hasLower) suggestions.push('Mix upper and lower case');
   if (!hasDigit) suggestions.push('Add a number');
   if (!hasSymbol) suggestions.push('Add a symbol');
@@ -76,10 +86,10 @@ export function evaluatePassword(pw: string): PasswordStrength {
   else if (isSequential(pw)) suggestions.push('Avoid simple sequences and repeats');
 
   let score: StrengthScore;
-  if (len < MIN_LENGTH) score = 0;
+  if (len < minLength) score = 0;
   else score = Math.max(1, Math.min(4, raw)) as StrengthScore;
 
-  const ok = len >= MIN_LENGTH && score >= 2;
+  const ok = len >= minLength && score >= 2;
   const label = LABELS[score];
 
   return { score, label, suggestions: suggestions.slice(0, 2), ok };

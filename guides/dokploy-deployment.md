@@ -10,9 +10,9 @@ instead — that path bundles Traefik and is unaffected by anything here.
 
 - A Dokploy host with Docker installed (Dokploy's standard install).
 - **DNS**, both records pointing at the host's IP:
-  - `demo.example.com` — the panel
-  - `*.demo.example.com` — a **wildcard** record; every launched site lives at
-    `{subdomain}.demo.example.com`
+  - `wplauncher.xyz` — the panel
+  - `*.wplauncher.xyz` — a **wildcard** record; every launched site lives at
+    `{subdomain}.wplauncher.xyz`
 - An **SMTP account**. Unlike the standalone install there is no bundled Mailpit,
   so account verification and invitations need real mail.
 
@@ -67,7 +67,7 @@ After the first deploy you can also do this from the panel under
 
 ## 5. First run
 
-Visit `https://demo.example.com` and complete the setup wizard to create the
+Visit `https://wplauncher.xyz` and complete the setup wizard to create the
 owner account.
 
 ## 6. Wildcard TLS (recommended for production)
@@ -83,7 +83,7 @@ The fix is one wildcard certificate covering every site:
 1. Add a DNS-01 resolver to Dokploy's Traefik static configuration
    (**Settings → Traefik** in the Dokploy UI, or
    `/etc/dokploy/traefik/traefik.yml`) using your DNS provider's API token, and
-   obtain `*.demo.example.com`.
+   obtain `*.wplauncher.xyz`.
 2. Set `CERT_RESOLVER=` — **blank, but keep the line** — in the Environment tab.
 3. Redeploy.
 
@@ -133,10 +133,10 @@ Unchanged from standalone: the provisioner reaches Docker only through
 
 Run these on the host after the first deploy:
 
-1. `https://demo.example.com` serves the panel, and
-   `https://demo.example.com/api/settings` returns JSON — confirming nginx reaches
+1. `https://wplauncher.xyz` serves the panel, and
+   `https://wplauncher.xyz/api/settings` returns JSON — confirming nginx reaches
    the API with no published port.
-2. Launch a site; it answers at `https://{sub}.demo.example.com` with a valid
+2. Launch a site; it answers at `https://{sub}.wplauncher.xyz` with a valid
    certificate.
 3. That site container carries the right network label:
    ```bash
@@ -156,7 +156,7 @@ Run these on the host after the first deploy:
 
 - No bundled Traefik — Dokploy's routes everything.
 - No Mailpit — real SMTP is required.
-- No published API port, and no `api.demo.example.com`. Everything reaches the
+- No published API port, and no `api.wplauncher.xyz`. Everything reaches the
   API through the panel origin at `/api/`.
 
 ## Troubleshooting
