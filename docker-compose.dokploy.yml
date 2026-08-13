@@ -1,0 +1,162 @@
+# WP Launcher on Dokploy.
+#
+# Differs from docker-compose.yml in four ways, all forced by the platform:
+#   1. No Traefik service — Dokploy's Traefik owns :80/:443 and routes us by label.
+#   2. Services join the external `dokploy-network`, the only network that
+#      Traefik watches, and pin `traefik.docker.network` so multi-network
+#      containers resolve correctly.
+#   3. Nothing stateful lives in the repo checkout: Dokploy deletes `code/` on
+#      every redeploy. State is a named volume, or under `../files/`.
+#   4. No published host ports. The dashboard's nginx proxies /api/ to the API
+#      internally, so the API never needs to face the host.
+#
+# See guides/dokploy-deployment.md for setup, including the absolute paths that
+# PRODUCT_ASSETS_PATH and SITES_HOST_PATH must be given.
+
+services:
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      VOLUMES: 1
+      EXEC: 1
+      POST: 1
+      BUILD: 1
+      INFO: 1
+      SYSTEM: 1
+    networks:
+      - provisioner-internal
+
+  provisioner:
+    build: ./packages/provisioner
+    restart: unless-stopped
+    environment:
+      - DOCKER_HOST=tcp://docker-proxy:2375
+      - DOCKER_API_VERSION=1.44
+      - PORT=4000
+      - INTERNAL_KEY=${PROVISIONER_INTERNAL_KEY:?Set PROVISIONER_INTERNAL_KEY}
+      - BASE_DOMAIN=${BASE_DOMAIN:?Set BASE_DOMAIN}
+      # Site containers must land where Dokploy's Traefik can see them.
+      - DOCKER_NETWORK=dokploy-network
+      - TRAEFIK_NETWORK=dokploy-network
+      - CONTAINER_MEMORY=${CONTAINER_MEMORY:-268435456}
+      - CONTAINER_CPU=${CONTAINER_CPU:-0.5}
+      - WP_UPLOAD_LIMIT=${WP_UPLOAD_LIMIT:-2097152}
+      - WP_DISK_QUOTA=${WP_DISK_QUOTA:-104857600}
+      - ENABLE_TLS=${ENABLE_TLS:-true}
+      # `-` not `:-`: an explicitly empty CERT_RESOLVER selects wildcard mode,
+      # and `:-` would substitute the default for it.
+      - CERT_RESOLVER=${CERT_RESOLVER-letsencrypt}
+      - PRODUCT_ASSETS_PATH=${PRODUCT_ASSETS_PATH:?Set PRODUCT_ASSETS_PATH to an absolute host path}
+      - SITES_HOST_PATH=${SITES_HOST_PATH:?Set SITES_HOST_PATH to an absolute host path}
+      # Custom-domain routers are written here for Traefik's file provider.
+      - CUSTOM_DOMAINS_DIR=/etc/traefik/dynamic/custom-domains
+    volumes:
+      - ${PRODUCT_ASSETS_PATH}:/product-assets
+      - wpl-data:/app/data
+      - /etc/dokploy/traefik/dynamic:/etc/traefik/dynamic
+      - /proc:/host/proc:ro
+    networks:
+      - provisioner-internal
+      - dokploy-network
+    depends_on:
+      - docker-proxy
+
+  api:
+    build: ./packages/api
+    restart: unless-stopped
+    volumes:
+      - wpl-data:/app/data
+      - ./blueprints:/app/blueprints
+      - ./products:/app/products
+      - ./templates:/app/templates
+      - ${PRODUCT_ASSETS_PATH}:/app/product-assets
+      - ./wordpress:/app/wordpress:ro
+      - ./version.json:/app/version.json:ro
+      - ${SITES_HOST_PATH}:/app/sites
+    environment:
+      - SITES_HOST_PATH=${SITES_HOST_PATH:?Set SITES_HOST_PATH to an absolute host path}
+      - SITES_DIR=/app/sites
+      - NODE_ENV=production
+      - PORT=3737
+      - API_KEY=${API_KEY:?Set API_KEY}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - PUBLIC_URL=${PUBLIC_URL:?Set PUBLIC_URL, e.g. https://demo.example.com}
+      - PROVISIONER_URL=http://provisioner:4000
+      - PROVISIONER_INTERNAL_KEY=${PROVISIONER_INTERNAL_KEY:?Set PROVISIONER_INTERNAL_KEY}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-}
+      - EMAIL_PROVIDER=${EMAIL_PROVIDER:-smtp}
+      # No mailpit here: real SMTP is required for verification and invites.
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURE=${SMTP_SECURE:-false}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-WP Launcher <noreply@localhost>}
+      - BREVO_API_KEY=${BREVO_API_KEY:-}
+      - BASE_DOMAIN=${BASE_DOMAIN:?Set BASE_DOMAIN}
+      - WP_IMAGE=${WP_IMAGE:-wp-launcher/wordpress:latest}
+      - MAX_SITES_PER_USER=${MAX_SITES_PER_USER:-3}
+      - CARD_LAYOUT=${CARD_LAYOUT:-full}
+      - DATA_DIR=/app/data
+      - BLUEPRINT_CONFIGS_DIR=/app/blueprints
+      - PRODUCT_CONFIGS_DIR=/app/products
+      - TEMPLATE_CONFIGS_DIR=/app/templates
+    networks:
+      - dokploy-network
+    depends_on:
+      - provisioner
+
+  dashboard:
+    build: ./packages/dashboard
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.wpl-dashboard.rule=Host(`${BASE_DOMAIN}`)"
+      - "traefik.http.routers.wpl-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.wpl-dashboard.tls=true"
+      - "traefik.http.routers.wpl-dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wpl-dashboard.loadbalancer.server.port=80"
+    networks:
+      - dokploy-network
+    depends_on:
+      - api
+
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    volumes:
+      - ./adminer/adminer.css:/var/www/html/adminer.css:ro
+    environment:
+      - ADMINER_DEFAULT_SERVER=localhost
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.wpl-adminer.rule=Host(`db.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.wpl-adminer.entrypoints=websecure"
+      - "traefik.http.routers.wpl-adminer.tls=true"
+      - "traefik.http.routers.wpl-adminer.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wpl-adminer.loadbalancer.server.port=8080"
+    networks:
+      - dokploy-network
+
+networks:
+  # Provided by Dokploy. Declared external so compose attaches rather than
+  # creating its own — Traefik only watches this one.
+  dokploy-network:
+    external: true
+  provisioner-internal:
+    driver: bridge
+    internal: true
+
+volumes:
+  # Named rather than a bind mount so Dokploy's volume backup covers the
+  # database. `code/` is wiped on redeploy, so this must not live there.
+  wpl-data:
