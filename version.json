@@ -1,9 +1,9 @@
 {
-  "version": "2.3.3",
-  "commit": "4ab373d",
-  "commitFull": "4ab373d0368097193319a31b70ba3b8bc77b3a4c",
+  "version": "2.4.0",
+  "commit": "f2eda3a",
+  "commitFull": "f2eda3a237fa673a22a3639a38486585d0657ea6",
   "branch": "main",
-  "buildDate": "2026-08-13T10:35:10Z",
-  "commitDate": "2026-08-13 15:35:09 +0500",
-  "commitMessage": "chore: bump to 2.3.3"
+  "buildDate": "2026-08-13T15:40:03Z",
+  "commitDate": "2026-08-13 20:40:03 +0500",
+  "commitMessage": "chore: bump to 2.4.0"
 }
