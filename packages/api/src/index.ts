@@ -32,6 +32,7 @@ import { startProductivitySync } from './services/productivity-sync.service';
 import { ensureHeartbeatSecret } from './services/productivity.service';
 import { reconcileStuckImageBuilds } from './services/imageBuildJob.service';
 import { publicApiBaseUrl, isLocalDeployment } from './utils/deployment';
+import { needsAdminForBlueprintRequest } from './utils/blueprintGuard';
 import { closeDb, getDb } from './utils/db';
 import { getPanelSettings } from './services/settings.service';
 import { policy } from './policy';
@@ -571,7 +572,7 @@ app.use('/api/sites', sitesRouter);
 // /api/products and /api/templates are deprecated aliases kept so existing
 // API callers and scripts keep working.
 const blueprintGuard = (req: any, res: any, next: any) => {
-  if (req.method === 'GET') return next();
+  if (!needsAdminForBlueprintRequest(req.method, req.query || {})) return next();
   return adminAuth(req, res, next);
 };
 app.use('/api/blueprints', blueprintGuard, blueprintsRouter);

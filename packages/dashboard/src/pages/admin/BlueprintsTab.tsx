@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Plus } from 'lucide-react';
+import { Loader2, Pencil, Plus } from 'lucide-react';
 import { AdminProduct } from './shared';
 import { useAdminHeaders } from './AdminLayout';
 import { apiFetch } from '../../utils/api';
@@ -101,6 +101,15 @@ export default function BlueprintsTab() {
                   {p.branding?.description || '—'}
                 </TableCell>
                 <TableCell className="text-right">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="mr-2"
+                    onClick={() => navigate(`/blueprints/${p.id}/edit`)}
+                  >
+                    <Pencil />
+                    Edit
+                  </Button>
                   <Button
                     variant="destructive"
                     size="sm"

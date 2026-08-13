@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, Loader2, Save } from 'lucide-react';
 import type { PluginEntry, ThemeEntry } from '../types/product';
 import PluginRepeater from '../components/PluginRepeater';
 import ThemeRepeater from '../components/ThemeRepeater';
 import ImageUpload from '../components/ImageUpload';
 import { apiFetch } from '../utils/api';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -57,6 +59,14 @@ const HIDDEN_MENU_ITEMS = [
 ];
 
 export default function BlueprintEditorPage() {
+  // An :id in the route means we are editing an existing blueprint rather than
+  // creating one. The same form serves both; only loading, the locked ID and
+  // the wording differ.
+  const { id: editingId } = useParams();
+  const isEditing = !!editingId;
+  const [loadingBlueprint, setLoadingBlueprint] = useState(isEditing);
+  const [loadError, setLoadError] = useState('');
+
   // Basic info
   const [id, setId] = useState('');
   const [name, setName] = useState('');
@@ -115,6 +125,11 @@ export default function BlueprintEditorPage() {
   const [cardIconPreview, setCardIconPreview] = useState<string | null>(null);
   const [cardImageFile, setCardImageFile] = useState<File | null>(null);
   const [cardIconFile, setCardIconFile] = useState<File | null>(null);
+  // Already-uploaded asset URLs, carried through a save. The server only sets
+  // these when a file is uploaded, so without round-tripping them an edit that
+  // doesn't re-attach the images would silently blank them.
+  const [cardImageUrl, setCardImageUrl] = useState('');
+  const [cardIconUrl, setCardIconUrl] = useState('');
 
   // State
   const [submitting, setSubmitting] = useState(false);
@@ -132,6 +147,71 @@ export default function BlueprintEditorPage() {
     { id: 'restrictions', label: 'Restrictions' },
     { id: 'branding', label: 'Branding' },
   ];
+
+  // ── Load an existing blueprint when editing ──
+  useEffect(() => {
+    if (!editingId) return;
+    let active = true;
+    // `full=true` returns the unsanitized blueprint — docker config, plugin
+    // lists, demo admin email — which is admin-only and exactly what the form
+    // needs to round-trip faithfully.
+    apiFetch(`/api/blueprints/${encodeURIComponent(editingId)}?full=true`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(r.status === 404 ? 'Blueprint not found' : 'Failed to load blueprint');
+        return r.json();
+      })
+      .then((b) => {
+        if (!active) return;
+        setId(b.id || '');
+        setName(b.name || '');
+        setCategory(b.category || '');
+        setTags(Array.isArray(b.tags) ? b.tags.join(', ') : '');
+        setDatabase(b.database || 'sqlite');
+        setDockerImage(b.docker?.image || '');
+        setWpVersion(b.wordpress?.version || '6.9');
+        setWpLocale(b.wordpress?.locale || 'en_US');
+        setIsPublic(!!b.public);
+
+        setPlugins((b.plugins?.preinstall || []).map((p: any) => ({
+          source: p.source,
+          slug: p.slug,
+          url: p.url,
+          // A previously uploaded zip still lives in product-assets; keeping its
+          // filename marks it attached so re-uploading stays optional.
+          filename: p.path,
+          activate: p.activate !== false,
+        })));
+        setRemovePlugins((b.plugins?.remove || []).join(', '));
+        setThemes((b.themes?.install || []).map((t: any) => ({
+          source: t.source,
+          slug: t.slug,
+          url: t.url,
+          filename: t.path,
+          activate: t.activate !== false,
+        })));
+        setRemoveThemes((b.themes?.remove || []).join(', '));
+
+        setDefaultExpiration(b.demo?.default_expiration || '24h');
+        setMaxConcurrentSites(b.demo?.max_concurrent_sites ?? 10);
+        setAdminUser(b.demo?.admin_user || 'demo');
+        setAdminEmail(b.demo?.admin_email || 'demo@example.com');
+        setLandingPage(b.demo?.landing_page || '');
+
+        setDisableFileMods(b.restrictions?.disable_file_mods !== false);
+        setBlockedCapabilities(b.restrictions?.blocked_capabilities || []);
+        setHiddenMenuItems(b.restrictions?.hidden_menu_items || []);
+
+        setDescription(b.branding?.description || '');
+        setBannerText(b.branding?.banner_text || '');
+        setCardImageUrl(b.branding?.image_url || '');
+        setCardIconUrl(b.branding?.logo_url || '');
+        setCardImagePreview(b.branding?.image_url || null);
+        setCardIconPreview(b.branding?.logo_url || null);
+      })
+      .catch((err) => { if (active) setLoadError(err.message || 'Failed to load blueprint'); })
+      .finally(() => { if (active) setLoadingBlueprint(false); });
+    return () => { active = false; };
+  }, [editingId]);
 
   // ── Capability toggles ──
   function toggleCapability(cap: string) {
@@ -208,6 +288,10 @@ export default function BlueprintEditorPage() {
         branding: {
           description,
           banner_text: bannerText,
+          // Carried through so saving an edit without re-attaching the images
+          // keeps them; a new upload overwrites these server-side.
+          ...(cardImageUrl && { image_url: cardImageUrl }),
+          ...(cardIconUrl && { logo_url: cardIconUrl }),
         },
       };
 
@@ -239,7 +323,11 @@ export default function BlueprintEditorPage() {
         throw new Error(data.error || 'Failed to create product');
       }
 
-      setSuccess(`Product "${name}" created successfully! It will now appear on the launch page.`);
+      setSuccess(
+        isEditing
+          ? `Blueprint "${name}" saved. New sites launched from it use the updated configuration.`
+          : `Blueprint "${name}" created successfully! It will now appear on the launch page.`,
+      );
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -249,14 +337,35 @@ export default function BlueprintEditorPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-foreground">Create Product</h2>
+      {loadingBlueprint && (
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading blueprint...
+        </div>
+      )}
+
+      {!loadingBlueprint && loadError && (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{loadError}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className={cn('mb-6', (loadingBlueprint || loadError) && 'hidden')}>
+        <h2 className="text-xl font-semibold text-foreground">
+          {isEditing ? 'Edit Blueprint' : 'Create Blueprint'}
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Configure a product for your demo site launcher with plugins, themes, restrictions, and branding.
+          {isEditing
+            ? 'Changes apply to sites launched from here on. Sites already running keep the configuration they were created with.'
+            : 'Configure a blueprint for your launcher with plugins, themes, restrictions, and branding.'}
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <form
+        onSubmit={handleSubmit}
+        className={cn('flex flex-col gap-6', (loadingBlueprint || loadError) && 'hidden')}
+      >
         <Tabs value={activeSection} onValueChange={setActiveSection}>
           <TabsList className="flex w-full flex-wrap justify-start gap-1 h-auto">
             {TABS.map(tab => (
@@ -277,16 +386,23 @@ export default function BlueprintEditorPage() {
             <div className="flex flex-col gap-5">
               <div className="grid gap-5 md:grid-cols-2">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="prod-id">Product ID</Label>
+                  <Label htmlFor="prod-id">Blueprint ID</Label>
                   <Input
                     id="prod-id"
                     type="text"
                     value={id}
                     onChange={(e) => setId(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
-                    placeholder="my-product"
+                    placeholder="my-blueprint"
                     required
+                    // Editing the ID would save a *new* blueprint under it and
+                    // orphan this one along with its uploaded assets.
+                    disabled={isEditing}
                   />
-                  <span className="text-xs text-muted-foreground">Lowercase, hyphens only. Used as identifier.</span>
+                  <span className="text-xs text-muted-foreground">
+                    {isEditing
+                      ? 'The identifier cannot be changed after creation.'
+                      : 'Lowercase, hyphens only. Used as identifier.'}
+                  </span>
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="prod-name">Display Name</Label>
@@ -608,17 +724,19 @@ export default function BlueprintEditorPage() {
           type="submit"
           size="lg"
           className="self-start"
-          disabled={submitting || !id || !name}
+          // A failed load must not become an accidental create: without this the
+          // empty form would happily save a brand-new blueprint.
+          disabled={submitting || !id || !name || !!loadError}
         >
           {submitting ? (
             <>
               <Loader2 className="animate-spin" />
-              Creating Product...
+              {isEditing ? 'Saving...' : 'Creating Blueprint...'}
             </>
           ) : (
             <>
               <Save />
-              Create Product
+              {isEditing ? 'Save Changes' : 'Create Blueprint'}
             </>
           )}
         </Button>

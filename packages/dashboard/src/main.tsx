@@ -100,6 +100,7 @@ function AppRoutes() {
         <Route element={<RequireAdmin />}>
           <Route path="blueprints" element={<BlueprintsTab />} />
           <Route path="blueprints/new" element={<BlueprintEditorPage />} />
+          <Route path="blueprints/:id/edit" element={<BlueprintEditorPage />} />
           <Route path="monitoring" element={<MonitoringPage />} />
           <Route path="analytics" element={<AnalyticsTab />} />
           <Route path="productivity" element={<ProductivityPage />} />
