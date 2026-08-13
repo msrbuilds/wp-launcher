@@ -39,9 +39,11 @@ wordpress/
   plugins/wp-launcher-connector/  # WP Connector plugin for site sync
 products/                   # Product config JSONs (_default, demo-sqlite, demo-mysql, etc.)
 product-assets/             # Per-product plugins/, themes/, demo-content.xml
-traefik/                    # traefik.yml, dynamic/middleware.yml, dynamic/tls.yml
+traefik/                    # traefik.yml, dynamic/middleware.yml, dynamic/tls.yml (standalone only)
 scripts/                    # build-wp-image.sh, create-product.sh, setup.sh
-guides/                     # Documentation (getting-started, creating-products, vps-deployment)
+guides/                     # Documentation (getting-started, creating-products, vps-deployment, dokploy-deployment)
+docker-compose.dokploy.yml  # Dokploy variant: no bundled Traefik, uses dokploy-network
+.env.dokploy.example        # Environment template for Dokploy
 data/                       # Runtime SQLite DB (wp-launcher.db)
 sites/                      # Site wp-content bind mounts (when SITES_HOST_PATH is set)
 ```
@@ -77,7 +79,11 @@ bash scripts/create-product.sh                  # Interactive product wizard
 
 # Setup
 bash scripts/setup.sh      # Local dev setup (.env, data dir, base image)
-bash install.sh            # One-click VPS installer
+bash install.sh            # One-click VPS installer (standalone; bundles Traefik)
+
+# Dokploy: create a Compose service pointing at docker-compose.dokploy.yml.
+# It drops the bundled Traefik and routes via Dokploy's on dokploy-network.
+# See guides/dokploy-deployment.md.
 ```
 
 ## Environment Variables
