@@ -1,6 +1,6 @@
 {
   "name": "wp-launcher",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "private": true,
   "description": "Docker-based WordPress demo site launcher for agencies",
   "workspaces": [
