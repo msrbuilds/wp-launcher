@@ -70,25 +70,39 @@ After the first deploy you can also do this from the panel under
 Visit `https://wplauncher.xyz` and complete the setup wizard to create the
 owner account.
 
-## 6. Wildcard TLS (recommended for production)
+## 6. Wildcard TLS (required)
 
-By default every site requests its own Let's Encrypt certificate over HTTP-01.
-That works, but **Let's Encrypt allows only 50 certificates per registered domain
-per week**. A busy launcher hits that ceiling, after which new sites get no
-HTTPS — with no error in WP Launcher itself, because the failure happens inside
-Traefik.
-
-The fix is one wildcard certificate covering every site:
+Site containers are not visible to Dokploy's Traefik individually — they sit on
+a private network behind WP Launcher's own Traefik. Per-site HTTP-01 therefore
+cannot work, because Traefik cannot derive ACME domains from a regexp rule. One
+wildcard certificate covers every site:
 
 1. Add a DNS-01 resolver to Dokploy's Traefik static configuration
    (**Settings → Traefik** in the Dokploy UI, or
    `/etc/dokploy/traefik/traefik.yml`) using your DNS provider's API token, and
    obtain `*.wplauncher.xyz`.
-2. Set `CERT_RESOLVER=` — **blank, but keep the line** — in the Environment tab.
-3. Redeploy.
+2. Redeploy.
 
-Sites are then served from the wildcard certificate with no per-site ACME
-request, which also makes launches noticeably faster.
+This also sidesteps Let's Encrypt's limit of 50 certificates per registered
+domain per week, which a busy launcher on per-site certificates would hit — and
+it makes launches noticeably faster, since no ACME request happens at all.
+
+Three variables must be set in the Environment tab alongside it:
+
+| Variable | How to get it |
+|---|---|
+| `BASE_DOMAIN_REGEX` | Escape the dots in your domain: `^.+\.wplauncher\.xyz$` |
+| `TRAEFIK_TRUSTED_IPS` | `docker network inspect dokploy-network -f '{{(index .IPAM.Config 0).Subnet}}'` |
+| `ADMINER_AUTH_USERS` | `htpasswd -nbB admin 'your-password'`, then **double every `$`** |
+
+That last instruction is not optional. Compose interpolates environment values,
+so a bcrypt hash entered verbatim is silently truncated at its first `$` and
+Adminer rejects the correct password with nothing in any log to explain it.
+Enter `admin:$$2y$$05$$Xk9...` where htpasswd printed `admin:$2y$05$Xk9...`.
+`BASE_DOMAIN_REGEX` needs no escaping — its only `$` is the final character,
+where there is no variable name for compose to read.
+
+`ENABLE_TLS` and `CERT_RESOLVER` are no longer read; remove them if present.
 
 ## What survives a redeploy
 
@@ -105,49 +119,93 @@ so they survive the `code/` wipe even though their JSON files do not.
 Running site containers are **not** touched by a panel redeploy — they are
 separate containers owned by the Docker daemon, not part of this compose project.
 
-## Security: sites share Dokploy's network
+## Security: sites are isolated from your other apps
 
-Site containers join `dokploy-network`, which means **a demo WordPress site can
-reach other applications hosted on the same Dokploy instance** over the internal
-network. This is wider than the standalone install, where sites are confined to
-`wp-launcher-network`. Since sites can run arbitrary plugins, treat it as real.
+Site containers run on a private `wpl-sites` network and are routed by a second
+Traefik that WP Launcher owns. They cannot reach other applications on this
+Dokploy instance, and cannot reach the provisioner at all.
 
-If that matters, host WP Launcher on a Dokploy instance of its own.
+The request path is: Dokploy's Traefik terminates TLS with the wildcard
+certificate, matches one low-priority catch-all router for `*.BASE_DOMAIN`, and
+forwards plain HTTP to `wpl-traefik`, which routes by hostname to the site.
 
-There is a hardening option — keep sites on their own network and attach
-Dokploy's Traefik to it:
+Two consequences worth knowing:
 
-```bash
-docker network connect wp-launcher-network dokploy-traefik
-```
-
-It is not the default because **Dokploy recreates its Traefik container on
-update**, which drops the attachment and silently breaks routing for every site
-until the command is run again. Only take this route if you will notice and
-re-run it.
+- **Sites launched before this change are not isolated.** Docker labels are
+  immutable, so an existing container permanently records the network it was
+  created for and cannot be moved. Those sites keep working — their per-site
+  routers outrank the catch-all — but they remain on `dokploy-network` until
+  they expire or you relaunch them. Relaunch anything holding client data you
+  care about.
+- **A site can still reach ports published on the host** via the bridge
+  gateway address. Closing that needs a `DOCKER-USER` iptables rule and is not
+  done for you.
 
 Unchanged from standalone: the provisioner reaches Docker only through
-`docker-socket-proxy` on an internal network, never the raw socket.
+`docker-socket-proxy`, never the raw socket. Traefik gets a second, read-only
+socket proxy with `EXEC`, `POST` and `BUILD` disabled.
+
+Adminer at `db.wplauncher.xyz` requires the basic-auth credential in
+`ADMINER_AUTH_USERS`. It sits on the site network, so it can still reach every
+site database — do not disable that middleware.
+
+### Custom domains are not supported on Dokploy yet
+
+A custom domain needs a router at Dokploy's tier forwarding to `wpl-traefik`
+plus a matching host router at ours, and its certificate cannot come from the
+wildcard. That plumbing is not built. Sites on `*.BASE_DOMAIN` are unaffected.
 
 ## Verify the deployment
 
 Run these on the host after the first deploy:
 
 1. `https://wplauncher.xyz` serves the panel, and
-   `https://wplauncher.xyz/api/settings` returns JSON — confirming nginx reaches
-   the API with no published port.
-2. Launch a site; it answers at `https://{sub}.wplauncher.xyz` with a valid
-   certificate.
-3. That site container carries the right network label:
+   `https://wplauncher.xyz/api/settings` returns JSON — confirming the
+   dashboard's nginx still reaches the API now that the API is off
+   `dokploy-network`.
+
+2. Launch a **new** site. It answers at `https://{sub}.wplauncher.xyz` with a
+   valid certificate and **no redirect loop**. A redirect loop here means
+   `TRAEFIK_TRUSTED_IPS` does not match the real `dokploy-network` subnet, so
+   WordPress is seeing `X-Forwarded-Proto: http`.
+
+3. That new site is on the private network only:
+
    ```bash
-   docker inspect $(docker ps --filter "label=wp-launcher.managed=true" --format "{{.Names}}" | head -1) \
-     --format '{{index .Config.Labels "traefik.docker.network"}}'
+   docker inspect wp-site-{sub} --format '{{json .NetworkSettings.Networks}}' | tr ',' '\n' | grep -o '"[a-z-]*":'
    ```
-   Expected: `dokploy-network`.
-4. Setting a custom domain writes
-   `/etc/dokploy/traefik/dynamic/custom-domains/{sub}.yml` and the domain routes.
-   (Traefik's file provider does read that subdirectory — verified against v3.6.)
-5. **Redeploy, then confirm the owner still logs in and existing sites are still
+
+   Expected: `wpl-sites`, and **not** `dokploy-network`.
+
+4. The new site cannot reach the provisioner:
+
+   ```bash
+   docker exec wp-site-{sub} curl -s -m 5 http://provisioner:4000/health
+   ```
+
+   Expected: failure to resolve the host. A JSON response means the
+   provisioner is still on a network the site can see.
+
+5. The new site cannot reach a neighbouring app. Pick another Dokploy service
+   and try its internal port:
+
+   ```bash
+   docker exec wp-site-{sub} curl -s -m 5 http://<other-service>:<port>
+   ```
+
+   Expected: failure. Running the same command inside a site created *before*
+   this change will succeed — that is the pre-existing exposure, and it is why
+   old sites should be relaunched.
+
+6. `https://db.wplauncher.xyz` returns `401 Unauthorized` before showing
+   Adminer's form. If it shows the form, the middleware is not applied; if it
+   rejects your correct password, the `$` characters in `ADMINER_AUTH_USERS`
+   were not doubled.
+
+7. A site created before this change still loads, confirming the two tiers
+   coexist.
+
+8. **Redeploy, then confirm the owner still logs in and existing sites are still
    listed.** This is the check that matters most: its failure mode is silent
    database loss, and it is why `data/` is a named volume rather than a path in
    the checkout.

@@ -42,7 +42,7 @@ product-assets/             # Per-product plugins/, themes/, demo-content.xml
 traefik/                    # traefik.yml, dynamic/middleware.yml, dynamic/tls.yml (standalone only)
 scripts/                    # build-wp-image.sh, create-product.sh, setup.sh
 guides/                     # Documentation (getting-started, creating-products, vps-deployment, dokploy-deployment)
-docker-compose.dokploy.yml  # Dokploy variant: no bundled Traefik, uses dokploy-network
+docker-compose.dokploy.yml  # Dokploy variant: two-tier Traefik, sites on private wpl-sites
 .env.dokploy.example        # Environment template for Dokploy
 data/                       # Runtime SQLite DB (wp-launcher.db)
 sites/                      # Site wp-content bind mounts (when SITES_HOST_PATH is set)
@@ -82,7 +82,10 @@ bash scripts/setup.sh      # Local dev setup (.env, data dir, base image)
 bash install.sh            # One-click VPS installer (standalone; bundles Traefik)
 
 # Dokploy: create a Compose service pointing at docker-compose.dokploy.yml.
-# It drops the bundled Traefik and routes via Dokploy's on dokploy-network.
+# Dokploy's Traefik terminates TLS with a (required) wildcard cert and forwards
+# *.BASE_DOMAIN to our own `wpl-traefik`, which routes to site containers on the
+# private `wpl-sites` network. Sites therefore cannot reach other apps on the
+# instance. Requires BASE_DOMAIN_REGEX, TRAEFIK_TRUSTED_IPS, ADMINER_AUTH_USERS.
 # See guides/dokploy-deployment.md.
 ```
 
