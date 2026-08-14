@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { listBlueprints, getBlueprint, saveBlueprint, BlueprintConfig, clearBlueprintCache, isSafeSlug, recordBlueprintDeletion } from '../services/blueprint.service';
+import { listBlueprints, getBlueprint, saveBlueprint, BlueprintConfig, clearBlueprintCache, isSafeSlug, recordBlueprintDeletion, persistBlueprintFile } from '../services/blueprint.service';
 import { config } from '../config';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { blueprintConfigSchema } from '../utils/schemas';
@@ -158,10 +158,10 @@ router.post('/', upload.fields([
     // Save blueprint config to DB
     saveBlueprint(blueprintConfig);
 
-    // Also write a JSON file for backup/reference
-    const blueprintFilePath = path.join(config.blueprintConfigsDir, `${blueprintConfig.id}.json`);
-    fs.mkdirSync(config.blueprintConfigsDir, { recursive: true });
-    fs.writeFileSync(blueprintFilePath, JSON.stringify(blueprintConfig, null, 2));
+    // Also write a JSON file for backup/reference. Best-effort: the database
+    // above is authoritative, and this directory is unwritable whenever the
+    // checkout has been re-cloned under a running container.
+    persistBlueprintFile(blueprintConfig);
 
     clearBlueprintCache();
 

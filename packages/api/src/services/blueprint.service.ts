@@ -117,6 +117,35 @@ export function getBlueprint(id: string): BlueprintConfig {
 }
 
 /**
+ * Write a blueprint's JSON next to the shipped ones, as a convenience copy.
+ *
+ * Best-effort by design: `saveBlueprint` has already stored the authoritative
+ * copy in the database. The directory lives in the repo checkout, which some
+ * platforms (Dokploy) delete and re-clone on redeploy — a container running
+ * through that keeps a mount to the deleted inode and cannot write there at
+ * all. Failing the request over a backup copy would be the wrong trade.
+ *
+ * @returns whether the file was written.
+ */
+export function persistBlueprintFile(blueprint: BlueprintConfig): boolean {
+  try {
+    fs.mkdirSync(config.blueprintConfigsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(config.blueprintConfigsDir, `${blueprint.id}.json`),
+      JSON.stringify(blueprint, null, 2),
+    );
+    return true;
+  } catch (err: any) {
+    console.warn(
+      `[blueprints] could not write ${blueprint.id}.json to ${config.blueprintConfigsDir} ` +
+      `(${err.code || err.message}). The blueprint is saved in the database and remains usable; ` +
+      'this usually means the checkout was re-cloned under a running container — restart the API to restore it.',
+    );
+    return false;
+  }
+}
+
+/**
  * Record that a shipped, file-based blueprint was deleted.
  *
  * Unlinking the JSON file is not enough on platforms that re-clone the checkout

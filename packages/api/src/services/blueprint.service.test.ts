@@ -57,6 +57,26 @@ afterEach(() => {
   delete process.env.__TEST_BP_DIR;
 });
 
+describe('persistBlueprintFile', () => {
+  it('writes the blueprint JSON alongside the shipped ones', async () => {
+    const { persistBlueprintFile } = await loadService();
+    expect(persistBlueprintFile({ id: 'mine', name: 'Mine' } as any)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(path.join(dir, 'mine.json'), 'utf-8')).name).toBe('Mine');
+  });
+
+  it('reports failure instead of throwing when the directory cannot be written', async () => {
+    // Dokploy re-clones code/ on redeploy, so a container that keeps running
+    // holds a mount to the deleted inode and cannot write there. The file is a
+    // convenience copy — the database is the source of truth — so a failure
+    // here must not fail the request.
+    const blocker = path.join(dir, 'blocker');
+    fs.writeFileSync(blocker, 'not a directory');
+    process.env.__TEST_BP_DIR = path.join(blocker, 'nested');
+    const { persistBlueprintFile } = await loadService();
+    expect(persistBlueprintFile({ id: 'mine', name: 'Mine' } as any)).toBe(false);
+  });
+});
+
 describe('blueprint tombstones', () => {
   // Deleting a shipped blueprint removes its JSON file, but on Dokploy the
   // checkout is re-cloned from git on every redeploy and the file comes back.
