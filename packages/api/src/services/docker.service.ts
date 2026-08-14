@@ -69,6 +69,12 @@ export interface CreateContainerOptions {
   heartbeatSecret?: string;
   /** Browser-reachable API base URL, for the productivity mu-plugin's client JS. */
   publicApiUrl?: string;
+  /**
+   * Whether this panel is a developer/LAN install. Drives the admin-bar badge
+   * only — it must not be inferred from restrictions, which is a separate
+   * concern that happens to be off on most dev machines.
+   */
+  isLocalDeployment?: boolean;
   directFileAccess?: boolean;
   phpConfig?: {
     memoryLimit?: string;

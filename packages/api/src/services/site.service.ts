@@ -15,7 +15,7 @@ import { fireWebhookEvent } from './webhook.service';
 import { getBlueprint } from './blueprint.service';
 import { resolveRestrictions } from './restrictions.service';
 import { getCloudConfig } from './productivity.service';
-import { publicApiBaseUrl } from '../utils/deployment';
+import { publicApiBaseUrl, isLocalDeployment } from '../utils/deployment';
 import { ConflictError, ValidationError, NotFoundError, ForbiddenError } from '../utils/errors';
 import { policy } from '../policy';
 
@@ -248,6 +248,9 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
     // visitor's browser, so the internal http://api:3737 address is useless to it
     // and deriving one by stripping the subdomain breaks on custom domains.
     const publicApiUrl = publicApiBaseUrl();
+    // Only the admin-bar badge uses this. Derived from the panel's own URL, not
+    // from restrictions — an unrestricted production site is still production.
+    const localDeployment = isLocalDeployment();
 
     const containerId = await createSiteContainer({
       subdomain,
@@ -275,6 +278,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       phpConfig: req.phpConfig,
       heartbeatSecret,
       publicApiUrl,
+      isLocalDeployment: localDeployment,
       directFileAccess: req.directFileAccess,
     });
 

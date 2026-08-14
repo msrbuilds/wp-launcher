@@ -65,7 +65,18 @@ function wp_launcher_render_timer_assets() {
         var landingPage = '<?php echo $landing_page; ?>';
         var parentNode = el.closest('.wp-launcher-timer-node');
 
-        var isLocalMode = '<?php echo getenv("WP_LOCAL_MODE") === "true" ? "1" : "0"; ?>' === '1';
+        // Whether the PANEL runs locally — not whether this site is unrestricted.
+        // WP_LOCAL_MODE means "no admin lockdown" and is the fallback only for
+        // containers created before WPL_DEPLOYMENT existed; using it here made
+        // every unrestricted production site claim to be a dev environment.
+        var isLocalMode = '<?php
+            $wpl_deployment = getenv( "WPL_DEPLOYMENT" );
+            if ( false !== $wpl_deployment && "" !== $wpl_deployment ) {
+                echo "local" === $wpl_deployment ? "1" : "0";
+            } else {
+                echo getenv( "WP_LOCAL_MODE" ) === "true" ? "1" : "0";
+            }
+        ?>' === '1';
 
         if (neverExpires) {
             el.textContent = isLocalMode ? 'Local Dev' : 'Permanent';

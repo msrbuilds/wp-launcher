@@ -143,6 +143,7 @@ interface CreateBody {
   blockedCapabilities?: string[];
   hiddenMenus?: string[];
   disableFileMods?: boolean;
+  isLocalDeployment?: boolean;
   directFileAccess?: boolean;
   phpConfig?: {
     memoryLimit?: string;
@@ -271,6 +272,10 @@ app.post('/containers', async (req: Request, res: Response) => {
     // pre-v3 WordPress image; remove after the next release.
     env.push(`WPL_RESTRICT=${opts.restrictCapabilities ? 'true' : 'false'}`);
     if (!opts.restrictCapabilities) env.push('WP_LOCAL_MODE=true');
+    // Where the panel runs, which is NOT the same question as whether this site
+    // is locked down. The admin-bar badge used to read WP_LOCAL_MODE and so
+    // labelled every unrestricted production site "Local Dev".
+    env.push(`WPL_DEPLOYMENT=${opts.isLocalDeployment ? 'local' : 'public'}`);
     // The resolved lists the mu-plugin applies. Always emitted when restricting,
     // because the plugin treats an ABSENT list as "fall back to the full legacy
     // lockdown" — an empty list must be explicit to mean "block nothing".
