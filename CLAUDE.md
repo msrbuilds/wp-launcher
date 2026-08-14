@@ -82,11 +82,13 @@ bash scripts/setup.sh      # Local dev setup (.env, data dir, base image)
 bash install.sh            # One-click VPS installer (standalone; bundles Traefik)
 
 # Dokploy: create a Compose service pointing at docker-compose.dokploy.yml.
-# Dokploy's Traefik terminates TLS with a (required) wildcard cert and forwards
-# *.BASE_DOMAIN to our own `wpl-traefik`, which routes to site containers on the
-# private `wpl-sites` network. Sites therefore cannot reach other apps on the
-# instance. Requires BASE_DOMAIN_REGEX, TRAEFIK_TRUSTED_IPS, ADMINER_AUTH_USERS.
-# See guides/dokploy-deployment.md.
+# Dokploy's Traefik forwards *.BASE_DOMAIN to our own `wpl-traefik` by SNI
+# (tls.passthrough) without decrypting; ours terminates TLS, owns ACME, and
+# routes to site containers on the private `wpl-sites` network. Sites therefore
+# cannot reach other apps on the instance. Nothing is configured on the host, so
+# a Dokploy upgrade cannot break renewal. Per-site HTTP-01 by default; set
+# ACME_DNS_PROVIDER for a wildcard. Requires ACME_EMAIL, BASE_DOMAIN_REGEX,
+# ADMINER_AUTH_USERS. See guides/dokploy-deployment.md.
 ```
 
 ## Environment Variables
