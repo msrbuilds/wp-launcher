@@ -41,6 +41,12 @@ beforeEach(() => {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`,
   ).run();
+  db.prepare(
+    `CREATE TABLE blueprint_deletions (
+      id TEXT PRIMARY KEY,
+      deleted_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )`,
+  ).run();
   __setDbForTesting(db);
 });
 
@@ -49,6 +55,56 @@ afterEach(() => {
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
   delete process.env.__TEST_BP_DIR;
+});
+
+describe('blueprint tombstones', () => {
+  // Deleting a shipped blueprint removes its JSON file, but on Dokploy the
+  // checkout is re-cloned from git on every redeploy and the file comes back.
+  // The database survives, so the deletion is recorded there.
+  it('hides a file-based blueprint whose deletion was recorded', async () => {
+    write('demo-sqlite', { name: 'Demo SQLite' });
+    write('demo-mysql', { name: 'Demo MySQL' });
+    const { listBlueprints, recordBlueprintDeletion } = await loadService();
+
+    expect(listBlueprints().map((b) => b.id).sort()).toEqual(['demo-mysql', 'demo-sqlite']);
+
+    recordBlueprintDeletion('demo-sqlite');
+    const { listBlueprints: listAgain } = await loadService();
+    expect(listAgain().map((b) => b.id)).toEqual(['demo-mysql']);
+  });
+
+  it('keeps hiding it after the file is restored, as a redeploy would', async () => {
+    write('demo-sqlite', { name: 'Demo SQLite' });
+    const { recordBlueprintDeletion } = await loadService();
+    recordBlueprintDeletion('demo-sqlite');
+    fs.rmSync(path.join(dir, 'demo-sqlite.json'));
+
+    // git restores it
+    write('demo-sqlite', { name: 'Demo SQLite' });
+
+    const { listBlueprints } = await loadService();
+    expect(listBlueprints().map((b) => b.id)).toEqual([]);
+  });
+
+  it('resurrects the id when a blueprint is saved under it again', async () => {
+    write('demo-sqlite', { name: 'Demo SQLite' });
+    const { recordBlueprintDeletion, saveBlueprint } = await loadService();
+    recordBlueprintDeletion('demo-sqlite');
+
+    saveBlueprint({ id: 'demo-sqlite', name: 'My Own SQLite' } as any);
+
+    const { listBlueprints } = await loadService();
+    const found = listBlueprints().filter((b) => b.id === 'demo-sqlite');
+    expect(found).toHaveLength(1);
+    expect(found[0].name).toBe('My Own SQLite');
+  });
+
+  it('does not hide a database-backed blueprint of the same id', async () => {
+    const { recordBlueprintDeletion, saveBlueprint, listBlueprints } = await loadService();
+    saveBlueprint({ id: 'custom', name: 'Custom' } as any);
+    recordBlueprintDeletion('other');
+    expect(listBlueprints().map((b) => b.id)).toEqual(['custom']);
+  });
 });
 
 describe('blueprint.service', () => {

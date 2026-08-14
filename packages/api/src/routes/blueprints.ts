@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { listBlueprints, getBlueprint, saveBlueprint, BlueprintConfig, clearBlueprintCache, isSafeSlug } from '../services/blueprint.service';
+import { listBlueprints, getBlueprint, saveBlueprint, BlueprintConfig, clearBlueprintCache, isSafeSlug, recordBlueprintDeletion } from '../services/blueprint.service';
 import { config } from '../config';
 import { NotFoundError, ValidationError } from '../utils/errors';
 import { blueprintConfigSchema } from '../utils/schemas';
@@ -206,6 +206,10 @@ router.delete('/:id', (req: Request, res: Response) => {
   if (fileExists) {
     fs.unlinkSync(blueprintFilePath);
   }
+
+  // Unlinking is not durable where the checkout is re-cloned on redeploy, so
+  // record the deletion in the database, which is a persistent volume.
+  recordBlueprintDeletion(id);
 
   clearBlueprintCache();
 

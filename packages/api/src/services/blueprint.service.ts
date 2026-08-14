@@ -76,25 +76,30 @@ export function clearBlueprintCache(): void {
 }
 
 /**
- * Lookup order: cache, then the blueprints directory, then the blueprints
- * table, then `_default` as a template for unknown ids, then a bare stub.
+ * Lookup order: cache, then the blueprints table, then the blueprints
+ * directory, then `_default` as a template for unknown ids, then a bare stub.
+ *
+ * The table is consulted first on purpose. Shipped blueprints exist both as
+ * JSON in the checkout and, once edited in the panel, as a row. Where the
+ * checkout is re-cloned on redeploy the file reverts to the version in git,
+ * so preferring the file would silently discard the operator's edits.
  */
 export function getBlueprint(id: string): BlueprintConfig {
   if (!isSafeSlug(id)) return undefined as any;
   if (blueprintCache.has(id)) return blueprintCache.get(id)!;
-
-  const filePath = path.join(config.blueprintConfigsDir, `${id}.json`);
-  if (fs.existsSync(filePath)) {
-    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as BlueprintConfig;
-    blueprintCache.set(id, parsed);
-    return parsed;
-  }
 
   const row = getDb().prepare('SELECT config FROM blueprints WHERE id = ?').get(id) as
     | { config: string }
     | undefined;
   if (row) {
     const parsed = JSON.parse(row.config) as BlueprintConfig;
+    blueprintCache.set(id, parsed);
+    return parsed;
+  }
+
+  const filePath = path.join(config.blueprintConfigsDir, `${id}.json`);
+  if (fs.existsSync(filePath)) {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as BlueprintConfig;
     blueprintCache.set(id, parsed);
     return parsed;
   }
@@ -111,22 +116,48 @@ export function getBlueprint(id: string): BlueprintConfig {
   return { id, name: id };
 }
 
+/**
+ * Record that a shipped, file-based blueprint was deleted.
+ *
+ * Unlinking the JSON file is not enough on platforms that re-clone the checkout
+ * on redeploy — git restores the file and the blueprint reappears. The database
+ * is a persistent volume, so the deletion is remembered here and applied when
+ * listing. Saving a blueprint under the same id clears the record.
+ */
+export function recordBlueprintDeletion(id: string): void {
+  getDb()
+    .prepare('INSERT INTO blueprint_deletions (id) VALUES (?) ON CONFLICT(id) DO NOTHING')
+    .run(id);
+}
+
+function deletedBlueprintIds(): Set<string> {
+  const rows = getDb().prepare('SELECT id FROM blueprint_deletions').all() as { id: string }[];
+  return new Set(rows.map((r) => r.id));
+}
+
 export function listBlueprints(): BlueprintConfig[] {
   const blueprints: BlueprintConfig[] = [];
+  const deleted = deletedBlueprintIds();
+
+  // Database first: a shipped blueprint edited in the panel exists in both
+  // places, and the file reverts to git's version on redeploy.
+  const rows = getDb().prepare('SELECT config FROM blueprints').all() as { config: string }[];
+  for (const row of rows) {
+    blueprints.push(JSON.parse(row.config) as BlueprintConfig);
+  }
 
   if (fs.existsSync(config.blueprintConfigsDir)) {
     const files = fs
       .readdirSync(config.blueprintConfigsDir)
-      .filter((f) => f.endsWith('.json') && !f.startsWith('_'));
+      .filter((f) => f.endsWith('.json') && !f.startsWith('_'))
+      // A restored file whose deletion was recorded stays deleted.
+      .filter((f) => !deleted.has(f.replace(/\.json$/, '')));
     for (const file of files) {
-      blueprints.push(JSON.parse(fs.readFileSync(path.join(config.blueprintConfigsDir, file), 'utf-8')));
+      const parsed = JSON.parse(
+        fs.readFileSync(path.join(config.blueprintConfigsDir, file), 'utf-8'),
+      ) as BlueprintConfig;
+      if (!blueprints.find((b) => b.id === parsed.id)) blueprints.push(parsed);
     }
-  }
-
-  const rows = getDb().prepare('SELECT config FROM blueprints').all() as { config: string }[];
-  for (const row of rows) {
-    const parsed = JSON.parse(row.config) as BlueprintConfig;
-    if (!blueprints.find((b) => b.id === parsed.id)) blueprints.push(parsed);
   }
 
   return blueprints;
@@ -139,5 +170,7 @@ export function saveBlueprint(blueprint: BlueprintConfig): void {
        ON CONFLICT(id) DO UPDATE SET name = excluded.name, config = excluded.config, updated_at = datetime('now')`,
     )
     .run(blueprint.id, blueprint.name, JSON.stringify(blueprint));
+  // Re-creating an id the operator previously deleted un-deletes it.
+  getDb().prepare('DELETE FROM blueprint_deletions WHERE id = ?').run(blueprint.id);
   blueprintCache.set(blueprint.id, blueprint);
 }

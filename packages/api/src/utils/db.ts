@@ -129,6 +129,15 @@ function initSchema(db: Database.Database): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- Blueprints shipped as JSON files live in the repo checkout, which some
+    -- platforms (Dokploy) re-clone on every redeploy. Deleting the file is
+    -- therefore not durable; recording the deletion here is, because the
+    -- database is a persistent volume.
+    CREATE TABLE IF NOT EXISTS blueprint_deletions (
+      id TEXT PRIMARY KEY,
+      deleted_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS snapshots (
       id TEXT PRIMARY KEY,
       site_id TEXT NOT NULL,

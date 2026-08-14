@@ -157,6 +157,11 @@ where there is no variable name for compose to read.
 | `files/sites` | yes | Per-site `wp-content` |
 | `code/` | **no — replaced** | Application source, `blueprints/`, `wordpress/` |
 
+Deleting a shipped blueprint is durable: the deletion is recorded in the
+database, so a redeploy restoring its JSON file from git does not bring it back.
+Panel edits to a shipped blueprint are durable too — the database copy takes
+precedence over the file, which reverts to git's version on every redeploy.
+
 Blueprints created in the panel are written to the database as well as to disk,
 so they survive the `code/` wipe even though their JSON files do not.
 

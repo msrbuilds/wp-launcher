@@ -107,6 +107,7 @@ Tables in `data/wp-launcher.db`:
 - **sites** — id, subdomain, product_id, user_id, container_id, status (creating/running/expired/error), site_url, admin_url, admin_user, admin_password, auto_login_token, cloned_from, custom_domain, created_at, expires_at, deleted_at
 - **site_logs** — id, site_id, user_id, user_email, product_id, subdomain, site_url, action, created_at
 - **products** — id, name, config (JSON), created_at, updated_at
+- **blueprint_deletions** — id, deleted_at. Tombstones for *file-based* blueprints. Deleting one unlinks its JSON, but platforms that re-clone the checkout on redeploy (Dokploy) restore it from git; the row is what makes the deletion stick. Saving a blueprint under the same id clears the tombstone. Note `getBlueprint`/`listBlueprints` read the **DB before the directory**, so a panel edit to a shipped blueprint survives the file reverting to git's version
 - **settings** — key, value (feature flags `feature.*`, branding `branding.*`, colors `color.*`)
 - **snapshots** — id, site_id, name, db_engine, storage_path, size_bytes, created_at
 - **site_shares** — id, site_id, owner_id, shared_with_email, shared_with_id, role (viewer|admin), status
