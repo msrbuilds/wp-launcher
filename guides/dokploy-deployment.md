@@ -1,7 +1,10 @@
 # Dokploy Deployment Guide
 
-WP Launcher runs on [Dokploy](https://dokploy.com) as a Docker Compose service,
-using Dokploy's Traefik rather than bundling its own.
+WP Launcher runs on [Dokploy](https://dokploy.com) as a Docker Compose service.
+Dokploy's Traefik stays the host's ingress and routes the panel, while WP
+Launcher runs its own Traefik for site traffic — which Dokploy forwards by SNI
+without decrypting. Everything WP Launcher needs is declared in its compose
+file, so a Dokploy upgrade cannot break it.
 
 If you want a plain VPS with no PaaS, use [vps-deployment.md](vps-deployment.md)
 instead — that path bundles Traefik and is unaffected by anything here.
@@ -70,83 +73,49 @@ After the first deploy you can also do this from the panel under
 Visit `https://wplauncher.xyz` and complete the setup wizard to create the
 owner account.
 
-## 6. Wildcard TLS (required)
+## 6. Certificates
 
-Site containers are not visible to Dokploy's Traefik individually — they sit on
-a private network behind WP Launcher's own Traefik. Per-site HTTP-01 therefore
-cannot work, because Traefik cannot derive ACME domains from a regexp rule. One
-wildcard certificate covers every site:
+WP Launcher terminates TLS itself. Dokploy's Traefik forwards the encrypted
+stream to it by SNI, so **there is nothing to configure on the host** — no
+edits to `/etc/dokploy/traefik/traefik.yml`, no environment variables on
+Dokploy's Traefik container, and nothing a Dokploy upgrade can undo.
 
-**HTTP-01 cannot issue wildcards** — Let's Encrypt requires DNS-01 for them — so
-this needs a DNS provider API token. These steps assume Cloudflare; adjust the
-provider name for others.
+Set `ACME_EMAIL` and you are done. Each site gets its own Let's Encrypt
+certificate over HTTP-01 as it launches.
 
-1. Create a Cloudflare API token (*My Profile → API Tokens → Create Custom
-   Token*) with `Zone → DNS → Edit`, scoped to your zone only. A scoped token
-   needs just `CF_DNS_API_TOKEN`; avoid the global key, which can modify every
-   zone on the account.
+### When to switch to a wildcard
 
-2. Add a `cloudflare` resolver alongside the existing one in
-   `/etc/dokploy/traefik/traefik.yml`. Use a **separate** storage file —
-   mixing challenge types in one `acme.json` fails confusingly:
+Let's Encrypt issues at most **50 certificates per registered domain per week**.
+Since each launch on a new subdomain is one certificate, a busy launcher reaches
+that ceiling, after which new sites get no HTTPS until the window rolls over.
 
-   ```yaml
-   certificatesResolvers:
-     letsencrypt:            # leave this: your other apps use it
-       acme:
-         email: you@example.com
-         storage: /etc/dokploy/traefik/dynamic/acme.json
-         httpChallenge:
-           entryPoint: web
-     cloudflare:
-       acme:
-         email: you@example.com
-         storage: /etc/dokploy/traefik/dynamic/acme-dns.json
-         dnsChallenge:
-           provider: cloudflare
-           resolvers:
-             - "1.1.1.1:53"
-   ```
+To switch, set `ACME_DNS_PROVIDER` to a
+[Traefik DNS provider](https://doc.traefik.io/traefik/https/acme/#providers)
+name and supply its credentials in the same Environment tab — for Cloudflare,
+`ACME_DNS_PROVIDER=cloudflare` and `CF_DNS_API_TOKEN=...` from a token scoped to
+`Zone -> DNS -> Edit` on your zone only. Redeploy, and one `*.BASE_DOMAIN`
+certificate replaces the per-site ones.
 
-3. Put the token in **Traefik's own environment** — not `traefik.yml`, and not
-   WP Launcher's Environment tab. Traefik's Cloudflare provider reads
-   `CF_DNS_API_TOKEN` from its process environment. If Dokploy runs Traefik as
-   a Swarm service, `docker service update --env-add CF_DNS_API_TOKEN=… <name>`
-   does it. If it is a plain container (check with
-   `docker inspect dokploy-traefik --format '{{index .Config.Labels "com.docker.swarm.service.name"}}'`),
-   it must be recreated with `-e CF_DNS_API_TOKEN=…`, preserving its existing
-   mounts, published ports and **all** network attachments. Capture them with
-   `docker inspect` first — Traefik is the host's only ingress.
+The switch needs no relaunches: certificates are requested by the proxy's
+entrypoint rather than by each site's router.
 
-4. Redeploy WP Launcher.
+The panel itself, at the apex domain, is unaffected either way — it keeps its
+certificate from Dokploy's own resolver.
 
-If your resolver is not named `cloudflare`, set `WILDCARD_CERT_RESOLVER` to
-match.
+## Upgrading from a release before self-contained TLS
 
-Note that a Dokploy upgrade may recreate its Traefik container from its own
-definition and drop that environment variable, which would break wildcard
-renewal roughly 60 days later, silently. Worth a calendar reminder.
+Earlier versions had Dokploy's Traefik terminate TLS and route each site
+individually. Sites created under that arrangement are matched by the new SNI
+router but are unknown to WP Launcher's Traefik, so **they must be relaunched**.
+Take a snapshot first if they hold anything you need.
 
-This also sidesteps Let's Encrypt's limit of 50 certificates per registered
-domain per week, which a busy launcher on per-site certificates would hit — and
-it makes launches noticeably faster, since no ACME request happens at all.
+Afterwards you may remove the `dnsChallenge` resolver you previously added to
+`/etc/dokploy/traefik/traefik.yml`, and `CF_DNS_API_TOKEN` from Dokploy's
+Traefik container. Neither is read any more. This is optional — leaving them in
+place is inert, and reverting carries more risk than ignoring them.
 
-Three variables must be set in the Environment tab alongside it:
-
-| Variable | How to get it |
-|---|---|
-| `BASE_DOMAIN_REGEX` | Escape the dots in your domain: `^.+\.wplauncher\.xyz$` |
-| `TRAEFIK_TRUSTED_IPS` | Leave at `10.0.0.0/8` unless `docker network inspect dokploy-network -f '{{(index .IPAM.Config 0).Subnet}}'` prints something outside it |
-| `ADMINER_AUTH_USERS` | `htpasswd -nbB admin 'your-password'`, then **double every `$`** |
-
-That last instruction is not optional. Compose interpolates environment values,
-so a bcrypt hash entered verbatim is silently truncated at its first `$` and
-Adminer rejects the correct password with nothing in any log to explain it.
-Enter `admin:$$2y$$05$$Xk9...` where htpasswd printed `admin:$2y$05$Xk9...`.
-`BASE_DOMAIN_REGEX` needs no escaping — its only `$` is the final character,
-where there is no variable name for compose to read.
-
-`ENABLE_TLS` and `CERT_RESOLVER` are no longer read; remove them if present.
+Delete `TRAEFIK_TRUSTED_IPS` and `WILDCARD_CERT_RESOLVER` from the Environment
+tab; they are no longer read.
 
 ## What survives a redeploy
 
@@ -196,18 +165,17 @@ Site containers run on a private `wpl-sites` network and are routed by a second
 Traefik that WP Launcher owns. They cannot reach other applications on this
 Dokploy instance, and cannot reach the provisioner at all.
 
-The request path is: Dokploy's Traefik terminates TLS with the wildcard
-certificate, matches one low-priority catch-all router for `*.BASE_DOMAIN`, and
-forwards plain HTTP to `wpl-traefik`, which routes by hostname to the site.
+The request path is: Dokploy's Traefik matches `*.BASE_DOMAIN` by SNI and
+forwards the **encrypted** stream untouched to `wpl-traefik`, which terminates
+TLS, obtains the certificate, and routes by hostname to the site. Dokploy's
+Traefik never decrypts site traffic and holds no certificate for these domains.
 
 Two consequences worth knowing:
 
-- **Sites launched before this change are not isolated.** Docker labels are
-  immutable, so an existing container permanently records the network it was
-  created for and cannot be moved. Those sites keep working — their per-site
-  routers outrank the catch-all — but they remain on `dokploy-network` until
-  they expire or you relaunch them. Relaunch anything holding client data you
-  care about.
+- **Sites launched before this design are neither isolated nor reachable.**
+  Docker labels are immutable, so an existing container permanently records the
+  network it was created for and cannot be moved. They must be relaunched — see
+  the upgrade section above.
 - **A site can still reach ports published on the host** via the bridge
   gateway address. Closing that needs a `DOCKER-USER` iptables rule and is not
   done for you.
@@ -230,56 +198,58 @@ wildcard. That plumbing is not built. Sites on `*.BASE_DOMAIN` are unaffected.
 
 Run these on the host after the first deploy:
 
-1. `https://wplauncher.xyz` serves the panel, and
-   `https://wplauncher.xyz/api/settings` returns JSON — confirming the
-   dashboard's nginx still reaches the API now that the API is off
-   `dokploy-network`.
+1. `https://wplauncher.xyz` serves the panel and `/api/settings` returns JSON.
 
 2. Launch a **new** site. It answers at `https://{sub}.wplauncher.xyz` with a
-   valid certificate and **no redirect loop**. A redirect loop here means
-   `TRAEFIK_TRUSTED_IPS` does not match the real `dokploy-network` subnet, so
-   WordPress is seeing `X-Forwarded-Proto: http`.
+   valid certificate and no redirect loop.
 
-3. That new site is on the private network only:
+3. The certificate is real, not Traefik's fallback:
 
    ```bash
-   docker inspect wp-site-{sub} --format '{{json .NetworkSettings.Networks}}' | tr ',' '\n' | grep -o '"[a-z-]*":'
+   echo | openssl s_client -connect 127.0.0.1:443 -servername {sub}.wplauncher.xyz 2>/dev/null      | openssl x509 -noout -subject -issuer
    ```
 
-   Expected: `wpl-sites`, and **not** `dokploy-network`.
+   Expected: a `Let's Encrypt` issuer. `CN = TRAEFIK DEFAULT CERT` means
+   issuance failed — check `docker logs` on the `wpl-traefik` container.
 
-4. The new site cannot reach the provisioner:
+4. **A neighbouring Dokploy app on its own domain still loads.** The SNI router
+   matches only `*.BASE_DOMAIN`, but a rule that is too broad would silently
+   hijack other applications' traffic. This is the check that protects
+   everything else on the instance.
+
+5. The new site is on the private network only:
 
    ```bash
-   docker exec wp-site-{sub} curl -s -m 5 http://provisioner:4000/health
+   docker inspect wp-site-{sub} --format '{{json .NetworkSettings.Networks}}' | tr ',' '
+' | grep -o '"[a-z-]*":'
    ```
 
-   Expected: failure to resolve the host. A JSON response means the
-   provisioner is still on a network the site can see.
+   Expected: `wpl-sites`, and not `dokploy-network`.
 
-5. The new site cannot reach a neighbouring app. Pick another Dokploy service
-   and try its internal port:
+6. The site cannot reach a neighbouring app:
 
    ```bash
    docker exec wp-site-{sub} curl -s -m 5 http://<other-service>:<port>
    ```
 
-   Expected: failure. Running the same command inside a site created *before*
-   this change will succeed — that is the pre-existing exposure, and it is why
-   old sites should be relaunched.
+   Expected: failure.
 
-6. `https://db.wplauncher.xyz` returns `401 Unauthorized` before showing
-   Adminer's form. If it shows the form, the middleware is not applied; if it
-   rejects your correct password, the `$` characters in `ADMINER_AUTH_USERS`
-   were not doubled.
+7. **Certificates survive a redeploy.** Confirm they are not stored in the
+   checkout:
 
-7. A site created before this change still loads, confirming the two tiers
-   coexist.
+   ```bash
+   docker volume inspect $(docker volume ls -q | grep wpl-acme) --format '{{.Mountpoint}}'
+   ```
 
-8. **Redeploy, then confirm the owner still logs in and existing sites are still
-   listed.** This is the check that matters most: its failure mode is silent
-   database loss, and it is why `data/` is a named volume rather than a path in
-   the checkout.
+   Expected: a path outside `/etc/dokploy/compose/*/code`. Certificates stored
+   in the checkout are destroyed on every redeploy, and the resulting
+   re-issuance exhausts the weekly limit with no obvious symptom until it does.
+
+8. **Redeploy, then confirm the owner still logs in and existing sites are
+   still listed.** Its failure mode is silent database loss, which is why
+   `data/` is a named volume rather than a path in the checkout.
+
+Items 4 and 7 are the ones that fail quietly.
 
 ## Differences from the standalone install
 

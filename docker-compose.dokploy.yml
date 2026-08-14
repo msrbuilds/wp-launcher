@@ -53,13 +53,35 @@ services:
   wpl-traefik:
     image: traefik:v3.6
     restart: unless-stopped
+    entrypoint:
+      # Traefik's static config is a fixed flag list, but the ACME challenge
+      # type depends on whether a DNS provider was configured. Append those
+      # flags here rather than shipping two compose files.
+      #
+      # Every `$` below is written `$$`: compose interpolates a single `$` and
+      # would replace these shell variables with empty strings.
+      - /bin/sh
+      - -c
+      - |
+        if [ -n "$${ACME_DNS_PROVIDER:-}" ]; then
+          exec traefik "$$@" \
+            --certificatesresolvers.wpl.acme.dnschallenge.provider="$$ACME_DNS_PROVIDER" \
+            "--entrypoints.websecure.http.tls.domains[0].main=$$BASE_DOMAIN" \
+            "--entrypoints.websecure.http.tls.domains[0].sans=*.$$BASE_DOMAIN"
+        fi
+        exec traefik "$$@" --certificatesresolvers.wpl.acme.httpchallenge.entrypoint=web
+      - "--"
     command:
       - "--entrypoints.web.address=:80"
-      # Dokploy's Traefik terminates TLS and sets X-Forwarded-Proto: https.
-      # Traefik OVERWRITES that header for requests it does not trust, and
-      # wordpress/wp-config-docker.php only turns HTTPS on when it reads
-      # `https`. Get this wrong and every site redirect-loops.
-      - "--entrypoints.web.forwardedheaders.trustedips=${TRAEFIK_TRUSTED_IPS:?Set TRAEFIK_TRUSTED_IPS to the dokploy-network subnet}"
+      # We terminate TLS now. Dokploy's Traefik forwards the raw stream to us,
+      # so there is no upstream header to trust and no trustedips to get wrong.
+      - "--entrypoints.websecure.address=:443"
+      # Issuance is driven from the entrypoint, not per-router labels, so site
+      # containers need no certresolver label and the certificate mode can be
+      # changed without relaunching anything.
+      - "--entrypoints.websecure.http.tls.certresolver=wpl"
+      - "--certificatesresolvers.wpl.acme.email=${ACME_EMAIL:?Set ACME_EMAIL}"
+      - "--certificatesresolvers.wpl.acme.storage=/acme/acme.json"
       - "--providers.docker=true"
       - "--providers.docker.endpoint=tcp://traefik-docker-proxy:2375"
       # Select by our own label rather than `traefik.enable`, which every
@@ -71,30 +93,42 @@ services:
       - "--providers.docker.constraints=Label(`wp-launcher.routable`,`true`)"
       - "--providers.docker.network=wpl-sites"
       - "--api.dashboard=false"
-      - "--log.level=INFO"
+      # DEBUG prints the fully-resolved static config, which is the only way to
+      # confirm which ACME challenge the entrypoint selected.
+      - "--log.level=${TRAEFIK_LOG_LEVEL:-INFO}"
+    environment:
+      # Read by the entrypoint above. Empty means per-site HTTP-01.
+      - ACME_DNS_PROVIDER=${ACME_DNS_PROVIDER:-}
+      - BASE_DOMAIN=${BASE_DOMAIN:?Set BASE_DOMAIN}
+      # Credentials for ACME_DNS_PROVIDER, named exactly as Traefik's docs
+      # require. Unset ones are harmless; add others as needed.
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_REGION=${AWS_REGION:-}
+      - DO_AUTH_TOKEN=${DO_AUTH_TOKEN:-}
+    volumes:
+      - wpl-acme:/acme
     labels:
-      # Read by DOKPLOY's Traefik, not ours. One catch-all router for every
-      # site subdomain, forwarded as plain HTTP. No certresolver: the wildcard
-      # is already loaded upstream, and a resolver here would fire per-site
-      # ACME requests against Let's Encrypt's 50-per-week limit.
+      # Read by DOKPLOY's Traefik, not ours.
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.wpl-sites.rule=HostRegexp(`${BASE_DOMAIN_REGEX:?Set BASE_DOMAIN_REGEX}`)"
-      # Lower than any default-priority router, so the per-site routers that
-      # already-running sites carry keep winning. This is what makes the
-      # rollout safe for existing sites.
-      - "traefik.http.routers.wpl-sites.priority=1"
-      - "traefik.http.routers.wpl-sites.entrypoints=websecure"
-      - "traefik.http.routers.wpl-sites.tls=true"
-      # The wildcard. tls.domains must be explicit: the rule above is a
-      # HostRegexp, and Traefik cannot expand a regex into names to request a
-      # certificate for — without this it silently serves its self-signed
-      # default. Requires a DNS-01 resolver, since Let's Encrypt will not
-      # issue wildcards over HTTP-01. See guides/dokploy-deployment.md §6.
-      - "traefik.http.routers.wpl-sites.tls.certresolver=${WILDCARD_CERT_RESOLVER:-cloudflare}"
-      - "traefik.http.routers.wpl-sites.tls.domains[0].main=${BASE_DOMAIN}"
-      - "traefik.http.routers.wpl-sites.tls.domains[0].sans=*.${BASE_DOMAIN}"
-      - "traefik.http.services.wpl-sites.loadbalancer.server.port=80"
+
+      # TLS: the raw stream, selected by SNI. Dokploy's Traefik never decrypts
+      # it, so it needs no certificate for our domains and no configuration on
+      # the host — which is the entire point of this design.
+      - "traefik.tcp.routers.wpl-sites.rule=HostSNIRegexp(`${BASE_DOMAIN_REGEX:?Set BASE_DOMAIN_REGEX}`)"
+      - "traefik.tcp.routers.wpl-sites.entrypoints=websecure"
+      - "traefik.tcp.routers.wpl-sites.tls.passthrough=true"
+      - "traefik.tcp.services.wpl-sites.loadbalancer.server.port=443"
+
+      # Plain HTTP, carrying ACME HTTP-01 challenges to our Traefik, which
+      # issues the redirect to HTTPS itself. Deliberately NO redirect-to-https
+      # middleware here: it would bounce /.well-known/acme-challenge/ to a
+      # certificate that does not exist yet, so issuance could never complete.
+      - "traefik.http.routers.wpl-sites-http.rule=HostRegexp(`${BASE_DOMAIN_REGEX}`)"
+      - "traefik.http.routers.wpl-sites-http.entrypoints=web"
+      - "traefik.http.services.wpl-sites-http.loadbalancer.server.port=80"
     networks:
       - dokploy-network
       - wpl-sites
@@ -123,9 +157,13 @@ services:
       - CONTAINER_CPU=${CONTAINER_CPU:-0.5}
       - WP_UPLOAD_LIMIT=${WP_UPLOAD_LIMIT:-2097152}
       - WP_DISK_QUOTA=${WP_DISK_QUOTA:-104857600}
-      # The inner tier is plain HTTP; TLS terminates once, at Dokploy's
-      # Traefik. Not an operator knob any more, so it is not read from env.
-      - ENABLE_TLS=false
+      # wpl-traefik terminates TLS, exactly as the bundled Traefik does in the
+      # standalone install, so sites carry their normal TLS labels again.
+      - ENABLE_TLS=true
+      # Blank: the websecure entrypoint supplies the resolver, so no per-site
+      # certresolver label is emitted and the certificate mode is a property
+      # of the proxy rather than of each site.
+      - CERT_RESOLVER=
       - PRODUCT_ASSETS_PATH=${PRODUCT_ASSETS_PATH:?Set PRODUCT_ASSETS_PATH to an absolute host path}
       - SITES_HOST_PATH=${SITES_HOST_PATH:?Set SITES_HOST_PATH to an absolute host path}
       # Custom-domain routers are written here for Traefik's file provider.
@@ -274,3 +312,8 @@ volumes:
   # Named rather than a bind mount so Dokploy's volume backup covers the
   # database. `code/` is wiped on redeploy, so this must not live there.
   wpl-data:
+
+  # Certificates. A named volume rather than a path in the checkout: Dokploy
+  # deletes code/ on every redeploy, which would discard every certificate and
+  # exhaust Let's Encrypt's rate limit within days.
+  wpl-acme:
