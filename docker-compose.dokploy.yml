@@ -202,15 +202,20 @@ services:
     environment:
       - ADMINER_DEFAULT_SERVER=localhost
     labels:
+      # Read by OUR Traefik. db.BASE_DOMAIN already matches the catch-all
+      # router at the Dokploy tier, so nothing is configured there.
       - "traefik.enable=true"
-      - "traefik.docker.network=dokploy-network"
+      - "traefik.docker.network=wpl-sites"
       - "traefik.http.routers.wpl-adminer.rule=Host(`db.${BASE_DOMAIN}`)"
-      - "traefik.http.routers.wpl-adminer.entrypoints=websecure"
-      - "traefik.http.routers.wpl-adminer.tls=true"
-      - "traefik.http.routers.wpl-adminer.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.wpl-adminer.entrypoints=web"
+      - "traefik.http.routers.wpl-adminer.middlewares=wpl-adminer-auth"
+      # Adminer connects to any host you type into its form. Unauthenticated,
+      # that makes it an open console against everything on this network.
+      - "traefik.http.middlewares.wpl-adminer-auth.basicauth.users=${ADMINER_AUTH_USERS:?Set ADMINER_AUTH_USERS}"
       - "traefik.http.services.wpl-adminer.loadbalancer.server.port=8080"
     networks:
-      - dokploy-network
+      # Where the site databases it exists to talk to now live.
+      - wpl-sites
 
 networks:
   # Provided by Dokploy. Declared external so compose attaches rather than
