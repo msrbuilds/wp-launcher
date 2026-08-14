@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
-import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, getSiteLogsByUser } from '../services/site.service';
+import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, getSiteLogsByUser, clearFinishedSites } from '../services/site.service';
 import { policy } from '../policy';
 import { getPhpConfig, updatePhpConfig, updateAutoLoginToken, setSitePassword, getSitePasswordStatus, exportSiteZip, getExportDownloadUrl, getContainerStats, getDbCredentials } from '../services/docker.service';
 import { takeSnapshot, listSnapshots, restoreSnapshotToSite, deleteSnapshot, cloneSite } from '../services/snapshot.service';
@@ -163,6 +163,16 @@ router.get('/shared-with-me', siteReadLimiter, conditionalAuth, asyncHandler(asy
   if (!req.userId || !req.userEmail) throw new ForbiddenError('Authentication required');
   const shared = listSharedWithMe(req.userId, req.userEmail);
   res.json({ sites: shared });
+}));
+
+// Clear finished sites (failed launches and deleted/expired rows) from the
+// listing. Declared before '/:id' so the literal path is not matched as an id.
+router.delete('/finished', siteWriteLimiter, conditionalAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.userId) throw new ForbiddenError('Authentication required');
+  // Owners and admins clear everything; a member clears only their own.
+  const scope = req.userRole === 'admin' || req.userRole === 'owner' ? 'admin' : req.userId;
+  const cleared = clearFinishedSites(scope);
+  res.json({ cleared });
 }));
 
 // Get a specific site (requires auth, users can only view their own)

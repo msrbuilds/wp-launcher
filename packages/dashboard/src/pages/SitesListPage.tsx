@@ -132,6 +132,33 @@ export default function SitesListPage() {
     fetchSites();
   }
 
+  // Failed launches and deleted rows linger in the listing with nothing useful
+  // to do about them. Their containers are already gone.
+  const finishedCount = sites.filter((s) => s.status === 'error' || s.status === 'expired').length;
+
+  async function handleClearFinished() {
+    if (!(await confirm({
+      title: `Clear ${finishedCount} finished site${finishedCount === 1 ? '' : 's'}?`,
+      description: 'Removes failed and deleted sites from this list. Running sites are untouched, and the activity log is kept.',
+      confirmText: 'Clear',
+      variant: 'destructive',
+    }))) return;
+
+    try {
+      const res = await apiFetch('/api/sites/finished', { method: 'DELETE' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setFetchError(body.error || `Clear failed (HTTP ${res.status})`);
+        return;
+      }
+    } catch (err: any) {
+      setFetchError(err?.message || 'Network error while clearing sites');
+      return;
+    }
+
+    fetchSites();
+  }
+
   useEffect(() => {
     fetchSites();
     fetchScheduled();
@@ -261,7 +288,14 @@ export default function SitesListPage() {
             <h2 className="text-lg font-semibold text-foreground">Sites ({sites.length}{maxSites ? ` / ${maxSites}` : ''})</h2>
             <p className="text-sm text-muted-foreground">Manage your WordPress sites</p>
           </div>
-          <Button size="sm" onClick={() => navigate('/sites/new')}>+ New Site</Button>
+          <div className="flex items-center gap-2">
+            {finishedCount > 0 && (
+              <Button size="sm" variant="outline" onClick={handleClearFinished}>
+                Clear {finishedCount} finished
+              </Button>
+            )}
+            <Button size="sm" onClick={() => navigate('/sites/new')}>+ New Site</Button>
+          </div>
         </div>
 
         <SharedWithMe shares={shares.sharedWithMe} />

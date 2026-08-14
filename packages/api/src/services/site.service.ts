@@ -373,6 +373,27 @@ export function getSite(id: string): SiteRecord | undefined {
   return db.prepare('SELECT * FROM sites WHERE id = ?').get(id) as SiteRecord | undefined;
 }
 
+/**
+ * Permanently remove terminal site rows from the listing: `error` (a launch
+ * that failed) and `expired` (deleted, or timed out).
+ *
+ * Their containers are already gone — deletion tears them down, the cleanup
+ * cron removes expired ones, and the orphan watchdog sweeps anything left
+ * behind, since it keys off containers that no longer appear in this table.
+ * Rows in `site_logs` are untouched, so the audit trail outlives the sites.
+ *
+ * @param userId scope to one owner; `'admin'` or omitted clears every user's.
+ * @returns how many rows were removed.
+ */
+export function clearFinishedSites(userId?: string): number {
+  const db = getDb();
+  const scoped = userId && userId !== 'admin';
+  const result = scoped
+    ? db.prepare("DELETE FROM sites WHERE status IN ('expired', 'error') AND user_id = ?").run(userId)
+    : db.prepare("DELETE FROM sites WHERE status IN ('expired', 'error')").run();
+  return result.changes;
+}
+
 export async function deleteSite(id: string, userId?: string, userEmail?: string): Promise<void> {
   const db = getDb();
   const site = db.prepare('SELECT * FROM sites WHERE id = ?').get(id) as SiteRecord | undefined;
