@@ -58,6 +58,13 @@ services:
       # type depends on whether a DNS provider was configured. Append those
       # flags here rather than shipping two compose files.
       #
+      # The default is TLS-ALPN-01, not HTTP-01. HTTP-01 cannot work here: an
+      # outer Traefik with any ACME resolver registers an internal router for
+      # PathPrefix(`/.well-known/acme-challenge/`) at max int64 priority, so it
+      # intercepts every challenge on :80 and answers 404 for tokens it did not
+      # issue. TLS-ALPN-01 runs over :443, which passthrough hands to us
+      # untouched, so the outer proxy never sees it.
+      #
       # Every `$` below is written `$$`: compose interpolates a single `$` and
       # would replace these shell variables with empty strings.
       - /bin/sh
@@ -69,10 +76,14 @@ services:
             "--entrypoints.websecure.http.tls.domains[0].main=$$BASE_DOMAIN" \
             "--entrypoints.websecure.http.tls.domains[0].sans=*.$$BASE_DOMAIN"
         fi
-        exec traefik "$$@" --certificatesresolvers.wpl.acme.httpchallenge.entrypoint=web
+        exec traefik "$$@" --certificatesresolvers.wpl.acme.tlschallenge=true
       - "--"
     command:
       - "--entrypoints.web.address=:80"
+      # Plain HTTP exists only to bounce visitors to HTTPS; certificates are
+      # issued over TLS-ALPN on :443, never over this entrypoint.
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       # We terminate TLS now. Dokploy's Traefik forwards the raw stream to us,
       # so there is no upstream header to trust and no trustedips to get wrong.
       - "--entrypoints.websecure.address=:443"
@@ -97,7 +108,7 @@ services:
       # confirm which ACME challenge the entrypoint selected.
       - "--log.level=${TRAEFIK_LOG_LEVEL:-INFO}"
     environment:
-      # Read by the entrypoint above. Empty means per-site HTTP-01.
+      # Read by the entrypoint above. Empty means per-site TLS-ALPN-01.
       - ACME_DNS_PROVIDER=${ACME_DNS_PROVIDER:-}
       - BASE_DOMAIN=${BASE_DOMAIN:?Set BASE_DOMAIN}
       # Credentials for ACME_DNS_PROVIDER, named exactly as Traefik's docs
@@ -122,10 +133,10 @@ services:
       - "traefik.tcp.routers.wpl-sites.tls.passthrough=true"
       - "traefik.tcp.services.wpl-sites.loadbalancer.server.port=443"
 
-      # Plain HTTP, carrying ACME HTTP-01 challenges to our Traefik, which
-      # issues the redirect to HTTPS itself. Deliberately NO redirect-to-https
-      # middleware here: it would bounce /.well-known/acme-challenge/ to a
-      # certificate that does not exist yet, so issuance could never complete.
+      # Plain HTTP, so a visitor typing http:// reaches us and our own
+      # entrypoint redirects them to HTTPS. Dokploy's Traefik intercepts
+      # /.well-known/acme-challenge/ on :80 at max priority regardless, which
+      # is exactly why issuance uses TLS-ALPN on :443 instead.
       - "traefik.http.routers.wpl-sites-http.rule=HostRegexp(`${BASE_DOMAIN_REGEX}`)"
       - "traefik.http.routers.wpl-sites-http.entrypoints=web"
       - "traefik.http.services.wpl-sites-http.loadbalancer.server.port=80"

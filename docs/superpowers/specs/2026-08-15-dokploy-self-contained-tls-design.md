@@ -104,8 +104,21 @@ Our Traefik owns ACME. Two modes, chosen by configuration:
 
 | Mode | When | Trade-off |
 |---|---|---|
-| Per-site HTTP-01 | default | No credentials. Let's Encrypt allows 50 certificates per registered domain per week. |
+| Per-site TLS-ALPN-01 | default | No credentials. Let's Encrypt allows 50 certificates per registered domain per week. |
 | Wildcard DNS-01 | `ACME_DNS_PROVIDER` is set | One certificate, no ceiling. Needs a DNS provider API token. |
+
+**Corrected during implementation.** This section originally specified HTTP-01
+as the default. That cannot work: an outer Traefik with any ACME resolver of its
+own registers an internal router for ``PathPrefix(`/.well-known/acme-challenge/`)``
+at max int64 priority, so it intercepts every challenge on port 80 and returns
+404 for tokens it did not issue. Observed on the live deployment as
+`403 :: unauthorized :: Invalid response from
+http://<site>/.well-known/acme-challenge/…: 404`.
+
+TLS-ALPN-01 is strictly better here: it runs over port 443, which passthrough
+already delivers to us untouched, so the outer proxy never participates. It also
+removes the design's only dependency on the port-80 router, which now exists
+solely to redirect visitors to HTTPS.
 
 Per-site is the default because it works immediately: install, point DNS at the
 host, launch a site. The ceiling only constrains high-volume users, who are also

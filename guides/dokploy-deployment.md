@@ -81,7 +81,13 @@ edits to `/etc/dokploy/traefik/traefik.yml`, no environment variables on
 Dokploy's Traefik container, and nothing a Dokploy upgrade can undo.
 
 Set `ACME_EMAIL` and you are done. Each site gets its own Let's Encrypt
-certificate over HTTP-01 as it launches.
+certificate over **TLS-ALPN-01** as it launches — issued on port 443, which
+reaches WP Launcher's Traefik untouched thanks to SNI passthrough.
+
+HTTP-01 is deliberately not used. Any outer Traefik with an ACME resolver of
+its own registers an internal router for `/.well-known/acme-challenge/` at
+maximum priority, so it intercepts every challenge on port 80 and answers 404
+for tokens it did not issue. TLS-ALPN-01 avoids port 80 entirely.
 
 ### When to switch to a wildcard
 

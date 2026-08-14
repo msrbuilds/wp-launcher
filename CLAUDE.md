@@ -86,7 +86,7 @@ bash install.sh            # One-click VPS installer (standalone; bundles Traefi
 # (tls.passthrough) without decrypting; ours terminates TLS, owns ACME, and
 # routes to site containers on the private `wpl-sites` network. Sites therefore
 # cannot reach other apps on the instance. Nothing is configured on the host, so
-# a Dokploy upgrade cannot break renewal. Per-site HTTP-01 by default; set
+# a Dokploy upgrade cannot break renewal. Per-site TLS-ALPN-01 by default; set
 # ACME_DNS_PROVIDER for a wildcard. Requires ACME_EMAIL, BASE_DOMAIN_REGEX,
 # ADMINER_AUTH_USERS. See guides/dokploy-deployment.md.
 ```
