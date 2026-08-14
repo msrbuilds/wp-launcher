@@ -32,6 +32,62 @@ services:
     networks:
       - provisioner-internal
 
+  traefik-docker-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      # Read-only. Traefik only needs to see containers and their labels.
+      CONTAINERS: 1
+      NETWORKS: 1
+      INFO: 1
+      POST: 0
+      EXEC: 0
+      BUILD: 0
+      IMAGES: 0
+      VOLUMES: 0
+    networks:
+      - traefik-internal
+
+  wpl-traefik:
+    image: traefik:v3.6
+    restart: unless-stopped
+    command:
+      - "--entrypoints.web.address=:80"
+      # Dokploy's Traefik terminates TLS and sets X-Forwarded-Proto: https.
+      # Traefik OVERWRITES that header for requests it does not trust, and
+      # wordpress/wp-config-docker.php only turns HTTPS on when it reads
+      # `https`. Get this wrong and every site redirect-loops.
+      - "--entrypoints.web.forwardedheaders.trustedips=${TRAEFIK_TRUSTED_IPS:?Set TRAEFIK_TRUSTED_IPS to the dokploy-network subnet}"
+      - "--providers.docker=true"
+      - "--providers.docker.endpoint=tcp://traefik-docker-proxy:2375"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=wpl-sites"
+      - "--api.dashboard=false"
+      - "--log.level=INFO"
+    labels:
+      # Read by DOKPLOY's Traefik, not ours. One catch-all router for every
+      # site subdomain, forwarded as plain HTTP. No certresolver: the wildcard
+      # is already loaded upstream, and a resolver here would fire per-site
+      # ACME requests against Let's Encrypt's 50-per-week limit.
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.wpl-sites.rule=HostRegexp(`${BASE_DOMAIN_REGEX:?Set BASE_DOMAIN_REGEX}`)"
+      # Lower than any default-priority router, so the per-site routers that
+      # already-running sites carry keep winning. This is what makes the
+      # rollout safe for existing sites.
+      - "traefik.http.routers.wpl-sites.priority=1"
+      - "traefik.http.routers.wpl-sites.entrypoints=websecure"
+      - "traefik.http.routers.wpl-sites.tls=true"
+      - "traefik.http.services.wpl-sites.loadbalancer.server.port=80"
+    networks:
+      - dokploy-network
+      - wpl-sites
+      - traefik-internal
+    depends_on:
+      - traefik-docker-proxy
+
   provisioner:
     build: ./packages/provisioner
     restart: unless-stopped
@@ -41,17 +97,16 @@ services:
       - PORT=4000
       - INTERNAL_KEY=${PROVISIONER_INTERNAL_KEY:?Set PROVISIONER_INTERNAL_KEY}
       - BASE_DOMAIN=${BASE_DOMAIN:?Set BASE_DOMAIN}
-      # Site containers must land where Dokploy's Traefik can see them.
-      - DOCKER_NETWORK=dokploy-network
-      - TRAEFIK_NETWORK=dokploy-network
+      # Sites land on the private network, routed by wpl-traefik.
+      - DOCKER_NETWORK=wpl-sites
+      - TRAEFIK_NETWORK=wpl-sites
       - CONTAINER_MEMORY=${CONTAINER_MEMORY:-268435456}
       - CONTAINER_CPU=${CONTAINER_CPU:-0.5}
       - WP_UPLOAD_LIMIT=${WP_UPLOAD_LIMIT:-2097152}
       - WP_DISK_QUOTA=${WP_DISK_QUOTA:-104857600}
-      - ENABLE_TLS=${ENABLE_TLS:-true}
-      # `-` not `:-`: an explicitly empty CERT_RESOLVER selects wildcard mode,
-      # and `:-` would substitute the default for it.
-      - CERT_RESOLVER=${CERT_RESOLVER-letsencrypt}
+      # The inner tier is plain HTTP; TLS terminates once, at Dokploy's
+      # Traefik. Not an operator knob any more, so it is not read from env.
+      - ENABLE_TLS=false
       - PRODUCT_ASSETS_PATH=${PRODUCT_ASSETS_PATH:?Set PRODUCT_ASSETS_PATH to an absolute host path}
       - SITES_HOST_PATH=${SITES_HOST_PATH:?Set SITES_HOST_PATH to an absolute host path}
       # Custom-domain routers are written here for Traefik's file provider.
@@ -62,8 +117,11 @@ services:
       - /etc/dokploy/traefik/dynamic:/etc/traefik/dynamic
       - /proc:/host/proc:ro
     networks:
+      # Both `internal`, so the provisioner has no outbound internet. That is
+      # correct: it requests image pulls through the Docker API and the
+      # *daemon* performs them.
       - provisioner-internal
-      - dokploy-network
+      - wpl-control
     depends_on:
       - docker-proxy
 
@@ -109,7 +167,11 @@ services:
       - PRODUCT_CONFIGS_DIR=/app/products
       - TEMPLATE_CONFIGS_DIR=/app/templates
     networks:
-      - dokploy-network
+      # Reaches the provisioner, and is reached by the dashboard's nginx.
+      - wpl-control
+      # Needed to probe site containers for readiness, and for egress
+      # (SMTP, wordpress.org).
+      - wpl-sites
     depends_on:
       - provisioner
 
@@ -125,7 +187,10 @@ services:
       - "traefik.http.routers.wpl-dashboard.tls.certresolver=letsencrypt"
       - "traefik.http.services.wpl-dashboard.loadbalancer.server.port=80"
     networks:
+      # Routed by Dokploy's Traefik at the apex domain.
       - dokploy-network
+      # Its nginx proxies /api/ to api:3737.
+      - wpl-control
     depends_on:
       - api
 
@@ -152,7 +217,30 @@ networks:
   # creating its own — Traefik only watches this one.
   dokploy-network:
     external: true
+
+  # Site containers and the things that must talk to them. NOT `internal`:
+  # sites need outbound internet to install plugins from wordpress.org.
+  #
+  # `name:` is mandatory. Without it compose creates `<project>_wpl-sites`,
+  # and the provisioner's DOCKER_NETWORK would name a network that does not
+  # exist.
+  wpl-sites:
+    driver: bridge
+    name: wpl-sites
+
+  # Control plane. The API reaches the provisioner here; sites cannot.
+  wpl-control:
+    driver: bridge
+    internal: true
+    name: wpl-control
+
   provisioner-internal:
+    driver: bridge
+    internal: true
+
+  # Isolates Traefik's read-only view of the Docker API from the
+  # provisioner's read-write one.
+  traefik-internal:
     driver: bridge
     internal: true
 
