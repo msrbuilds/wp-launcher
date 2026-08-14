@@ -92,7 +92,7 @@ Three variables must be set in the Environment tab alongside it:
 | Variable | How to get it |
 |---|---|
 | `BASE_DOMAIN_REGEX` | Escape the dots in your domain: `^.+\.wplauncher\.xyz$` |
-| `TRAEFIK_TRUSTED_IPS` | `docker network inspect dokploy-network -f '{{(index .IPAM.Config 0).Subnet}}'` |
+| `TRAEFIK_TRUSTED_IPS` | Leave at `10.0.0.0/8` unless `docker network inspect dokploy-network -f '{{(index .IPAM.Config 0).Subnet}}'` prints something outside it |
 | `ADMINER_AUTH_USERS` | `htpasswd -nbB admin 'your-password'`, then **double every `$`** |
 
 That last instruction is not optional. Compose interpolates environment values,
