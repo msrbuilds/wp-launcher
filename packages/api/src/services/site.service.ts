@@ -10,6 +10,7 @@ import {
   removeSiteContainer,
   getContainerStatus,
   enableBindMounts,
+  listWplImages,
 } from './docker.service';
 import { fireWebhookEvent } from './webhook.service';
 import { getBlueprint } from './blueprint.service';
@@ -235,6 +236,23 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   const image = blueprint?.docker?.image
     || (phpVersion ? `wp-launcher/wordpress:php${phpVersion}` : config.wpImage);
   const dbEngine = req.dbEngine || blueprint?.database || 'sqlite';
+
+  // Check the image is built before asking Docker to run it. Docker's own
+  // failure arrives as "(HTTP code 404) no such container - No such image",
+  // which reads like a container fault and buries the actual fix. Only our own
+  // tags are checked — a blueprint may legitimately name an external image —
+  // and a provisioner hiccup degrades to the old behaviour rather than
+  // blocking launches.
+  if (image.startsWith('wp-launcher/')) {
+    const built = await listWplImages().catch(() => null);
+    if (built && !built.some((i) => i.tag === image)) {
+      const available = built.map((i) => i.tag).join(', ');
+      throw new ValidationError(
+        `Image ${image} is not built. Build it under Settings → Images, or point the blueprint at ` +
+        (available ? `one that exists: ${available}` : 'an image after building one.'),
+      );
+    }
+  }
 
   try {
     // SBP-004: Pass heartbeat secret to container so MU-plugin can authenticate
