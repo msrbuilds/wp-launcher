@@ -110,28 +110,25 @@ services:
     volumes:
       - wpl-acme:/acme
     labels:
-      # Read by DOKPLOY's Traefik, not ours. One catch-all router for every
-      # site subdomain, forwarded as plain HTTP. No certresolver: the wildcard
-      # is already loaded upstream, and a resolver here would fire per-site
-      # ACME requests against Let's Encrypt's 50-per-week limit.
+      # Read by DOKPLOY's Traefik, not ours.
       - "traefik.enable=true"
       - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.wpl-sites.rule=HostRegexp(`${BASE_DOMAIN_REGEX:?Set BASE_DOMAIN_REGEX}`)"
-      # Lower than any default-priority router, so the per-site routers that
-      # already-running sites carry keep winning. This is what makes the
-      # rollout safe for existing sites.
-      - "traefik.http.routers.wpl-sites.priority=1"
-      - "traefik.http.routers.wpl-sites.entrypoints=websecure"
-      - "traefik.http.routers.wpl-sites.tls=true"
-      # The wildcard. tls.domains must be explicit: the rule above is a
-      # HostRegexp, and Traefik cannot expand a regex into names to request a
-      # certificate for — without this it silently serves its self-signed
-      # default. Requires a DNS-01 resolver, since Let's Encrypt will not
-      # issue wildcards over HTTP-01. See guides/dokploy-deployment.md §6.
-      - "traefik.http.routers.wpl-sites.tls.certresolver=${WILDCARD_CERT_RESOLVER:-cloudflare}"
-      - "traefik.http.routers.wpl-sites.tls.domains[0].main=${BASE_DOMAIN}"
-      - "traefik.http.routers.wpl-sites.tls.domains[0].sans=*.${BASE_DOMAIN}"
-      - "traefik.http.services.wpl-sites.loadbalancer.server.port=80"
+
+      # TLS: the raw stream, selected by SNI. Dokploy's Traefik never decrypts
+      # it, so it needs no certificate for our domains and no configuration on
+      # the host — which is the entire point of this design.
+      - "traefik.tcp.routers.wpl-sites.rule=HostSNIRegexp(`${BASE_DOMAIN_REGEX:?Set BASE_DOMAIN_REGEX}`)"
+      - "traefik.tcp.routers.wpl-sites.entrypoints=websecure"
+      - "traefik.tcp.routers.wpl-sites.tls.passthrough=true"
+      - "traefik.tcp.services.wpl-sites.loadbalancer.server.port=443"
+
+      # Plain HTTP, carrying ACME HTTP-01 challenges to our Traefik, which
+      # issues the redirect to HTTPS itself. Deliberately NO redirect-to-https
+      # middleware here: it would bounce /.well-known/acme-challenge/ to a
+      # certificate that does not exist yet, so issuance could never complete.
+      - "traefik.http.routers.wpl-sites-http.rule=HostRegexp(`${BASE_DOMAIN_REGEX}`)"
+      - "traefik.http.routers.wpl-sites-http.entrypoints=web"
+      - "traefik.http.services.wpl-sites-http.loadbalancer.server.port=80"
     networks:
       - dokploy-network
       - wpl-sites
@@ -160,9 +157,13 @@ services:
       - CONTAINER_CPU=${CONTAINER_CPU:-0.5}
       - WP_UPLOAD_LIMIT=${WP_UPLOAD_LIMIT:-2097152}
       - WP_DISK_QUOTA=${WP_DISK_QUOTA:-104857600}
-      # The inner tier is plain HTTP; TLS terminates once, at Dokploy's
-      # Traefik. Not an operator knob any more, so it is not read from env.
-      - ENABLE_TLS=false
+      # wpl-traefik terminates TLS, exactly as the bundled Traefik does in the
+      # standalone install, so sites carry their normal TLS labels again.
+      - ENABLE_TLS=true
+      # Blank: the websecure entrypoint supplies the resolver, so no per-site
+      # certresolver label is emitted and the certificate mode is a property
+      # of the proxy rather than of each site.
+      - CERT_RESOLVER=
       - PRODUCT_ASSETS_PATH=${PRODUCT_ASSETS_PATH:?Set PRODUCT_ASSETS_PATH to an absolute host path}
       - SITES_HOST_PATH=${SITES_HOST_PATH:?Set SITES_HOST_PATH to an absolute host path}
       # Custom-domain routers are written here for Traefik's file provider.
