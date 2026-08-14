@@ -18,6 +18,13 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  /**
+   * True until the session cookie has been checked against the API. Consumers
+   * must not treat `isAuthenticated: false` as "signed out" while this is set —
+   * on a page reload the check is in flight and the user simply is not known
+   * yet, so acting on it flashes a sign-in prompt at an authenticated user.
+   */
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -27,11 +34,15 @@ const AuthContext = createContext<AuthContextType>({
   refreshUser: async () => {},
   isAuthenticated: false,
   isAdmin: false,
+  loading: true,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { loading: settingsLoading } = useSettings();
   const [user, setUser] = useState<User | null>(null);
+  // Starts true and stays true while settings are still loading, because the
+  // session check below has not run yet at that point either.
+  const [loading, setLoading] = useState(true);
 
   // Validate auth on mount via httpOnly cookie
   useEffect(() => {
@@ -43,7 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return res.json();
       })
       .then((data) => setUser(data))
-      .catch(() => setUser(null));
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false));
   }, [settingsLoading]);
 
   function login(newUser: User) {
@@ -71,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAdmin = user?.role === 'admin' || user?.role === 'owner';
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, refreshUser, isAuthenticated: !!user, isAdmin }}>
+    <AuthContext.Provider value={{ user, login, logout, refreshUser, isAuthenticated: !!user, isAdmin, loading }}>
       {children}
     </AuthContext.Provider>
   );

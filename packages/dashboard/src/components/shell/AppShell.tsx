@@ -11,7 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 const COLLAPSE_KEY = 'wpl-sidebar-collapsed';
 
 export default function AppShell() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => {
@@ -24,6 +24,21 @@ export default function AppShell() {
   }, [collapsed]);
 
   useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
+
+  // The session cookie has not been checked yet. Showing the sign-in prompt
+  // here would flash it at an already-authenticated user on every reload, so
+  // hold the themed background until the answer is known.
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div
+          className="size-6 animate-spin rounded-full border-2 border-muted border-t-primary"
+          role="status"
+          aria-label="Loading"
+        />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
