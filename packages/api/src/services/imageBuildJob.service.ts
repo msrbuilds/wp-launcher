@@ -1,4 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs';
+import path from 'path';
 import tar from 'tar-fs';
 import { getDb } from '../utils/db';
 import { baseImageTag } from './imageBuild.service';
@@ -61,6 +63,20 @@ export function reconcileStuckImageBuilds(): void {
 async function packAndBuild(
   contextDir: string, tag: string, buildargs: Record<string, string>, onLine: (l: string) => void,
 ): Promise<void> {
+  // Check the context before streaming it. The error handler below swallows
+  // tar.pack failures, so an unreadable or empty directory would otherwise be
+  // sent as an empty tar and surface as Docker's "Cannot locate specified
+  // Dockerfile" — which points at a missing file rather than the real cause.
+  //
+  // That cause is usually a stale bind mount: Dokploy deletes and re-clones
+  // code/ on every redeploy, and a container that keeps running stays attached
+  // to the deleted inode, so it sees an empty directory forever.
+  if (!fs.existsSync(path.join(contextDir, 'Dockerfile'))) {
+    throw new Error(
+      `build context ${contextDir} has no Dockerfile — the directory is empty or its mount is stale. ` +
+      'Restart the API container so the bind mount re-resolves, then retry.',
+    );
+  }
   const stream = tar.pack(contextDir);
   stream.on('error', () => { /* pack aborted — non-fatal */ });
   try {

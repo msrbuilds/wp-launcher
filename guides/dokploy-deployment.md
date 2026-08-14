@@ -163,6 +163,28 @@ so they survive the `code/` wipe even though their JSON files do not.
 Running site containers are **not** touched by a panel redeploy — they are
 separate containers owned by the Docker daemon, not part of this compose project.
 
+### A redeploy can leave the image builder with a stale mount
+
+Dokploy deletes and re-clones `code/` on redeploy. A container that keeps
+running through that stays bound to the **deleted** directory inode, so it sees
+an empty `/app/wordpress` even though the host path is populated — the path
+string matches, the inode does not.
+
+Only image building notices: `blueprints/`, `products/` and `templates/` all
+fall back to the database, but a build genuinely needs files on disk. The build
+fails with "build context has no Dockerfile — the directory is empty or its
+mount is stale". Fix it by restarting the API container so the bind re-resolves:
+
+```bash
+docker restart $(docker ps --filter name=-api --filter label=com.docker.compose.project --format '{{.Names}}' | head -1)
+```
+
+Then verify and retry the build from the panel:
+
+```bash
+docker exec <api-container> ls /app/wordpress   # expect Dockerfile, entrypoint.sh, mu-plugins
+```
+
 ## Security: sites are isolated from your other apps
 
 Site containers run on a private `wpl-sites` network and are routed by a second

@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import type Database from 'better-sqlite3';
 import { createTestDb } from '../test-helpers/db';
 import { __setDbForTesting } from '../utils/db';
@@ -15,8 +18,20 @@ import {
 } from './imageBuildJob.service';
 
 let db: Database.Database;
-beforeEach(() => { db = createTestDb(); __setDbForTesting(db); });
-afterEach(() => { __setDbForTesting(null); db.close(); });
+let ctxDir: string;
+beforeEach(() => {
+  db = createTestDb();
+  __setDbForTesting(db);
+  // A real build context. The runner refuses to stream an empty one, so tests
+  // that expect a build to proceed need a Dockerfile actually on disk.
+  ctxDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wpl-ctx-'));
+  fs.writeFileSync(path.join(ctxDir, 'Dockerfile'), 'FROM scratch\n');
+});
+afterEach(() => {
+  __setDbForTesting(null);
+  db.close();
+  fs.rmSync(ctxDir, { recursive: true, force: true });
+});
 
 describe('imageBuildJob.service', () => {
   it('creates a queued job and reads it back', () => {
@@ -60,7 +75,7 @@ describe('imageBuildJob.service', () => {
       tag: 'wp-launcher/wordpress:php8.3', kind: 'base', createdBy: 'u1',
       spec: { phpVersion: '8.3', wpVersion: '6.9' },
     });
-    await runBuildJob(job.id, '/app/wordpress');
+    await runBuildJob(job.id, ctxDir);
     const done = getBuildJob(job.id)!;
     expect(done.status).toBe('success');
     expect(done.log).toContain('Step 1/1');
@@ -73,9 +88,32 @@ describe('imageBuildJob.service', () => {
       tag: 'wp-launcher/wordpress:php8.5-wp6.7', kind: 'base', createdBy: 'u1',
       spec: { phpVersion: '8.5', wpVersion: '6.7' },
     });
-    await runBuildJob(job.id, '/app/wordpress');
+    await runBuildJob(job.id, ctxDir);
     const done = getBuildJob(job.id)!;
     expect(done.status).toBe('failed');
     expect(done.error).toContain('manifest unknown');
+  });
+
+  it('names the real problem when the build context is empty', async () => {
+    // Dokploy wipes and re-clones code/ on redeploy, so a container that keeps
+    // running holds a bind mount to the deleted inode and sees an empty
+    // directory. Streaming that produced "Cannot locate specified Dockerfile"
+    // from Docker, which sends you looking for a missing file rather than a
+    // stale mount.
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'wpl-empty-'));
+    try {
+      const job = createBuildJob({
+        tag: 'wp-launcher/wordpress:php8.4-wp7.0', kind: 'base', createdBy: 'u1',
+        spec: { phpVersion: '8.4', wpVersion: '7.0' },
+      });
+      await runBuildJob(job.id, empty);
+      const done = getBuildJob(job.id)!;
+      expect(done.status).toBe('failed');
+      expect(done.error).toContain(empty);
+      expect(done.error).toMatch(/no Dockerfile/i);
+      expect(done.error).toMatch(/restart/i);
+    } finally {
+      fs.rmSync(empty, { recursive: true, force: true });
+    }
   });
 });
