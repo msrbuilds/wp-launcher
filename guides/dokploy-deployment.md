@@ -77,11 +77,55 @@ a private network behind WP Launcher's own Traefik. Per-site HTTP-01 therefore
 cannot work, because Traefik cannot derive ACME domains from a regexp rule. One
 wildcard certificate covers every site:
 
-1. Add a DNS-01 resolver to Dokploy's Traefik static configuration
-   (**Settings → Traefik** in the Dokploy UI, or
-   `/etc/dokploy/traefik/traefik.yml`) using your DNS provider's API token, and
-   obtain `*.wplauncher.xyz`.
-2. Redeploy.
+**HTTP-01 cannot issue wildcards** — Let's Encrypt requires DNS-01 for them — so
+this needs a DNS provider API token. These steps assume Cloudflare; adjust the
+provider name for others.
+
+1. Create a Cloudflare API token (*My Profile → API Tokens → Create Custom
+   Token*) with `Zone → DNS → Edit`, scoped to your zone only. A scoped token
+   needs just `CF_DNS_API_TOKEN`; avoid the global key, which can modify every
+   zone on the account.
+
+2. Add a `cloudflare` resolver alongside the existing one in
+   `/etc/dokploy/traefik/traefik.yml`. Use a **separate** storage file —
+   mixing challenge types in one `acme.json` fails confusingly:
+
+   ```yaml
+   certificatesResolvers:
+     letsencrypt:            # leave this: your other apps use it
+       acme:
+         email: you@example.com
+         storage: /etc/dokploy/traefik/dynamic/acme.json
+         httpChallenge:
+           entryPoint: web
+     cloudflare:
+       acme:
+         email: you@example.com
+         storage: /etc/dokploy/traefik/dynamic/acme-dns.json
+         dnsChallenge:
+           provider: cloudflare
+           resolvers:
+             - "1.1.1.1:53"
+   ```
+
+3. Put the token in **Traefik's own environment** — not `traefik.yml`, and not
+   WP Launcher's Environment tab. Traefik's Cloudflare provider reads
+   `CF_DNS_API_TOKEN` from its process environment. If Dokploy runs Traefik as
+   a Swarm service, `docker service update --env-add CF_DNS_API_TOKEN=… <name>`
+   does it. If it is a plain container (check with
+   `docker inspect dokploy-traefik --format '{{index .Config.Labels "com.docker.swarm.service.name"}}'`),
+   it must be recreated with `-e CF_DNS_API_TOKEN=…`, preserving its existing
+   mounts, published ports and **all** network attachments. Capture them with
+   `docker inspect` first — Traefik is the host's only ingress.
+
+4. Redeploy WP Launcher.
+
+If your resolver is not named `cloudflare`, set `WILDCARD_CERT_RESOLVER` to
+match.
+
+Note that a Dokploy upgrade may recreate its Traefik container from its own
+definition and drop that environment variable, which would break wildcard
+renewal roughly 60 days later, silently. Worth a calendar reminder.
 
 This also sidesteps Let's Encrypt's limit of 50 certificates per registered
 domain per week, which a busy launcher on per-site certificates would hit — and

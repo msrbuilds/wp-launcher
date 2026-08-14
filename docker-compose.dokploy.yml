@@ -86,6 +86,14 @@ services:
       - "traefik.http.routers.wpl-sites.priority=1"
       - "traefik.http.routers.wpl-sites.entrypoints=websecure"
       - "traefik.http.routers.wpl-sites.tls=true"
+      # The wildcard. tls.domains must be explicit: the rule above is a
+      # HostRegexp, and Traefik cannot expand a regex into names to request a
+      # certificate for — without this it silently serves its self-signed
+      # default. Requires a DNS-01 resolver, since Let's Encrypt will not
+      # issue wildcards over HTTP-01. See guides/dokploy-deployment.md §6.
+      - "traefik.http.routers.wpl-sites.tls.certresolver=${WILDCARD_CERT_RESOLVER:-cloudflare}"
+      - "traefik.http.routers.wpl-sites.tls.domains[0].main=${BASE_DOMAIN}"
+      - "traefik.http.routers.wpl-sites.tls.domains[0].sans=*.${BASE_DOMAIN}"
       - "traefik.http.services.wpl-sites.loadbalancer.server.port=80"
     networks:
       - dokploy-network
