@@ -47,6 +47,19 @@ describe('buildSiteLabels', () => {
       .toBe('dokploy-network');
   });
 
+  it('marks the container routable so a constrained Traefik can find it', () => {
+    expect(buildSiteLabels(base)['wp-launcher.routable']).toBe('true');
+    expect(buildSiteLabels({ ...base, emitEnableLabel: false })['wp-launcher.routable']).toBe('true');
+  });
+
+  it('omits traefik.enable when told to hide from label-scanning proxies', () => {
+    // On Dokploy two Traefiks share one Docker daemon. traefik.enable=true made
+    // the platform's Traefik claim the container with a higher-priority router
+    // and then fail to reach it, since it is not on the private site network.
+    expect(buildSiteLabels(base)['traefik.enable']).toBe('true');
+    expect(buildSiteLabels({ ...base, emitEnableLabel: false })['traefik.enable']).toBeUndefined();
+  });
+
   it('records the database sidecar only when there is one', () => {
     expect(buildSiteLabels(base)['wp-launcher.db-container']).toBeUndefined();
     expect(buildSiteLabels({ ...base, dbContainerId: 'abc123' })['wp-launcher.db-container']).toBe('abc123');

@@ -62,7 +62,13 @@ services:
       - "--entrypoints.web.forwardedheaders.trustedips=${TRAEFIK_TRUSTED_IPS:?Set TRAEFIK_TRUSTED_IPS to the dokploy-network subnet}"
       - "--providers.docker=true"
       - "--providers.docker.endpoint=tcp://traefik-docker-proxy:2375"
-      - "--providers.docker.exposedbydefault=false"
+      # Select by our own label rather than `traefik.enable`, which every
+      # container on this host sets for Dokploy's Traefik. Without the
+      # constraint we would build routers for Supabase, the Dokploy dashboard
+      # and even our own catch-all, all of which reference a `websecure`
+      # entrypoint that does not exist here.
+      - "--providers.docker.exposedbydefault=true"
+      - "--providers.docker.constraints=Label(`wp-launcher.routable`,`true`)"
       - "--providers.docker.network=wpl-sites"
       - "--api.dashboard=false"
       - "--log.level=INFO"
@@ -100,6 +106,11 @@ services:
       # Sites land on the private network, routed by wpl-traefik.
       - DOCKER_NETWORK=wpl-sites
       - TRAEFIK_NETWORK=wpl-sites
+      # Hide site containers from Dokploy's Traefik. It shares this Docker
+      # daemon, and a `traefik.enable=true` label makes it build a per-host
+      # router that outranks our catch-all and then times out, because it is
+      # not attached to wpl-sites.
+      - SITE_TRAEFIK_ENABLE=false
       - CONTAINER_MEMORY=${CONTAINER_MEMORY:-268435456}
       - CONTAINER_CPU=${CONTAINER_CPU:-0.5}
       - WP_UPLOAD_LIMIT=${WP_UPLOAD_LIMIT:-2097152}
@@ -202,9 +213,11 @@ services:
     environment:
       - ADMINER_DEFAULT_SERVER=localhost
     labels:
-      # Read by OUR Traefik. db.BASE_DOMAIN already matches the catch-all
-      # router at the Dokploy tier, so nothing is configured there.
-      - "traefik.enable=true"
+      # Read by OUR Traefik, which selects on this label. db.BASE_DOMAIN
+      # already matches the catch-all router at the Dokploy tier, so nothing
+      # is configured there. Deliberately NO `traefik.enable`: that would make
+      # Dokploy's Traefik claim this host and fail to reach it.
+      - "wp-launcher.routable=true"
       - "traefik.docker.network=wpl-sites"
       - "traefik.http.routers.wpl-adminer.rule=Host(`db.${BASE_DOMAIN}`)"
       - "traefik.http.routers.wpl-adminer.entrypoints=web"

@@ -18,13 +18,29 @@ export interface SiteLabelInput {
   traefikNetwork: string;
   expiresAt: string;
   dbContainerId?: string;
+  /**
+   * Whether to emit `traefik.enable=true`. Defaults to true, which is right
+   * for the standalone install: its bundled Traefik runs with
+   * `exposedByDefault: false` and needs the label to route the site at all.
+   *
+   * Set false where another Traefik shares the same Docker daemon, as on
+   * Dokploy. Both proxies read every container's labels, so the label made
+   * the platform's Traefik claim the site with a higher-priority per-host
+   * router and then fail to reach it — it is not attached to the private
+   * site network. Our own Traefik finds the container by constraint on
+   * `wp-launcher.routable` instead, so it does not need this label.
+   */
+  emitEnableLabel?: boolean;
 }
 
 /** Every label a site container carries: Traefik routing plus our bookkeeping. */
 export function buildSiteLabels(input: SiteLabelInput): Record<string, string> {
   const r = `traefik.http.routers.${input.subdomain}`;
   return {
-    'traefik.enable': 'true',
+    ...(input.emitEnableLabel === false ? {} : { 'traefik.enable': 'true' }),
+    // How a constrained Traefik selects our containers without relying on
+    // `traefik.enable`, which any co-resident proxy would also honour.
+    'wp-launcher.routable': 'true',
     [`${r}.rule`]: `Host(\`${input.subdomain}.${input.baseDomain}\`)`,
     [`traefik.http.services.${input.subdomain}.loadbalancer.server.port`]: '80',
     ...(input.traefikNetwork ? { 'traefik.docker.network': input.traefikNetwork } : {}),

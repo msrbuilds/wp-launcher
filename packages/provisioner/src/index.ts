@@ -27,6 +27,10 @@ const CERT_RESOLVER = process.env.CERT_RESOLVER ?? 'letsencrypt';
 // Which network Traefik reaches site containers on. Empty for the bundled
 // Traefik, which is configured with the network globally; set on Dokploy.
 const TRAEFIK_NETWORK = process.env.TRAEFIK_NETWORK || '';
+// Set false where a second Traefik shares this Docker daemon (Dokploy), so the
+// platform's proxy ignores our site containers instead of claiming them with a
+// router it cannot reach. See SiteLabelInput.emitEnableLabel.
+const SITE_TRAEFIK_ENABLE = process.env.SITE_TRAEFIK_ENABLE !== 'false';
 const CONTAINER_MEMORY = parseInt(process.env.CONTAINER_MEMORY || String(256 * 1024 * 1024), 10);
 const CONTAINER_CPU = parseFloat(process.env.CONTAINER_CPU || '0.5');
 const WP_UPLOAD_LIMIT = process.env.WP_UPLOAD_LIMIT || String(2 * 1024 * 1024); // 2MB per file
@@ -365,6 +369,7 @@ app.post('/containers', async (req: Request, res: Response) => {
           enableTls: ENABLE_TLS,
           certResolver: CERT_RESOLVER,
           traefikNetwork: TRAEFIK_NETWORK,
+          emitEnableLabel: SITE_TRAEFIK_ENABLE,
           expiresAt: opts.expiresAt,
           dbContainerId,
         }),
