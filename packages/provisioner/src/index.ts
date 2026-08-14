@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import si from 'systeminformation';
 import { buildSiteLabels } from './site-labels';
+import { generateDbPassword } from './db-password';
 
 const app = express();
 app.use(express.json());
@@ -184,7 +185,7 @@ app.post('/containers', async (req: Request, res: Response) => {
     const useExternalDb = opts.dbEngine === 'mysql' || opts.dbEngine === 'mariadb';
     let dbContainerId: string | undefined;
     const dbContainerName = `wp-db-${opts.subdomain}`;
-    const dbPassword = `wp_${opts.subdomain}_${Date.now().toString(36)}`;
+    const dbPassword = generateDbPassword();
 
     // If MySQL or MariaDB mode, create a database sidecar container first
     if (useExternalDb) {

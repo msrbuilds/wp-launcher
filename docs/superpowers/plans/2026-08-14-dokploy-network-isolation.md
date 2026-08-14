@@ -539,10 +539,18 @@ TRAEFIK_TRUSTED_IPS=10.0.0.0/8
 #   htpasswd -nbB admin 'your-password'
 ADMINER_AUTH_USERS=
 
-# NOTE: BASE_DOMAIN_REGEX and ADMINER_AUTH_USERS both contain `$` characters
-# (the regex anchor, and the `$2y$` bcrypt prefix). Enter them exactly as
-# shown. If Adminer rejects a correct password, or the site router never
-# matches, your platform ate the `$` — double each one (`$$`) and redeploy.
+# CORRECTED DURING EXECUTION — verified against a real container, not guessed:
+#
+# Compose interpolates env-file values, and the two cases differ.
+#   ADMINER_AUTH_USERS: `$` MUST be doubled. A verbatim htpasswd hash is
+#     silently TRUNCATED at the first `$` (admin:$2y$05$abc -> admin:$2y$05),
+#     and Adminer then rejects the correct password with no diagnostic.
+#   BASE_DOMAIN_REGEX: needs no escaping. Its only `$` is the last character,
+#     so there is no variable name following it; single and double both yield
+#     the same correct value.
+#
+# The plan originally framed doubling as a fallback ("if it fails"). It is
+# mandatory for the hash.
 ```
 
 - [ ] **Step 2: Replace the security section of the guide**
