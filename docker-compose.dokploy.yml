@@ -171,10 +171,13 @@ services:
       # wpl-traefik terminates TLS, exactly as the bundled Traefik does in the
       # standalone install, so sites carry their normal TLS labels again.
       - ENABLE_TLS=true
-      # Blank: the websecure entrypoint supplies the resolver, so no per-site
-      # certresolver label is emitted and the certificate mode is a property
-      # of the proxy rather than of each site.
-      - CERT_RESOLVER=
+      # Must name our resolver explicitly. The websecure entrypoint carries a
+      # default certresolver, but a router that defines its own `tls` block —
+      # which buildSiteLabels always emits — uses that block as-is instead of
+      # inheriting the entrypoint's defaults. The result is a TLS router with
+      # no resolver: Traefik serves its self-signed certificate and never calls
+      # ACME, silently, with nothing in the log either way.
+      - CERT_RESOLVER=wpl
       - PRODUCT_ASSETS_PATH=${PRODUCT_ASSETS_PATH:?Set PRODUCT_ASSETS_PATH to an absolute host path}
       - SITES_HOST_PATH=${SITES_HOST_PATH:?Set SITES_HOST_PATH to an absolute host path}
       # Custom-domain routers are written here for Traefik's file provider.
