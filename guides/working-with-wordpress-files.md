@@ -162,7 +162,7 @@ wpl shell <subdomain>
 
 - **Container names:** WP Launcher containers are named `wp-site-{subdomain}`.
 
-- **MySQL sites:** If the site uses MySQL/MariaDB, the database runs in a sidecar container `wp-db-{subdomain}`. Use `--skip-ssl` for mysql CLI commands.
+- **MySQL sites:** If the site uses MySQL/MariaDB, its database lives on a shared engine container — `wpl-db-mysql` or `wpl-db-mariadb` — under a database named for the site, not `wordpress`. Read the exact name from the site container's `WORDPRESS_DB_NAME`. Sites created before shared engines still have their own `wp-db-{subdomain}` sidecar. Use `--skip-ssl` for mysql CLI commands either way.
 
 ---
 

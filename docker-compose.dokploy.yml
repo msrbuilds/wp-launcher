@@ -155,6 +155,10 @@ services:
       - DOCKER_API_VERSION=1.44
       - PORT=4000
       - INTERNAL_KEY=${PROVISIONER_INTERNAL_KEY:?Set PROVISIONER_INTERNAL_KEY}
+      # Root credentials for the shared database engines. Baked into each
+      # engine's data volume the first time it starts — changing this later
+      # does not change the running server's password.
+      - SHARED_DB_ROOT_PASSWORD=${SHARED_DB_ROOT_PASSWORD:?Set SHARED_DB_ROOT_PASSWORD}
       - BASE_DOMAIN=${BASE_DOMAIN:?Set BASE_DOMAIN}
       # Sites land on the private network, routed by wpl-traefik.
       - DOCKER_NETWORK=wpl-sites

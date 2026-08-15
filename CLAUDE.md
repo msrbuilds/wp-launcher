@@ -277,7 +277,12 @@ WordPress plugin (`wordpress/plugins/wp-launcher-connector/`) installed on remot
 
 Each demo site gets:
 - WordPress container with Traefik labels for `{subdomain}.BASE_DOMAIN` routing
-- Optional MySQL/MariaDB sidecar container (`wp-db-{subdomain}`)
+- MySQL/MariaDB sites get a database and user on a **shared** engine
+  (`wpl-db-mysql` / `wpl-db-mariadb`), started on demand and stopped when their
+  last site goes. Identifiers come from `provisioner/src/shared-db.ts`
+  (`siteDbIdentifier`), which fits MySQL's 32-char username limit. Sites created
+  before this carry `wp-launcher.db-container` and still own a sidecar; teardown
+  handles both. Requires `SHARED_DB_ROOT_PASSWORD`
 - Memory/CPU limits from config
 - Network: `wp-launcher-network`
 - Label: `wp-launcher.managed=true`
@@ -362,4 +367,4 @@ Resolution lives in `services/features.service.ts`: `isFeatureEnabled(key, role)
 - API container runs compiled JS from `/app/dist/`; TypeScript source changes require `docker compose up -d --build api`
 - DB timestamps stored as UTC without `Z` suffix; frontend must append `Z` before parsing with `new Date()`
 - Docker exec output may include stream header bytes; strip non-JSON prefix when parsing wp-cli JSON output
-- MySQL sidecar containers have SSL enabled; use `--skip-ssl` flag when running mysql CLI commands
+- MySQL/MariaDB containers have SSL enabled; use `--skip-ssl` when running mysql CLI commands (applies to the shared engines and to legacy per-site sidecars alike)

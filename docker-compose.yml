@@ -43,6 +43,10 @@ services:
       - DOCKER_API_VERSION=1.44
       - PORT=4000
       - INTERNAL_KEY=${PROVISIONER_INTERNAL_KEY:?Set PROVISIONER_INTERNAL_KEY in .env}
+      # Root credentials for the shared database engines. Baked into each
+      # engine's data volume the first time it starts — changing this later
+      # does not change the running server's password.
+      - SHARED_DB_ROOT_PASSWORD=${SHARED_DB_ROOT_PASSWORD:?Set SHARED_DB_ROOT_PASSWORD in .env}
       - BASE_DOMAIN=${BASE_DOMAIN:-localhost}
       - DOCKER_NETWORK=wp-launcher-network
       - CONTAINER_MEMORY=${CONTAINER_MEMORY:-268435456}
