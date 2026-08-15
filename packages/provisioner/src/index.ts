@@ -407,6 +407,24 @@ app.delete('/containers/:id', async (req: Request, res: Response) => {
       // Get subdomain from labels for volume cleanup
       const siteId = info.Config?.Labels?.['wp-launcher.site-id'];
 
+      // Sites created before shared servers carry wp-launcher.db-container and
+      // are handled above. Newer ones carry wp-launcher.db-engine and own a
+      // database instead. Both must be supported: removing the legacy branch
+      // would strand every existing site's sidecar as an orphan.
+      const dbEngineLabel = info.Config?.Labels?.['wp-launcher.db-engine'] as SharedDbEngine | undefined;
+      if (dbEngineLabel && siteId && SHARED_DB_ROOT_PASSWORD) {
+        try {
+          await dropSiteDatabase(
+            docker, dbEngineLabel, SHARED_DB_ROOT_PASSWORD, siteDbIdentifier(siteId),
+          );
+          console.log(`[provisioner] Dropped database for ${siteId}`);
+        } catch (err: any) {
+          // Never block teardown. A leaked database wastes disk but breaks
+          // nothing, and the sweep in cleanup.service reclaims it.
+          console.error(`[provisioner] Database drop failed for ${siteId}:`, err.message);
+        }
+      }
+
       if (info.State.Running) {
         await container.stop({ t: 5 });
       }
@@ -424,6 +442,13 @@ app.delete('/containers/:id', async (req: Request, res: Response) => {
             console.error(`[provisioner] Volume cleanup error (${volumeName}):`, volErr.message);
           }
         }
+      }
+
+      // Reclaim the engine's memory when its last site goes. Deliberately after
+      // the container is removed, so it is no longer counted as a user.
+      if (dbEngineLabel) {
+        await stopEngineIfUnused(docker, dbEngineLabel).catch((stopErr: any) =>
+          console.error('[provisioner] Engine stop check failed:', stopErr.message));
       }
     } catch (err: any) {
       if (err.statusCode === 404) {
