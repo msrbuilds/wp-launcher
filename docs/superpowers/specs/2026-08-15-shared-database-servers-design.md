@@ -145,9 +145,23 @@ The provisioner needs root access to create and drop databases. It reads
 `openssl rand -hex 32`.
 
 The value is passed to the engine container as `MARIADB_ROOT_PASSWORD` /
-`MYSQL_ROOT_PASSWORD` when it is first created. Changing it afterwards does not
-change the running server's password; the guide must say so, because a mismatch
-would break provisioning with a confusing authentication error.
+`MYSQL_ROOT_PASSWORD` when it is first created. It is baked into the data
+volume at initialisation: **editing the variable afterwards does not change the
+running server's password.**
+
+`ensureEngineRunning` therefore verifies rather than assumes. After the ping
+succeeds it runs an authenticated `SELECT 1` as root. On an access-denied
+failure the launch stops with a message naming the actual cause and both ways
+out:
+
+> `SHARED_DB_ROOT_PASSWORD` does not match the running `<engine>` server. The
+> password was set when the `wpl-db-<engine>-data` volume was initialised and
+> cannot be changed by editing this variable. Either restore the previous value,
+> or remove that volume — which destroys every site database on this engine.
+
+Without this check the symptom is an authentication error during provisioning
+that looks like a bug in the code rather than a configuration mismatch, and the
+fix is not guessable from it.
 
 ### Deletion
 
@@ -173,8 +187,41 @@ For a shared-server site:
 3. Stop the engine if no site containers using it remain.
 
 Failure to drop must not block deletion. The site's own teardown is what the
-user asked for; an orphaned database wastes disk but breaks nothing, and the
-orphan watchdog can reclaim it later.
+user asked for; a leaked database wastes disk but breaks nothing, and the sweep
+below reclaims it.
+
+### Reclaiming orphaned databases
+
+A drop can fail — the engine may be stopped, mid-restart, or the exec may error
+— so deletion alone cannot guarantee cleanup. Without a sweep, every such
+failure leaks a database permanently, which is exactly the kind of slow accrual
+nobody notices until a disk fills.
+
+The existing orphan watchdog already reconciles *containers* against the
+database every five minutes. This extends the same idea to databases, and is
+driven from the API because **only the API knows which sites are supposed to
+exist** — including those in `creating`, whose database exists before their
+container does.
+
+`POST /databases/prune` on the provisioner takes `{ engine, keep: string[] }`:
+
+1. List databases on that engine matching the `wp\_%` prefix.
+2. Drop every one absent from `keep`, and its matching user.
+
+The API calls it on the watchdog's schedule, passing the database names of
+every site row that is not deleted. Two safety properties matter:
+
+- **Only `wp_`-prefixed databases are ever considered**, so the engine's own
+  `mysql`, `information_schema` and anything an operator created by hand are
+  untouchable.
+- **The API must not call with an empty or partial `keep` list.** If enumerating
+  sites fails, it skips the sweep entirely rather than sending a list that would
+  drop live databases. A missed sweep costs nothing; a wrong one destroys
+  customer data.
+
+Sites in `creating` are included in `keep` precisely because their database
+exists before their container, which is the race a container-derived list would
+lose.
 
 ## What is unaffected
 
@@ -224,6 +271,10 @@ Unit, in CI:
   replaced.
 - Engine selection: `mysql` and `mariadb` map to their own host names;
   `sqlite` provisions no database and starts no engine.
+- Prune selection: given a list of databases and a `keep` list, only
+  `wp_`-prefixed names absent from `keep` are selected for dropping;
+  `mysql` and `information_schema` are never selected; an empty `keep` list
+  selects nothing rather than everything.
 
 Verification on a real host, since neither memory nor lifecycle can be
 unit-tested:
@@ -238,15 +289,19 @@ unit-tested:
 5. Delete one site; its database and user are gone and the other still works.
 6. Delete the last MariaDB site; `wpl-db-mariadb` stops.
 7. A pre-existing sidecar site still loads throughout.
+8. Create a stray `wp_orphan_test` database by hand, wait for the sweep, and
+   confirm it is dropped while every live site's database survives.
+9. Set `SHARED_DB_ROOT_PASSWORD` to a wrong value and launch. The failure names
+   the mismatch and the volume, rather than surfacing a raw access-denied error.
 
-Items 4 and 5 are the ones that fail quietly — a grant that is too broad exposes
-other sites' data, and a failed drop leaks a database per deleted site.
+Items 4, 5 and 8 are the ones that fail quietly — a grant that is too broad
+exposes other sites' data, a failed drop leaks a database per deleted site, and
+a sweep with a bad `keep` list would delete live data rather than merely
+failing to clean up.
 
 ## Follow-up work
 
-- **Orphan reclamation.** Databases whose site no longer exists should be
-  swept, the way container orphans already are. Not built here; a failed drop
-  currently leaks silently.
 - **External database support.** Pointing `WORDPRESS_DB_HOST` at an
   operator-supplied server needs only configuration plumbing, and would let
-  larger installs use managed database services.
+  larger installs use managed database services. Genuinely optional: nothing in
+  this design depends on it.
