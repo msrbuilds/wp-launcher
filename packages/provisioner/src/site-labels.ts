@@ -19,6 +19,11 @@ export interface SiteLabelInput {
   expiresAt: string;
   dbContainerId?: string;
   /**
+   * Which shared database engine this site uses, if any. Teardown reads this
+   * to know it must drop a database rather than remove a sidecar container.
+   */
+  dbEngine?: string;
+  /**
    * Whether to emit `traefik.enable=true`. Defaults to true, which is right
    * for the standalone install: its bundled Traefik runs with
    * `exposedByDefault: false` and needs the label to route the site at all.
@@ -55,5 +60,6 @@ export function buildSiteLabels(input: SiteLabelInput): Record<string, string> {
     'wp-launcher.site-id': input.subdomain,
     'wp-launcher.expires-at': input.expiresAt,
     ...(input.dbContainerId ? { 'wp-launcher.db-container': input.dbContainerId } : {}),
+    ...(input.dbEngine ? { 'wp-launcher.db-engine': input.dbEngine } : {}),
   };
 }

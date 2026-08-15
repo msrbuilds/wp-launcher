@@ -7,6 +7,11 @@ import path from 'path';
 import si from 'systeminformation';
 import { buildSiteLabels } from './site-labels';
 import { generateDbPassword } from './db-password';
+import { SharedDbEngine, engineHost, siteDbIdentifier, selectDatabasesToDrop } from './shared-db';
+import {
+  ensureEngineRunning, provisionSiteDatabase, dropSiteDatabase,
+  listSiteDatabases, stopEngineIfUnused,
+} from './db-engine';
 
 const app = express();
 app.use(express.json());
@@ -38,6 +43,10 @@ const WP_DISK_QUOTA = process.env.WP_DISK_QUOTA || String(100 * 1024 * 1024); //
 // PRODUCT_ASSETS_PATH is passed through env for reference but the provisioner
 // reads from its own /product-assets mount (set in docker-compose.yml)
 const SITES_HOST_PATH = process.env.SITES_HOST_PATH || '';
+// Root credentials for the shared database engines. Baked into each engine's
+// data volume the first time it starts — see ensureEngineRunning, which reports
+// a mismatch rather than surfacing a raw access-denied error.
+const SHARED_DB_ROOT_PASSWORD = process.env.SHARED_DB_ROOT_PASSWORD || '';
 
 // Connect to Docker — via DOCKER_HOST (socket proxy) or local socket
 const docker = process.env.DOCKER_HOST
@@ -187,56 +196,22 @@ app.post('/containers', async (req: Request, res: Response) => {
 
     const containerName = `wp-site-${opts.subdomain}`;
     const useExternalDb = opts.dbEngine === 'mysql' || opts.dbEngine === 'mariadb';
-    let dbContainerId: string | undefined;
-    const dbContainerName = `wp-db-${opts.subdomain}`;
+    // Always undefined now: sites no longer own a sidecar. It stays declared so
+    // the label call still compiles and so pre-existing sites, which do carry
+    // wp-launcher.db-container, keep their teardown branch below.
+    const dbContainerId: string | undefined = undefined;
     const dbPassword = generateDbPassword();
 
-    // If MySQL or MariaDB mode, create a database sidecar container first
+    // One shared, tuned server per engine instead of a container per site. A
+    // stock MySQL sidecar cost ~500MB; the shared server costs that once.
+    const dbIdentifier = siteDbIdentifier(opts.subdomain);
     if (useExternalDb) {
-      const DB_IMAGE = opts.dbEngine === 'mysql' ? 'mysql:8.4' : 'mariadb:11';
-      try {
-        await docker.getImage(DB_IMAGE).inspect();
-      } catch {
-        console.log(`[provisioner] Pulling ${DB_IMAGE}...`);
-        const stream = await docker.pull(DB_IMAGE);
-        await new Promise<void>((resolve, reject) => {
-          docker.modem.followProgress(stream, (err: Error | null) => {
-            if (err) reject(err);
-            else resolve();
-          });
-        });
-        console.log(`[provisioner] ${DB_IMAGE} pulled.`);
+      if (!SHARED_DB_ROOT_PASSWORD) {
+        throw new Error('SHARED_DB_ROOT_PASSWORD is required to provision MySQL/MariaDB sites');
       }
-
-      // DB sidecars need more memory than WP containers — MySQL 8.4 requires ~512MB minimum.
-      // Apply a separate, higher limit (2x the WP container limit, minimum 512MB).
-      const DB_MIN_MEMORY = 512 * 1024 * 1024; // 512MB
-      const dbMemory = CONTAINER_MEMORY > 0 ? Math.max(CONTAINER_MEMORY * 2, DB_MIN_MEMORY) : 0;
-
-      const dbSidecar = await docker.createContainer({
-        Image: DB_IMAGE,
-        name: dbContainerName,
-        Env: [
-          'MYSQL_DATABASE=wordpress',
-          'MYSQL_USER=wordpress',
-          `MYSQL_PASSWORD=${dbPassword}`,
-          'MYSQL_RANDOM_ROOT_PASSWORD=yes',
-        ],
-        Labels: {
-          'wp-launcher.managed': 'true',
-          'wp-launcher.site-id': opts.subdomain,
-          'wp-launcher.role': opts.dbEngine || 'mariadb',
-          'wp-launcher.expires-at': opts.expiresAt,
-        },
-        HostConfig: {
-          NetworkMode: DOCKER_NETWORK,
-          ...(dbMemory > 0 ? { Memory: dbMemory } : {}),
-          ...(CONTAINER_CPU > 0 ? { NanoCpus: CONTAINER_CPU * 1e9 } : {}),
-          RestartPolicy: { Name: 'unless-stopped' },
-        },
-      });
-      await dbSidecar.start();
-      dbContainerId = dbSidecar.id;
+      const engine = opts.dbEngine as SharedDbEngine;
+      await ensureEngineRunning(docker, engine, SHARED_DB_ROOT_PASSWORD, DOCKER_NETWORK);
+      await provisionSiteDatabase(docker, engine, SHARED_DB_ROOT_PASSWORD, dbIdentifier, dbPassword);
     }
 
     const env = [
@@ -251,10 +226,10 @@ app.post('/containers', async (req: Request, res: Response) => {
     if (useExternalDb) {
       env.push(
         `DB_ENGINE=${opts.dbEngine}`,
-        `WORDPRESS_DB_HOST=${dbContainerName}`,
-        'WORDPRESS_DB_USER=wordpress',
+        `WORDPRESS_DB_HOST=${engineHost(opts.dbEngine as SharedDbEngine)}`,
+        `WORDPRESS_DB_USER=${dbIdentifier}`,
         `WORDPRESS_DB_PASSWORD=${dbPassword}`,
-        'WORDPRESS_DB_NAME=wordpress',
+        `WORDPRESS_DB_NAME=${dbIdentifier}`,
       );
     } else {
       env.push('DB_ENGINE=sqlite');
@@ -357,43 +332,29 @@ app.post('/containers', async (req: Request, res: Response) => {
       hostConfig.NanoCpus = CONTAINER_CPU * 1e9;
     }
 
-    let container;
-    try {
-      container = await docker.createContainer({
-        Image: opts.image,
-        name: containerName,
-        Env: env,
-        Labels: buildSiteLabels({
-          subdomain: opts.subdomain,
-          baseDomain: BASE_DOMAIN,
-          enableTls: ENABLE_TLS,
-          certResolver: CERT_RESOLVER,
-          traefikNetwork: TRAEFIK_NETWORK,
-          emitEnableLabel: SITE_TRAEFIK_ENABLE,
-          expiresAt: opts.expiresAt,
-          dbContainerId,
-        }),
-        HostConfig: hostConfig,
-      });
+    // A failed launch used to need a rollback to remove the DB sidecar it had
+    // already started. A database needs none: it costs nothing while idle, and
+    // the watchdog's sweep reclaims it because a failed launch is recorded as
+    // `error` rather than `running`.
+    const container = await docker.createContainer({
+      Image: opts.image,
+      name: containerName,
+      Env: env,
+      Labels: buildSiteLabels({
+        subdomain: opts.subdomain,
+        baseDomain: BASE_DOMAIN,
+        enableTls: ENABLE_TLS,
+        certResolver: CERT_RESOLVER,
+        traefikNetwork: TRAEFIK_NETWORK,
+        emitEnableLabel: SITE_TRAEFIK_ENABLE,
+        expiresAt: opts.expiresAt,
+        dbContainerId,
+        dbEngine: useExternalDb ? opts.dbEngine : undefined,
+      }),
+      HostConfig: hostConfig,
+    });
 
-      await container.start();
-    } catch (wpErr: any) {
-      // Rollback: clean up DB sidecar if it was created
-      if (dbContainerId) {
-        try {
-          const dbSidecar = docker.getContainer(dbContainerId);
-          const dbInfo = await dbSidecar.inspect();
-          if (dbInfo.State.Running) {
-            await dbSidecar.stop({ t: 5 });
-          }
-          await dbSidecar.remove({ v: true });
-          console.log(`[provisioner] Rolled back DB sidecar ${dbContainerId.slice(0, 12)} after WP container failure`);
-        } catch (cleanupErr: any) {
-          console.error('[provisioner] Failed to clean up DB sidecar during rollback:', cleanupErr.message);
-        }
-      }
-      throw wpErr;
-    }
+    await container.start();
 
     // Copy local plugin/theme assets into the container (avoids bind mount path issues on Windows)
     // The provisioner has /product-assets mounted via docker-compose.yml
