@@ -69,6 +69,21 @@ async function cleanupExpiredSites(): Promise<void> {
  * Watchdog: find and clean up orphaned containers that the DB doesn't know about
  * or containers whose expiry labels have passed.
  */
+/**
+ * Whether the watchdog may remove this managed container as an orphan.
+ *
+ * The shared database engines carry `wp-launcher.managed=true` like everything
+ * else we create, but they are not sites and will never appear in the sites
+ * table — so the orphan rule would remove them, destroying every database they
+ * hold. They are excluded by role rather than by relying on their lack of a
+ * site-id label, because that is an incidental property and this is a
+ * data-loss failure mode.
+ */
+export function isSweepableSiteContainer(labels: Record<string, string> | undefined): boolean {
+  if (!labels?.['wp-launcher.site-id']) return false;
+  return labels['wp-launcher.role'] !== 'shared-db';
+}
+
 export async function cleanupOrphanedContainers(): Promise<void> {
   const db = getDb();
 
@@ -80,7 +95,7 @@ export async function cleanupOrphanedContainers(): Promise<void> {
       const siteId = container.Labels?.['wp-launcher.site-id'];
       const expiresAtStr = container.Labels?.['wp-launcher.expires-at'];
 
-      if (!siteId) continue;
+      if (!isSweepableSiteContainer(container.Labels)) continue;
 
       // Check if container is tracked in DB
       const site = db.prepare("SELECT id, status FROM sites WHERE subdomain = ?").get(siteId) as { id: string; status: string } | undefined;

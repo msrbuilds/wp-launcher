@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type Database from 'better-sqlite3';
 import { createTestDb } from '../test-helpers/db';
 import { __setDbForTesting } from '../utils/db';
-import { expectedDbIdentifiers } from './cleanup.service';
+import { expectedDbIdentifiers, isSweepableSiteContainer } from './cleanup.service';
 // Compare against the real derivation rather than a hardcoded hash, so the
 // test cannot drift from the implementation.
 import { siteDbIdentifier } from '../utils/dbIdentifier';
@@ -45,6 +45,30 @@ describe('expectedDbIdentifiers', () => {
     // The caller must be able to tell "no sites" from "could not ask".
     db.prepare('DROP TABLE sites').run();
     expect(expectedDbIdentifiers()).toBeNull();
+  });
+});
+
+describe('isSweepableSiteContainer', () => {
+  it('sweeps ordinary site containers', () => {
+    expect(isSweepableSiteContainer({
+      'wp-launcher.managed': 'true',
+      'wp-launcher.site-id': 'alpha-site',
+    })).toBe(true);
+  });
+
+  it('never sweeps a shared database engine', () => {
+    // The engines are managed containers that are not sites, so the orphan
+    // rule would remove them — taking every site database with them.
+    expect(isSweepableSiteContainer({
+      'wp-launcher.managed': 'true',
+      'wp-launcher.site-id': 'alpha-site',
+      'wp-launcher.role': 'shared-db',
+    })).toBe(false);
+  });
+
+  it('ignores containers with no site at all', () => {
+    expect(isSweepableSiteContainer({ 'wp-launcher.managed': 'true' })).toBe(false);
+    expect(isSweepableSiteContainer(undefined)).toBe(false);
   });
 });
 
