@@ -42,6 +42,14 @@ describe('siteDbIdentifier', () => {
   it('is stable for the same subdomain', () => {
     expect(siteDbIdentifier('warm-vale-214873')).toBe(siteDbIdentifier('warm-vale-214873'));
   });
+
+  it('matches the API package’s copy, which drives the orphan sweep', () => {
+    // packages/api/src/utils/dbIdentifier.ts asserts this same golden value.
+    // The API cannot import this module (its Docker build copies only its own
+    // src), so drift between the two is caught here instead: a divergence would
+    // make the sweep drop live sites' databases.
+    expect(siteDbIdentifier('golden-star-579af1')).toBe('wp_golden_star_579af1_eb1b');
+  });
 });
 
 describe('selectDatabasesToDrop', () => {

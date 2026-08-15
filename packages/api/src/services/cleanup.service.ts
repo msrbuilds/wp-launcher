@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { getDb } from '../utils/db';
-import { removeSiteContainer, listManagedContainers, pruneImages } from './docker.service';
+import { removeSiteContainer, listManagedContainers, pruneImages, pruneDatabases } from './docker.service';
+import { siteDbIdentifier } from '../utils/dbIdentifier';
 import { cleanupSiteDir } from './site.service';
 import { removeTunnel } from './tunnel.service';
 import { fireWebhookEvent } from './webhook.service';
@@ -125,5 +126,50 @@ export async function cleanupOrphanedContainers(): Promise<void> {
     await pruneImages();
   } catch (err) {
     console.error('[watchdog] Image prune error:', err);
+  }
+
+  try {
+    await sweepOrphanedDatabases();
+  } catch (err) {
+    console.error('[watchdog] Database sweep error:', err);
+  }
+}
+
+/**
+ * Database identifiers every live site expects to keep.
+ *
+ * Includes `creating` deliberately: a site's database is provisioned before its
+ * container exists, so a list derived from containers would lose that race and
+ * drop a database out from under a launch in progress.
+ *
+ * Returns null if the query fails — the caller must then skip the sweep rather
+ * than act on a partial list.
+ */
+export function expectedDbIdentifiers(): string[] | null {
+  try {
+    const rows = getDb()
+      .prepare("SELECT subdomain FROM sites WHERE status IN ('running', 'creating')")
+      .all() as { subdomain: string }[];
+    return rows.map((r) => siteDbIdentifier(r.subdomain));
+  } catch (err) {
+    console.error('[watchdog] Could not enumerate sites; skipping database sweep:', err);
+    return null;
+  }
+}
+
+/** Reclaim databases whose site is gone. Never runs on a partial keep list. */
+export async function sweepOrphanedDatabases(): Promise<void> {
+  const keep = expectedDbIdentifiers();
+  // A missed sweep costs disk. A sweep with a wrong list destroys customer
+  // data, so an empty or failed enumeration must do nothing at all.
+  if (keep === null || keep.length === 0) return;
+
+  for (const engine of ['mariadb', 'mysql']) {
+    try {
+      const { dropped } = await pruneDatabases(engine, keep);
+      if (dropped.length) console.log(`[watchdog] Reclaimed ${dropped.length} orphaned ${engine} database(s)`);
+    } catch (err: any) {
+      console.error(`[watchdog] Database sweep failed for ${engine}:`, err.message);
+    }
   }
 }

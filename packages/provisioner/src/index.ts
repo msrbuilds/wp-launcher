@@ -1990,6 +1990,52 @@ app.post('/images/prune', async (_req: Request, res: Response) => {
   }
 });
 
+/**
+ * Reclaim databases whose site no longer exists.
+ *
+ * `keep` is supplied by the API, which is the only component that knows which
+ * sites are supposed to exist — including those still being created, whose
+ * database exists before their container does.
+ */
+app.post('/databases/prune', async (req: Request, res: Response) => {
+  try {
+    const engine = req.body?.engine as SharedDbEngine;
+    const keep = req.body?.keep;
+    if (engine !== 'mysql' && engine !== 'mariadb') {
+      res.status(400).json({ error: 'engine must be mysql or mariadb' });
+      return;
+    }
+    if (!Array.isArray(keep)) {
+      res.status(400).json({ error: 'keep must be an array' });
+      return;
+    }
+    if (!SHARED_DB_ROOT_PASSWORD) {
+      res.json({ dropped: [] });
+      return;
+    }
+    // Only sweep an engine that is already up. Starting one just to prune it
+    // would defeat the point of stopping it.
+    const running = await docker.listContainers({
+      filters: { name: [engineHost(engine)] },
+    });
+    if (running.length === 0) {
+      res.json({ dropped: [] });
+      return;
+    }
+
+    const all = await listSiteDatabases(docker, engine, SHARED_DB_ROOT_PASSWORD);
+    const doomed = selectDatabasesToDrop(all, keep);
+    for (const name of doomed) {
+      await dropSiteDatabase(docker, engine, SHARED_DB_ROOT_PASSWORD, name);
+      console.log(`[provisioner] Reclaimed orphaned database ${name}`);
+    }
+    res.json({ dropped: doomed });
+  } catch (err: any) {
+    console.error('[provisioner] Database prune error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Monitoring Endpoints (systeminformation) ─────────────────────────────
 
 // List all managed containers with stats
