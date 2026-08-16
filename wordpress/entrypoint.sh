@@ -102,8 +102,14 @@ if [ "$DB_ENGINE" = "mysql" ] || [ "$DB_ENGINE" = "mariadb" ]; then
     DB_PASS="${WORDPRESS_DB_PASSWORD:-wordpress}"
     DB_NAME="${WORDPRESS_DB_NAME:-wordpress}"
 
-    # Use PHP mysqli to test connection — the MariaDB CLI client doesn't support
-    # MySQL 8.4's caching_sha2_password auth, but PHP's mysqli extension does.
+    # Use PHP mysqli to test the connection: it is the same client WordPress
+    # itself will use, so a pass here means WordPress can really connect.
+    #
+    # This previously claimed the MariaDB CLI client cannot do MySQL 8.4's
+    # caching_sha2_password. That is no longer true of the client in this image
+    # — MariaDB's mysqldump 11.8 authenticates against MySQL 8.4 fine, which is
+    # what site snapshots rely on. Do not use that claim to justify weakening
+    # the engine's auth plugin.
     echo "[wp-launcher] Waiting for ${DB_ENGINE} at ${DB_HOST}..."
     DB_READY=false
     for i in $(seq 1 90); do
