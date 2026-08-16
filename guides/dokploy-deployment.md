@@ -218,6 +218,12 @@ Adminer at `db.wplauncher.xyz` requires the basic-auth credential in
 `ADMINER_AUTH_USERS`. It sits on the site network, so it can still reach every
 site database — do not disable that middleware.
 
+Like every host under `*.BASE_DOMAIN`, it is served over HTTPS by **our**
+Traefik and gets its own certificate from the `wpl` resolver. A browser warning
+of `ERR_CERT_AUTHORITY_INVALID` here means its router is not matching on the
+`websecure` entrypoint, so Traefik is falling back to its self-signed default —
+check the `wpl-adminer` labels rather than the certificate itself.
+
 ### Custom domains are not supported on Dokploy yet
 
 A custom domain needs a router at Dokploy's tier forwarding to `wpl-traefik`

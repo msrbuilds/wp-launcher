@@ -284,7 +284,18 @@ services:
       - "wp-launcher.routable=true"
       - "traefik.docker.network=wpl-sites"
       - "traefik.http.routers.wpl-adminer.rule=Host(`db.${BASE_DOMAIN}`)"
-      - "traefik.http.routers.wpl-adminer.entrypoints=web"
+      # Must be on websecure with its own TLS block. Since we took over TLS
+      # termination, db.BASE_DOMAIN arrives here as an SNI-passthrough stream on
+      # :443 — and the `web` entrypoint redirects to https anyway, so a router
+      # bound only to `web` can never be reached. With no router matching on
+      # websecure, Traefik answers with its self-signed default and the browser
+      # reports ERR_CERT_AUTHORITY_INVALID.
+      - "traefik.http.routers.wpl-adminer.entrypoints=websecure"
+      - "traefik.http.routers.wpl-adminer.tls=true"
+      # Named explicitly for the same reason as CERT_RESOLVER on the
+      # provisioner: a router carrying its own `tls` block does not inherit the
+      # entrypoint's default resolver, so omitting this silently skips ACME.
+      - "traefik.http.routers.wpl-adminer.tls.certresolver=wpl"
       - "traefik.http.routers.wpl-adminer.middlewares=wpl-adminer-auth"
       # Adminer connects to any host you type into its form. Unauthenticated,
       # that makes it an open console against everything on this network.
