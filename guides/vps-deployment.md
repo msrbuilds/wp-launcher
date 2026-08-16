@@ -140,6 +140,7 @@ PUBLIC_URL=https://demos.yourdomain.com
 API_KEY=your-random-key-here
 JWT_SECRET=your-random-secret-here
 PROVISIONER_INTERNAL_KEY=your-random-key-here
+SHARED_DB_ROOT_PASSWORD=your-random-key-here
 JWT_EXPIRES_IN=7d
 
 # TLS for demo site containers (required for production HTTPS)
@@ -164,7 +165,14 @@ WP_IMAGE=wp-launcher/wordpress:latest
 echo "API_KEY=$(openssl rand -hex 32)"
 echo "JWT_SECRET=$(openssl rand -hex 32)"
 echo "PROVISIONER_INTERNAL_KEY=$(openssl rand -hex 32)"
+echo "SHARED_DB_ROOT_PASSWORD=$(openssl rand -hex 32)"
 ```
+
+MySQL and MariaDB sites share one server per engine, started on demand and
+stopped when idle, rather than each running their own ~500 MB container.
+`SHARED_DB_ROOT_PASSWORD` is written into the engine's data volume on first
+start and cannot be changed by editing the variable afterwards — to reset it
+you must remove the volume, which destroys every site database on that engine.
 
 ### Step 4: Configure Traefik for Production HTTPS
 

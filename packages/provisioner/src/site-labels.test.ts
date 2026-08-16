@@ -64,4 +64,9 @@ describe('buildSiteLabels', () => {
     expect(buildSiteLabels(base)['wp-launcher.db-container']).toBeUndefined();
     expect(buildSiteLabels({ ...base, dbContainerId: 'abc123' })['wp-launcher.db-container']).toBe('abc123');
   });
+
+  it('records which shared engine the site uses, so teardown can find it', () => {
+    expect(buildSiteLabels(base)['wp-launcher.db-engine']).toBeUndefined();
+    expect(buildSiteLabels({ ...base, dbEngine: 'mariadb' })['wp-launcher.db-engine']).toBe('mariadb');
+  });
 });

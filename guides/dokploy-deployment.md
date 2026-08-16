@@ -165,6 +165,30 @@ Then verify and retry the build from the panel:
 docker exec <api-container> ls /app/wordpress   # expect Dockerfile, entrypoint.sh, mu-plugins
 ```
 
+## Databases
+
+MySQL and MariaDB sites share one server per engine rather than each running
+their own. A stock MySQL sidecar costs roughly 500 MB, so a site used to cost
+~600 MB; it now costs ~100 MB plus one shared engine.
+
+The engines (`wpl-db-mariadb`, `wpl-db-mysql`) start when a site first needs
+them and stop when their last site is deleted, so an install that only uses
+SQLite runs neither. The first launch of a given engine takes a few seconds
+longer while it boots.
+
+Each site gets its own database and user, with privileges scoped to that
+database and connections capped. That is the same model as shared hosting: a
+compromised site can reach its own data and no other site's, but it does hold
+an account on a server storing other sites' databases — a deliberate trade
+against running a 500 MB server per site.
+
+Databases whose site no longer exists are reclaimed by the watchdog every five
+minutes.
+
+Sites launched before this change keep their own sidecar container and go on
+working untouched. They convert when relaunched; there is no flag day. To
+reclaim the memory immediately, relaunch your MySQL and MariaDB sites.
+
 ## Security: sites are isolated from your other apps
 
 Site containers run on a private `wpl-sites` network and are routed by a second

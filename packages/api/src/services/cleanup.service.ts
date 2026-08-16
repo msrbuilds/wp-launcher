@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { getDb } from '../utils/db';
-import { removeSiteContainer, listManagedContainers, pruneImages } from './docker.service';
+import { removeSiteContainer, listManagedContainers, pruneImages, pruneDatabases } from './docker.service';
+import { siteDbIdentifier } from '../utils/dbIdentifier';
 import { cleanupSiteDir } from './site.service';
 import { removeTunnel } from './tunnel.service';
 import { fireWebhookEvent } from './webhook.service';
@@ -68,6 +69,21 @@ async function cleanupExpiredSites(): Promise<void> {
  * Watchdog: find and clean up orphaned containers that the DB doesn't know about
  * or containers whose expiry labels have passed.
  */
+/**
+ * Whether the watchdog may remove this managed container as an orphan.
+ *
+ * The shared database engines carry `wp-launcher.managed=true` like everything
+ * else we create, but they are not sites and will never appear in the sites
+ * table — so the orphan rule would remove them, destroying every database they
+ * hold. They are excluded by role rather than by relying on their lack of a
+ * site-id label, because that is an incidental property and this is a
+ * data-loss failure mode.
+ */
+export function isSweepableSiteContainer(labels: Record<string, string> | undefined): boolean {
+  if (!labels?.['wp-launcher.site-id']) return false;
+  return labels['wp-launcher.role'] !== 'shared-db';
+}
+
 export async function cleanupOrphanedContainers(): Promise<void> {
   const db = getDb();
 
@@ -79,7 +95,7 @@ export async function cleanupOrphanedContainers(): Promise<void> {
       const siteId = container.Labels?.['wp-launcher.site-id'];
       const expiresAtStr = container.Labels?.['wp-launcher.expires-at'];
 
-      if (!siteId) continue;
+      if (!isSweepableSiteContainer(container.Labels)) continue;
 
       // Check if container is tracked in DB
       const site = db.prepare("SELECT id, status FROM sites WHERE subdomain = ?").get(siteId) as { id: string; status: string } | undefined;
@@ -125,5 +141,50 @@ export async function cleanupOrphanedContainers(): Promise<void> {
     await pruneImages();
   } catch (err) {
     console.error('[watchdog] Image prune error:', err);
+  }
+
+  try {
+    await sweepOrphanedDatabases();
+  } catch (err) {
+    console.error('[watchdog] Database sweep error:', err);
+  }
+}
+
+/**
+ * Database identifiers every live site expects to keep.
+ *
+ * Includes `creating` deliberately: a site's database is provisioned before its
+ * container exists, so a list derived from containers would lose that race and
+ * drop a database out from under a launch in progress.
+ *
+ * Returns null if the query fails — the caller must then skip the sweep rather
+ * than act on a partial list.
+ */
+export function expectedDbIdentifiers(): string[] | null {
+  try {
+    const rows = getDb()
+      .prepare("SELECT subdomain FROM sites WHERE status IN ('running', 'creating')")
+      .all() as { subdomain: string }[];
+    return rows.map((r) => siteDbIdentifier(r.subdomain));
+  } catch (err) {
+    console.error('[watchdog] Could not enumerate sites; skipping database sweep:', err);
+    return null;
+  }
+}
+
+/** Reclaim databases whose site is gone. Never runs on a partial keep list. */
+export async function sweepOrphanedDatabases(): Promise<void> {
+  const keep = expectedDbIdentifiers();
+  // A missed sweep costs disk. A sweep with a wrong list destroys customer
+  // data, so an empty or failed enumeration must do nothing at all.
+  if (keep === null || keep.length === 0) return;
+
+  for (const engine of ['mariadb', 'mysql']) {
+    try {
+      const { dropped } = await pruneDatabases(engine, keep);
+      if (dropped.length) console.log(`[watchdog] Reclaimed ${dropped.length} orphaned ${engine} database(s)`);
+    } catch (err: any) {
+      console.error(`[watchdog] Database sweep failed for ${engine}:`, err.message);
+    }
   }
 }

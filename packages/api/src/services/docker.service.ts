@@ -152,6 +152,19 @@ export async function pruneImages(): Promise<{ pruned: number; spaceReclaimed: n
   return await parseJson<{ pruned: number; spaceReclaimed: number }>(res);
 }
 
+/**
+ * Drop shared-engine databases whose site no longer exists. `keep` must be the
+ * complete list of live sites — see sweepOrphanedDatabases, which refuses to
+ * call this with a partial one.
+ */
+export async function pruneDatabases(engine: string, keep: string[]): Promise<{ dropped: string[] }> {
+  const res = await provisionerFetch('/databases/prune', {
+    method: 'POST',
+    body: JSON.stringify({ engine, keep }),
+  });
+  return await parseJson<{ dropped: string[] }>(res);
+}
+
 export async function buildImage(contextPath: string, tag: string): Promise<void> {
   await provisionerFetch('/images/build', {
     method: 'POST',

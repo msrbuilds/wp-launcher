@@ -321,9 +321,11 @@ else
 fi
 JWT_SECRET="$(gen_secret)"
 PROVISIONER_INTERNAL_KEY="$(gen_secret)"
+SHARED_DB_ROOT_PASSWORD="$(gen_secret)"
 
 ok "JWT_SECRET generated"
 ok "PROVISIONER_INTERNAL_KEY generated"
+ok "SHARED_DB_ROOT_PASSWORD generated"
 
 # ─── 5. Write .env ──────────────────────────────────────────────────────────
 banner "Writing .env"
@@ -355,6 +357,11 @@ PUBLIC_URL=https://${DOMAIN}
 API_KEY=${API_KEY}
 JWT_SECRET=${JWT_SECRET}
 PROVISIONER_INTERNAL_KEY=${PROVISIONER_INTERNAL_KEY}
+
+# Root password for the shared MySQL/MariaDB servers. Written into each
+# engine's data volume when it first starts — changing this afterwards does
+# NOT change the running server's password.
+SHARED_DB_ROOT_PASSWORD=${SHARED_DB_ROOT_PASSWORD}
 
 # JWT token lifetime
 JWT_EXPIRES_IN=${JWT_EXPIRES_IN}

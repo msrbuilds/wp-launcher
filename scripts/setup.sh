@@ -17,6 +17,7 @@ if [ ! -f "$PROJECT_DIR/.env" ]; then
     API_KEY=$(gen_secret)
     JWT_SECRET=$(gen_secret)
     PROVISIONER_KEY=$(gen_secret)
+    SHARED_DB_ROOT=$(gen_secret)
 
     # Detect OS-compatible sed in-place flag
     if sed --version 2>/dev/null | grep -q GNU; then
@@ -29,6 +30,7 @@ if [ ! -f "$PROJECT_DIR/.env" ]; then
     "${SED_I[@]}" "s|^API_KEY=.*|API_KEY=${API_KEY}|" "$PROJECT_DIR/.env"
     "${SED_I[@]}" "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|" "$PROJECT_DIR/.env"
     "${SED_I[@]}" "s|^PROVISIONER_INTERNAL_KEY=.*|PROVISIONER_INTERNAL_KEY=${PROVISIONER_KEY}|" "$PROJECT_DIR/.env"
+    "${SED_I[@]}" "s|^SHARED_DB_ROOT_PASSWORD=.*|SHARED_DB_ROOT_PASSWORD=${SHARED_DB_ROOT}|" "$PROJECT_DIR/.env"
 
     # Set local dev defaults
     "${SED_I[@]}" "s|^NODE_ENV=.*|NODE_ENV=development|" "$PROJECT_DIR/.env"
