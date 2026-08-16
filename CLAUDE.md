@@ -367,4 +367,7 @@ Resolution lives in `services/features.service.ts`: `isFeatureEnabled(key, role)
 - API container runs compiled JS from `/app/dist/`; TypeScript source changes require `docker compose up -d --build api`
 - DB timestamps stored as UTC without `Z` suffix; frontend must append `Z` before parsing with `new Date()`
 - Docker exec output may include stream header bytes; strip non-JSON prefix when parsing wp-cli JSON output
-- MySQL/MariaDB containers have SSL enabled; use `--skip-ssl` when running mysql CLI commands (applies to the shared engines and to legacy per-site sidecars alike)
+- Database CLI flags differ by client, verified against the pinned images:
+  - From a **WordPress container** over TCP (`mysqldump -h …`, snapshots/export) the client is MariaDB's — SSL is enabled server-side, so `--skip-ssl` is required
+  - Inside a **shared engine** container the connection is over the local socket, so no SSL flag is needed — and MySQL 8.4's own client *rejects* `--skip-ssl` outright
+  - `mariadb:11` ships **no `mysql` binary**; use `mariadb`. See `engineClient()` in `provisioner/src/shared-db.ts`

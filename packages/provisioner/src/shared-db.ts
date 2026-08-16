@@ -16,6 +16,19 @@ export function engineVolume(engine: SharedDbEngine): string {
 }
 
 /**
+ * The CLI client to invoke inside that engine's own container.
+ *
+ * MariaDB 11 ships `/usr/bin/mariadb` and **no `mysql` symlink** — verified
+ * against the pinned image — so calling `mysql` there fails with "not found"
+ * and no MariaDB site can be provisioned at all. The mysql image has only
+ * `mysql`. Each engine gets its own name rather than relying on a
+ * compatibility alias that one of them has already dropped.
+ */
+export function engineClient(engine: SharedDbEngine): string {
+  return engine === 'mysql' ? 'mysql' : 'mariadb';
+}
+
+/**
  * Server flags sized for many small databases rather than one large one.
  *
  * Stock MySQL 8.4 costs ~500MB per instance, which is what made a sidecar per

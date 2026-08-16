@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  engineHost, engineImage, engineVolume, siteDbIdentifier,
+  engineHost, engineImage, engineVolume, engineClient, siteDbIdentifier,
   selectDatabasesToDrop, ENGINE_FLAGS,
 } from './shared-db';
 
@@ -11,6 +11,13 @@ describe('engine metadata', () => {
     expect(engineImage('mariadb')).toBe('mariadb:11');
     expect(engineImage('mysql')).toBe('mysql:8.4');
     expect(engineVolume('mariadb')).toBe('wpl-db-mariadb-data');
+  });
+
+  it('calls each engine by the client binary its own image actually ships', () => {
+    // mariadb:11 has no `mysql` symlink — only /usr/bin/mariadb. Getting this
+    // wrong fails every MariaDB launch with "mysql: not found".
+    expect(engineClient('mariadb')).toBe('mariadb');
+    expect(engineClient('mysql')).toBe('mysql');
   });
 
   it('turns off the single largest memory consumer', () => {
