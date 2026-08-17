@@ -86,5 +86,9 @@ extensions/*-wpl-productivity/*.vsix
 version.json
 packages/api/version.json
 
+# TypeScript's incremental build cache. Machine-local and rewritten by every
+# build, so tracking it puts a churning binary-ish diff in unrelated PRs.
+*.tsbuildinfo
+
 # Playwright MCP scratch output
 .playwright-mcp/
