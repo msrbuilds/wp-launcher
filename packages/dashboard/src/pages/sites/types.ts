@@ -27,6 +27,8 @@ export interface Snapshot {
   name: string;
   size_bytes: number | null;
   created_at: string;
+  /** When this snapshot was last restored onto the site; null if never. */
+  restored_at: string | null;
 }
 
 export interface DomainInfo {

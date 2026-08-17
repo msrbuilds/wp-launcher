@@ -17,6 +17,8 @@ export interface SnapshotRecord {
   storage_path: string;
   size_bytes: number | null;
   created_at: string;
+  /** When this snapshot was last restored onto its site; null if never. */
+  restored_at: string | null;
 }
 
 function getSiteForSnapshot(siteId: string, userId?: string) {
@@ -83,6 +85,10 @@ export async function restoreSnapshotToSite(siteId: string, snapshotId: string, 
   if (!snapshot) throw new NotFoundError('Snapshot not found');
 
   await dockerRestoreSnapshot(site.container_id, snapshotId);
+
+  // Recorded only after the restore succeeds. Marking it beforehand would tell
+  // the operator their site holds state it never received.
+  db.prepare("UPDATE snapshots SET restored_at = datetime('now') WHERE id = ?").run(snapshotId);
 }
 
 export async function deleteSnapshot(siteId: string, snapshotId: string, userId?: string): Promise<void> {
