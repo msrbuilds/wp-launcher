@@ -383,6 +383,14 @@ export async function removeImage(tag: string): Promise<void> {
   await provisionerFetch('/images/remove', { method: 'POST', body: JSON.stringify({ tag }) });
 }
 
+/** Point a second tag at an existing image — `docker tag` over the provisioner. */
+export async function tagImage(source: string, target: string): Promise<void> {
+  await provisionerFetch('/images/tag', {
+    method: 'POST',
+    body: JSON.stringify({ source, target }),
+  });
+}
+
 export async function listWplImages(): Promise<WplImage[]> {
   const res = await provisionerFetch('/images');
   return await parseJson<WplImage[]>(res);
