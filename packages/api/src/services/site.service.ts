@@ -13,6 +13,7 @@ import {
   listWplImages,
 } from './docker.service';
 import { fireWebhookEvent } from './webhook.service';
+import { parseBaseImageTag } from './imageBuild.service';
 import { getBlueprint } from './blueprint.service';
 import { resolveRestrictions } from './restrictions.service';
 import { getCloudConfig } from './productivity.service';
@@ -250,6 +251,16 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       throw new ValidationError(
         `Image ${image} is not built. Build it under Settings → Images, or point the blueprint at ` +
         (available ? `one that exists: ${available}` : 'an image after building one.'),
+        {
+          // Structured so the panel can offer to rebuild it in place rather
+          // than leaving the operator to translate prose into a build request.
+          code: 'IMAGE_NOT_BUILT',
+          image,
+          // A custom product image carries baked-in plugins and themes, so
+          // rebuilding it from a base spec would quietly gut it. Say so instead
+          // of offering a button that damages the image it claims to repair.
+          rebuildable: parseBaseImageTag(image) !== null,
+        },
       );
     }
   }

@@ -11,6 +11,7 @@ vi.mock('./docker.service', () => ({
   buildImageStream: vi.fn(async (_tar: unknown, _tag: string, _args: unknown, onLine: (l: string) => void) => {
     onLine('Step 1/1 : FROM base');
   }),
+  tagImage: vi.fn(async () => {}),
 }));
 
 import {
@@ -115,5 +116,49 @@ describe('imageBuildJob.service', () => {
     } finally {
       fs.rmSync(empty, { recursive: true, force: true });
     }
+  });
+
+  it('re-points :latest after building the default pair', async () => {
+    // Every install's WP_IMAGE defaults to :latest, and only build-wp-image.sh
+    // ever applied it. Without this, a rebuild from the panel reports success
+    // while every launch keeps failing on the tag just rebuilt.
+    const mod = await import('./docker.service');
+    (mod.tagImage as any).mockClear();
+    const job = createBuildJob({
+      tag: 'wp-launcher/wordpress:php8.3', kind: 'base', createdBy: 'u1',
+      spec: { phpVersion: '8.3', wpVersion: '6.9' },
+    });
+    await runBuildJob(job.id, ctxDir);
+    expect(getBuildJob(job.id)!.status).toBe('success');
+    expect(mod.tagImage).toHaveBeenCalledWith(
+      'wp-launcher/wordpress:php8.3', 'wp-launcher/wordpress:latest',
+    );
+  });
+
+  it('leaves :latest alone for a non-default pair', async () => {
+    const mod = await import('./docker.service');
+    (mod.tagImage as any).mockClear();
+    const job = createBuildJob({
+      tag: 'wp-launcher/wordpress:php8.5-wp6.7', kind: 'base', createdBy: 'u1',
+      spec: { phpVersion: '8.5', wpVersion: '6.7' },
+    });
+    await runBuildJob(job.id, ctxDir);
+    expect(mod.tagImage).not.toHaveBeenCalled();
+  });
+
+  it('still reports success when only the :latest alias fails', async () => {
+    // The image itself built. Failing the job would send the operator hunting a
+    // build error that did not happen.
+    const mod = await import('./docker.service');
+    (mod.tagImage as any).mockClear();
+    (mod.tagImage as any).mockRejectedValueOnce(new Error('daemon busy'));
+    const job = createBuildJob({
+      tag: 'wp-launcher/wordpress:php8.3', kind: 'base', createdBy: 'u1',
+      spec: { phpVersion: '8.3', wpVersion: '6.9' },
+    });
+    await runBuildJob(job.id, ctxDir);
+    const done = getBuildJob(job.id)!;
+    expect(done.status).toBe('success');
+    expect(done.log).toMatch(/daemon busy/);
   });
 });

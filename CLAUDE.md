@@ -164,8 +164,11 @@ Base runtime images only (PHP + WordPress version). Plugins/themes are a bluepri
 - `POST /builds` — build a base image for `{ phpVersion, wpVersion }` (JSON). Validated against buildable PHP×WP pairs (PHP 8.1–8.5 × WP 6.7–6.9; PHP 7.4 × WP 6.1). Returns `{ jobId, tag }`. Tag is `wp-launcher/wordpress:php<php>` for the default WP pairing (backward-compatible) or `…:php<php>-wp<wp>` otherwise
 - `GET /builds` — recent build jobs (metadata)
 - `GET /builds/:id` — one job with live `log` (poll endpoint)
+- `POST /rebuild` — rebuild a base image by `{ tag }`, recovering the versions from the tag via `parseBaseImageTag`. For one-click recovery when a launch fails on a missing image; 400 for anything that is not one of our base tags (notably custom product images, whose baked-in plugins/themes a base rebuild would discard)
 - `DELETE /:tag` — remove an image (409 if a blueprint uses it, unless `?force=true`)
 - Builds run as one-at-a-time background jobs: the API tars its read-only `/app/wordpress` context and streams it to the provisioner's `POST /images/build-stream` with `PHP_VERSION`/`WP_VERSION` build-args, relaying the ndjson build log into the `image_builds` row. Stuck `building` jobs are failed on API restart. Blueprints select a built image via their `docker.image` field.
+- **`:latest` is an alias, not a buildable tag.** Every install's `WP_IMAGE` defaults to `wp-launcher/wordpress:latest`, but `baseImageTag()` can never emit it. After a successful build of the **default** pair (`isDefaultBaseTag`), the runner re-points `:latest` at it via the provisioner's `POST /images/tag` — mirroring `docker tag` in `scripts/build-wp-image.sh`. Before this, a rebuild from the panel reported success while every launch kept failing on the tag just rebuilt. A failure to apply the alias is logged on the job but does not fail it, since the image itself exists.
+- A launch blocked by a missing image returns `code: 'IMAGE_NOT_BUILT'` with `image` and `rebuildable` alongside the message, so the panel can offer the rebuild rather than have the operator translate prose into a build request. `AppError.details` is the general mechanism (merged into the JSON body by the error handler).
 
 ### Sync (`/api/sync/*`) — JWT required
 - `GET /connections` — list remote connections
