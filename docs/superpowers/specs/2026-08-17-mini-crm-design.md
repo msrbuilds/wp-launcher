@@ -29,11 +29,31 @@ the plan must not rebuild them:
 What this design adds around them is the `awaiting_verification` status and the
 payment-method attachment described below.
 
+## Deployment model
+
+A panel is normally run by **one admin — a freelancer or a small studio owner —
+who manages client projects and launches the client sites themselves.**
+
+The `member` role is not a colleague. Members are the public: people who launch
+temporary demo sites to try a plugin or a blueprint, when the operator chooses
+to open registration at all. They have no CRM access and never will.
+
+Three consequences run through the decisions below:
+
+- Anything that only makes sense with a second staff member is dead weight. The
+  board's assignee field was cut for exactly this reason.
+- "The staff user who owns this client" resolves to the operator. Notification
+  routing needs no logic.
+- **Sites linked to projects are the ones the operator launched.** Public demo
+  sites belong to their own launcher and stay out of the project picker, which
+  is the desired behaviour rather than a limitation — a client's project should
+  not list a stranger's plugin test.
+
 ## Goals
 
 - Clients sign in and see their own projects, invoices and conversation.
-- Projects are managed on a board with columns, cards, dates, assignees and
-  labels — with per-column control over what clients see.
+- Projects are managed on a board with columns, cards, dates and labels — with
+  per-column control over what clients see.
 - Invoices carry admin-defined payment methods, chosen per invoice.
 - Clients submit proof of payment; staff verify or reject it.
 - Staff and clients hold one conversation per client, in the product.
@@ -74,37 +94,46 @@ Two rules follow, both deny-by-default:
    parameter.** There is no `?clientId=` anywhere in `/api/portal/*`. The usual
    way a portal leaks is an identifier that looks validated and isn't.
 
-### Staff visibility: owner/admin see all CRM rows
+### Staff visibility: per-user scoping retained — considered and dropped
 
-Today every projects endpoint passes `req.userId` and filters `user_id = ?`,
-with no privileged override — so an owner cannot see a client created by a
-member. That is inconsistent with the rest of the panel, where `seesAllRows`
-grants owner/admin everything, and it orphans records when a member is deleted.
+Every CRM endpoint passes `req.userId` and filters `user_id = ?`, with no
+privileged override, so one admin cannot see another's clients. **This stays as
+it is.**
 
-Owner and admin will see **and manage** all clients, projects and invoices —
-read, edit and delete alike, matching how they already act on sites.
+It was designed and fully implemented as a privileged override — owner and admin
+seeing every row — and then dropped before merge, deliberately. The reason is
+the deployment model above: with a single operator, the set of rows they created
+and the set of all rows are the same, so the change was **inert**. It added a
+`CrmActor` parameter to twenty-four functions, an `ownerFilter` helper and
+roughly twenty tests, in exchange for behaviour no user of a one-person panel
+could observe. Carrying that indefinitely to serve a second admin who does not
+exist is the cost this spec's non-goals exist to refuse.
 
-**Members have no CRM access at all, before or after this change.** `projects`
+Two things follow for later phases, and both matter:
+
+- **A client's records belong to exactly one staff user**, so the portal's
+  ownership chain is `client_user → client → clients.user_id`, and that last
+  hop resolves to the operator. Nothing in the portal needs a privileged
+  override.
+- **If a second staff member is ever added**, this decision must be revisited
+  before they are given CRM access, or they will see an empty CRM and be unable
+  to cover for anyone. The implementation is preserved on the abandoned
+  `feat/mini-crm-phase-0` branch rather than being rewritten from scratch.
+
+**Members have no CRM access at all**, and none of this changes that. `projects`
 is listed in `ADMIN_ONLY_FEATURES`, so `isFeatureEnabled('projects', 'member')`
-is false by construction and every CRM route answers 403. The per-user filter is
-therefore not separating members from admins today — it is separating *admins
-from each other*, which is the actual complaint.
-
-The per-user branch is nevertheless kept rather than deleted. Reaching for
-"only privileged callers get here, so drop the filter" would bake that
-assumption into every query, and granting `projects` more widely later would
-then expose every record silently. Scoping is implemented as a privileged
-*override* over the existing `scopeClause` helper, so a non-privileged caller
-stays confined even though none can currently arrive.
-
-**This widens visibility on existing installs** — a second admin's clients
-become visible — and belongs in the upgrade notes, not just a changelog.
+is false by construction and every CRM route answers 403.
 
 ### Board depth
 
-Columns and cards, drag to reorder and move, plus due date, staff assignee and
-colour labels. Card discussion is a separate feature (below) rather than an
-inline field.
+Columns and cards, drag to reorder and move, plus due date and colour labels.
+Card discussion is a separate feature (below) rather than an inline field.
+
+**No assignee field.** Cards carry no `assignee_user_id`. Members cannot reach
+the CRM, so the only possible assignee is another admin — and the deployment
+model above says there usually isn't one. The control would render a dropdown
+containing the operator's own name on every card: clutter presenting itself as a
+feature. Add it if and when a second staff member exists.
 
 **Card ordering uses integer `position`, rewritten for the affected columns
 inside a transaction on each move.** Fractional positions avoid the rewrite but
@@ -196,7 +225,7 @@ the preference rather than blocking the conversation feature.
 | `invoice_payment_methods` | `invoice_id` → invoices, `payment_method_id` → payment_methods, primary key on both |
 | `payment_proofs` | `id`, `invoice_id`, `client_user_id`, `storage_path`, `original_name`, `mime`, `size_bytes`, `amount`, `note`, `status` (pending/accepted/rejected), `reviewed_by`, `reviewed_at`, `reject_reason`, `created_at` |
 | `board_columns` | `id`, `project_id` → projects, `name`, `position`, `client_visible` (default 0), `created_at` |
-| `board_cards` | `id`, `project_id`, `column_id` → board_columns, `title`, `description`, `position`, `due_date`, `assignee_user_id` → users, `labels` (JSON array), `created_at`, `updated_at` |
+| `board_cards` | `id`, `project_id`, `column_id` → board_columns, `title`, `description`, `position`, `due_date`, `labels` (JSON array), `created_at`, `updated_at` |
 | `card_comments` | `id`, `card_id` → board_cards, `author_id` → users, `body`, `created_at` |
 | `card_attachments` | `id`, `card_id` → board_cards, `storage_path`, `original_name`, `mime`, `size_bytes`, `uploaded_by`, `created_at` |
 | `client_messages` | `id`, `client_id` → clients, `author_type` (staff/client), `author_id`, `body`, `project_id` (nullable), `invoice_id` (nullable), `created_at` |

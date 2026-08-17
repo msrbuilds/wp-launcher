@@ -247,9 +247,17 @@ export function getProjectSites(projectId: string, userId: string): any[] {
 
 // ── Invoices ──
 
-function getNextInvoiceNumber(userId: string): string {
+/**
+ * The next invoice number, computed across the whole table.
+ *
+ * Deliberately not scoped to the creating user: `invoices.invoice_number` is
+ * declared UNIQUE across every row, so a per-user sequence hands a second
+ * staff member INV-0001 when the first already holds it, and the INSERT dies
+ * on the constraint rather than producing a duplicate.
+ */
+function getNextInvoiceNumber(): string {
   const db = getDb();
-  const row = db.prepare(`SELECT invoice_number FROM invoices WHERE user_id = ? ORDER BY CAST(SUBSTR(invoice_number, 5) AS INTEGER) DESC LIMIT 1`).get(userId) as { invoice_number: string } | undefined;
+  const row = db.prepare(`SELECT invoice_number FROM invoices ORDER BY CAST(SUBSTR(invoice_number, 5) AS INTEGER) DESC LIMIT 1`).get() as { invoice_number: string } | undefined;
   if (!row) return 'INV-0001';
   const num = parseInt(row.invoice_number.substring(4), 10) + 1;
   return `INV-${String(num).padStart(4, '0')}`;
@@ -293,7 +301,7 @@ export function createInvoice(userId: string, data: {
   const taxRate = Math.max(0, Number(data.tax_rate) || 0);
   const { subtotal, taxAmount, total } = calculateTotals(items, taxRate);
   const id = uuidv4();
-  const invoiceNumber = getNextInvoiceNumber(userId);
+  const invoiceNumber = getNextInvoiceNumber();
   const now = new Date().toISOString().replace('Z', '').replace(/\.\d+/, '');
   db.prepare(`INSERT INTO invoices (id, invoice_number, user_id, client_id, project_id, items, subtotal, tax_rate, tax_amount, total, currency, status, issue_date, due_date, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?)`).run(
     id, invoiceNumber, userId, data.client_id, data.project_id || null,

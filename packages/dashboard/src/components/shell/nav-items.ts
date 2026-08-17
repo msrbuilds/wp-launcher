@@ -44,7 +44,7 @@ export function buildNavGroups(features: Features, role: string | undefined): Na
     // privilege *and* its feature flag — a member would only be redirected back
     // to their sites, so the tab must not appear for them at all.
     {
-      label: 'Clients',
+      label: 'Mini CRM',
       items: isPrivileged && features.projects
         ? [
             { to: '/clients', label: 'Clients', icon: Users },

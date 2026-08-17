@@ -63,6 +63,12 @@ const CLIENTS_TABLE = `
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    company TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id)
   )`;
 
@@ -70,8 +76,49 @@ const PROJECTS_TABLE = `
   CREATE TABLE projects (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
+    client_id TEXT,
     name TEXT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (client_id) REFERENCES clients(id)
+  )`;
+
+const PROJECT_SITES_TABLE = `
+  CREATE TABLE project_sites (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    site_id TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(project_id, site_id),
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (site_id) REFERENCES sites(id)
+  )`;
+
+const INVOICES_TABLE = `
+  CREATE TABLE invoices (
+    id TEXT PRIMARY KEY,
+    invoice_number TEXT UNIQUE NOT NULL,
+    user_id TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    project_id TEXT,
+    items TEXT NOT NULL DEFAULT '[]',
+    subtotal REAL NOT NULL DEFAULT 0,
+    tax_rate REAL NOT NULL DEFAULT 0,
+    tax_amount REAL NOT NULL DEFAULT 0,
+    total REAL NOT NULL DEFAULT 0,
+    currency TEXT NOT NULL DEFAULT 'USD',
+    status TEXT NOT NULL DEFAULT 'draft',
+    issue_date TEXT NOT NULL DEFAULT (datetime('now')),
+    due_date TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (client_id) REFERENCES clients(id),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
   )`;
 
 const SETTINGS_TABLE = `
@@ -102,7 +149,7 @@ const IMAGE_BUILDS_TABLE = `
  */
 export function createTestDb(): Database.Database {
   const db = new Database(':memory:');
-  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, PROJECTS_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE, SNAPSHOTS_TABLE]) {
+  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, PROJECTS_TABLE, PROJECT_SITES_TABLE, INVOICES_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE, SNAPSHOTS_TABLE]) {
     db.prepare(ddl).run();
   }
   return db;

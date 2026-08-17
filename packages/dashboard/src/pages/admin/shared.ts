@@ -80,7 +80,7 @@ export const FEATURE_META: {
   { key: 'adminer', label: 'Database Manager (Adminer)', description: 'Browse and edit site databases through Adminer' },
   { key: 'publicSharing', label: 'Public Sharing (Tunnels)', description: 'Expose a site publicly via LAN, Cloudflare Tunnel, or ngrok' },
   { key: 'siteSync', label: 'Site Sync', description: 'Push and pull site content between this panel and remote instances' },
-  { key: 'projects', label: 'Projects & Invoices', description: 'Manage clients, projects, and generate invoices' },
+  { key: 'projects', label: 'Mini CRM', description: 'Clients, projects and invoices' },
   { key: 'productivityMonitor', label: 'Productivity Monitor', description: 'Track coding time and WordPress activity with daily goals and breakdowns' },
 ];
 

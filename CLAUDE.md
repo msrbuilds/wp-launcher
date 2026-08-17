@@ -180,7 +180,15 @@ Base runtime images only (PHP + WordPress version). Plugins/themes are a bluepri
 - `GET /history` — sync history for a site
 - `GET /connector-plugin` — download WP Launcher Connector plugin as ZIP
 
-### Projects (`/api/projects/*`) — JWT required, feature-gated (`projects`)
+### Mini CRM (`/api/projects/*`) — JWT required, feature-gated (`projects`)
+
+Displayed as **Mini CRM**; the stored flag key and route prefix both stay
+`projects`, because renaming the key would orphan the settings row on every
+existing install. CRM rows are scoped to the staff user who created them — there
+is no privileged override, so one admin does not see another's clients. See the
+"Staff visibility" decision in `docs/superpowers/specs/2026-08-17-mini-crm-design.md`
+for why that was implemented and then dropped, and what to revisit before giving
+a second staff member CRM access.
 - `GET /dropdown/clients` — all clients for dropdowns
 - `GET /dropdown/projects` — all projects for dropdowns
 - `GET|POST /clients` — list (paginated, ?search=) / create client

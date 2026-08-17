@@ -26,9 +26,15 @@ describe('buildNavGroups', () => {
     expect(groups[0].items.map((i) => i.to)).toEqual(['/sites']);
   });
 
-  it('hides the clients group unless the projects feature is on', () => {
-    expect(buildNavGroups({}, 'owner').find((g) => g.label === 'Clients')).toBeUndefined();
-    expect(buildNavGroups(allFeatures, 'owner').find((g) => g.label === 'Clients')).toBeDefined();
+  it('hides the Mini CRM group unless the projects feature is on', () => {
+    expect(buildNavGroups({}, 'owner').find((g) => g.label === 'Mini CRM')).toBeUndefined();
+    expect(buildNavGroups(allFeatures, 'owner').find((g) => g.label === 'Mini CRM')).toBeDefined();
+  });
+
+  it('labels the CRM group Mini CRM', () => {
+    const groups = buildNavGroups(allFeatures, 'admin');
+    expect(groups.map((g) => g.label)).toContain('Mini CRM');
+    expect(groups.map((g) => g.label)).not.toContain('Clients');
   });
 
   it('hides productivity unless its feature is on', () => {
