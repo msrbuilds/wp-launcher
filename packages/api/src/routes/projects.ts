@@ -9,6 +9,11 @@ import {
   createInvoice, updateInvoice, deleteInvoice, getInvoice, listInvoices, getInvoicesCount, updateInvoiceStatus,
   listAllClients, listAllProjects,
 } from '../services/project.service';
+import {
+  listPaymentMethods, createPaymentMethod, updatePaymentMethod, deletePaymentMethod,
+  getInvoicePaymentMethods, setInvoicePaymentMethods,
+} from '../services/paymentMethod.service';
+import { seesAllRows } from '../utils/scope';
 
 const router = Router();
 
@@ -17,6 +22,20 @@ function requireProjects(req: AuthRequest, res: Response, next: () => void) {
   // see ADMIN_ONLY_FEATURES in features.service.
   if (!isFeatureEnabled('projects', req.userRole)) {
     res.status(403).json({ error: 'Projects feature is disabled' });
+    return;
+  }
+  next();
+}
+
+/**
+ * Payment methods are the business's bank details, install-wide rather than
+ * per-user, so only owner/admin may change the list. Reading it is open to any
+ * caller who already passed requireProjects, because attaching a method to an
+ * invoice needs the list.
+ */
+function requirePrivileged(req: AuthRequest, res: Response, next: () => void) {
+  if (!seesAllRows(req.userRole)) {
+    res.status(403).json({ error: 'Only an owner or admin can manage payment methods' });
     return;
   }
   next();
@@ -197,7 +216,11 @@ router.get('/invoices/:id', (req: AuthRequest, res: Response) => {
   try {
     const invoice = getInvoice(req.params.id, req.userId!);
     if (!invoice) { res.status(404).json({ error: 'Invoice not found' }); return; }
-    res.json({ ...invoice, items: JSON.parse(invoice.items as any) });
+    res.json({
+      ...invoice,
+      items: JSON.parse(invoice.items as any),
+      paymentMethods: getInvoicePaymentMethods(req.params.id),
+    });
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
@@ -225,6 +248,66 @@ router.delete('/invoices/:id', (req: AuthRequest, res: Response) => {
   try {
     deleteInvoice(req.params.id, req.userId!);
     res.json({ message: 'Invoice deleted' });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.get('/invoices/:id/payment-methods', (req: AuthRequest, res: Response) => {
+  try {
+    // Authorise through the invoice the caller can actually see, so this never
+    // becomes a way to probe invoice ids that belong to someone else.
+    const invoice = getInvoice(req.params.id, req.userId!);
+    if (!invoice) { res.status(404).json({ error: 'Invoice not found' }); return; }
+    res.json(getInvoicePaymentMethods(req.params.id));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.put('/invoices/:id/payment-methods', (req: AuthRequest, res: Response) => {
+  try {
+    const invoice = getInvoice(req.params.id, req.userId!);
+    if (!invoice) { res.status(404).json({ error: 'Invoice not found' }); return; }
+    const ids = req.body?.methodIds;
+    if (!Array.isArray(ids)) { res.status(400).json({ error: 'methodIds must be an array' }); return; }
+    setInvoicePaymentMethods(req.params.id, ids);
+    res.json(getInvoicePaymentMethods(req.params.id));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// ── Payment methods ──
+
+router.get('/payment-methods', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(listPaymentMethods({ activeOnly: req.query.activeOnly === 'true' }));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/payment-methods', requirePrivileged, (req: AuthRequest, res: Response) => {
+  try {
+    res.json(createPaymentMethod(req.body));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.put('/payment-methods/:id', requirePrivileged, (req: AuthRequest, res: Response) => {
+  try {
+    res.json(updatePaymentMethod(req.params.id, req.body));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.delete('/payment-methods/:id', requirePrivileged, (req: AuthRequest, res: Response) => {
+  try {
+    deletePaymentMethod(req.params.id);
+    res.json({ status: 'deleted' });
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
