@@ -127,6 +127,26 @@ const SETTINGS_TABLE = `
     value TEXT NOT NULL
   )`;
 
+const PAYMENT_METHODS_TABLE = `
+  CREATE TABLE payment_methods (
+    id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    instructions TEXT NOT NULL DEFAULT '',
+    active INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`;
+
+const INVOICE_PAYMENT_METHODS_TABLE = `
+  CREATE TABLE invoice_payment_methods (
+    invoice_id TEXT NOT NULL,
+    payment_method_id TEXT NOT NULL,
+    PRIMARY KEY (invoice_id, payment_method_id),
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id),
+    FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id)
+  )`;
+
 const IMAGE_BUILDS_TABLE = `
   CREATE TABLE image_builds (
     id TEXT PRIMARY KEY,
@@ -149,7 +169,7 @@ const IMAGE_BUILDS_TABLE = `
  */
 export function createTestDb(): Database.Database {
   const db = new Database(':memory:');
-  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, PROJECTS_TABLE, PROJECT_SITES_TABLE, INVOICES_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE, SNAPSHOTS_TABLE]) {
+  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, PROJECTS_TABLE, PROJECT_SITES_TABLE, INVOICES_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE, SNAPSHOTS_TABLE, PAYMENT_METHODS_TABLE, INVOICE_PAYMENT_METHODS_TABLE]) {
     db.prepare(ddl).run();
   }
   return db;

@@ -328,6 +328,29 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_invoices_client_id ON invoices(client_id);
     CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 
+    -- Reusable payment instructions, defined once by the operator. Install-wide
+    -- rather than per-user: these are the business's bank details, not a
+    -- personal setting.
+    CREATE TABLE IF NOT EXISTS payment_methods (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      instructions TEXT NOT NULL DEFAULT '',
+      active INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Which methods appear on which invoice. Absence means hidden, so adding a
+    -- method later never retroactively changes an invoice already sent.
+    CREATE TABLE IF NOT EXISTS invoice_payment_methods (
+      invoice_id TEXT NOT NULL,
+      payment_method_id TEXT NOT NULL,
+      PRIMARY KEY (invoice_id, payment_method_id),
+      FOREIGN KEY (invoice_id) REFERENCES invoices(id),
+      FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id)
+    );
+
     -- Productivity Monitor tables
     CREATE TABLE IF NOT EXISTS productivity_heartbeats (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
