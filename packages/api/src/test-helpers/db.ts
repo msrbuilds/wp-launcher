@@ -31,7 +31,21 @@ const SITES_TABLE = `
     status TEXT NOT NULL DEFAULT 'running',
     expires_at TEXT NOT NULL,
     direct_file_access INTEGER NOT NULL DEFAULT 0,
+    container_id TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id)
+  )`;
+
+const SNAPSHOTS_TABLE = `
+  CREATE TABLE snapshots (
+    id TEXT PRIMARY KEY,
+    site_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    db_engine TEXT NOT NULL DEFAULT 'sqlite',
+    storage_path TEXT NOT NULL,
+    size_bytes INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    restored_at TEXT,
+    FOREIGN KEY (site_id) REFERENCES sites(id)
   )`;
 
 const SITE_LOGS_TABLE = `
@@ -88,7 +102,7 @@ const IMAGE_BUILDS_TABLE = `
  */
 export function createTestDb(): Database.Database {
   const db = new Database(':memory:');
-  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, PROJECTS_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE]) {
+  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, PROJECTS_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE, SNAPSHOTS_TABLE]) {
     db.prepare(ddl).run();
   }
   return db;

@@ -593,7 +593,7 @@ app.use('/api/assets', (_req, res, next) => {
 // Global error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   if (err instanceof AppError) {
-    res.status(err.statusCode).json({ error: err.message });
+    res.status(err.statusCode).json({ error: err.message, ...err.details });
     return;
   }
   console.error('[api] Unhandled error:', err);

@@ -9,6 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import ImageRebuildNotice, {
+  isImageNotBuilt, ImageNotBuiltDetails,
+} from './admin/images/ImageRebuildNotice';
 import {
   Select,
   SelectContent,
@@ -146,6 +149,7 @@ export default function LocalLaunchPage() {
   const [creating, setCreating] = useState(false);
   const [result, setResult] = useState<SiteResult | null>(null);
   const [error, setError] = useState('');
+  const [errorDetails, setErrorDetails] = useState<ImageNotBuiltDetails | null>(null);
   const [provisionProgress, setProvisionProgress] = useState(0);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -179,6 +183,7 @@ export default function LocalLaunchPage() {
   async function handleCreate() {
     setCreating(true);
     setError('');
+    setErrorDetails(null);
     setResult(null);
     try {
       const res = await apiFetch('/api/sites', {
@@ -208,6 +213,9 @@ export default function LocalLaunchPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
+        // Keep the structured half of the failure, not just its prose: a
+        // missing image is something the panel can offer to fix.
+        if (isImageNotBuilt(data)) setErrorDetails(data);
         throw new Error(data?.error || `Failed to create site (HTTP ${res.status})`);
       }
       const site = await res.json().catch(() => null);
@@ -618,7 +626,10 @@ export default function LocalLaunchPage() {
 
         {error && (
           <Alert variant="destructive" className="mt-6">
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>
+              {error}
+              {errorDetails && <ImageRebuildNotice details={errorDetails} />}
+            </AlertDescription>
           </Alert>
         )}
 

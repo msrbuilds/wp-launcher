@@ -60,6 +60,17 @@ export function __setDbForTesting(instance: Database.Database | null): void {
   db = instance as Database.Database;
 }
 
+/**
+ * Run the schema and migrations against an arbitrary database.
+ *
+ * Exported for tests only: the migration branch — where an existing install
+ * gains a column — is otherwise unreachable without a real data directory, and
+ * it is the branch that runs on every upgrade.
+ */
+export function __initSchemaForTesting(instance: Database.Database): void {
+  initSchema(instance);
+}
+
 function initSchema(db: Database.Database): void {
   // Must run before the DDL below: that block creates indexes on blueprint_id,
   // which on an upgraded database does not exist until these renames happen.
@@ -146,6 +157,9 @@ function initSchema(db: Database.Database): void {
       storage_path TEXT NOT NULL,
       size_bytes INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      -- When this snapshot was last restored onto its site. Null means never.
+      -- The panel badges the most recent one as "Last restored".
+      restored_at TEXT,
       FOREIGN KEY (site_id) REFERENCES sites(id)
     );
 
@@ -409,6 +423,11 @@ function initSchema(db: Database.Database): void {
   // Migrations for existing databases
   try {
     db.exec(`ALTER TABLE sites ADD COLUMN auto_login_token TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE snapshots ADD COLUMN restored_at TEXT`);
   } catch {
     // Column already exists
   }

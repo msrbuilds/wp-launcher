@@ -3,8 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import tar from 'tar-fs';
 import { getDb } from '../utils/db';
-import { baseImageTag } from './imageBuild.service';
-import { buildImageStream } from './docker.service';
+import { baseImageTag, isDefaultBaseTag, LATEST_TAG } from './imageBuild.service';
+import { buildImageStream, tagImage } from './docker.service';
 
 export type BuildStatus = 'queued' | 'building' | 'success' | 'failed';
 export interface ImageBuildRow {
@@ -102,6 +102,21 @@ export async function runBuildJob(id: string, wordpressContextDir: string): Prom
     const wp = spec.wpVersion;
     onLine(`\n=== Building ${job.tag} (PHP ${php}, WordPress ${wp}) ===`);
     await packAndBuild(wordpressContextDir, job.tag, { PHP_VERSION: php, WP_VERSION: wp }, onLine);
+
+    // Every install's WP_IMAGE defaults to :latest, and until now only
+    // scripts/build-wp-image.sh ever applied it — so a rebuild from the panel
+    // reported success while launches kept failing on the very tag just built.
+    if (isDefaultBaseTag(job.tag)) {
+      try {
+        await tagImage(job.tag, LATEST_TAG);
+        onLine(`Tagged ${job.tag} as ${LATEST_TAG}`);
+      } catch (tagErr: any) {
+        // The image exists; only the alias is missing. Failing the job here
+        // would point the operator at a build error that did not happen.
+        onLine(`WARNING: built successfully but could not tag ${LATEST_TAG}: ${tagErr.message}`);
+      }
+    }
+
     finishJob(id, 'success', null);
   } catch (err: any) {
     onLine(`\nERROR: ${err.message}`);

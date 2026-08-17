@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { adminAuth } from '../middleware/auth';
 import { AuthRequest } from '../middleware/userAuth';
 import { config } from '../config';
-import { baseImageTag } from '../services/imageBuild.service';
+import { baseImageTag, parseBaseImageTag } from '../services/imageBuild.service';
 import { getBuildableWpByPhp, isBuildable } from '../services/wpImageTags.service';
 import {
   createBuildJob, getBuildJob, listBuildJobs, enqueueBuild,
@@ -60,6 +60,42 @@ router.post('/builds', async (req: AuthRequest, res: Response) => {
   });
   enqueueBuild(job.id, config.wordpressDir);
   res.json({ jobId: job.id, tag });
+});
+
+/**
+ * POST /rebuild — rebuild a base image by tag, for one-click recovery when a
+ * launch fails on a missing image.
+ *
+ * Distinct from POST /builds, which takes versions: here the caller knows only
+ * the tag it needs, so the versions are recovered from it. Refuses anything
+ * that is not one of our base tags, notably custom product images, whose
+ * baked-in plugins and themes a base rebuild would discard.
+ */
+router.post('/rebuild', async (req: AuthRequest, res: Response) => {
+  const tag = String(req.body?.tag || '');
+  const spec = parseBaseImageTag(tag);
+  if (!spec) {
+    res.status(400).json({
+      error: `${tag || 'That image'} is not a WP Launcher base image, so it cannot be rebuilt automatically. `
+        + 'Custom product images are built with scripts/build-wp-image.sh.',
+    });
+    return;
+  }
+  const matrix = await getBuildableWpByPhp();
+  if (!isBuildable(matrix, spec.phpVersion, spec.wpVersion)) {
+    res.status(400).json({
+      error: `PHP ${spec.phpVersion} + WordPress ${spec.wpVersion} is no longer buildable`,
+    });
+    return;
+  }
+  // Build under the canonical tag for those versions. For `:latest` that is the
+  // default pair's tag, which the runner then re-aliases back to `:latest`.
+  const buildTag = baseImageTag(spec.phpVersion, spec.wpVersion);
+  const job = createBuildJob({
+    tag: buildTag, kind: 'base', spec, createdBy: req.userId || 'admin',
+  });
+  enqueueBuild(job.id, config.wordpressDir);
+  res.json({ jobId: job.id, tag: buildTag });
 });
 
 // DELETE /:tag — remove an image. Guarded against blueprints that reference it

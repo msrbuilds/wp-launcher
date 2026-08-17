@@ -860,6 +860,36 @@ app.post('/images/build-stream', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Point a second tag at an existing image — `docker tag` over the API.
+ *
+ * Needed because Docker's build API accepts one `t` only, while the panel must
+ * be able to restore the `wp-launcher/wordpress:latest` alias that every
+ * install points at by default. Both names are prefix-validated, so this cannot
+ * be used to overwrite an image outside our namespace.
+ */
+app.post('/images/tag', async (req: Request, res: Response) => {
+  try {
+    const { source, target } = req.body || {};
+    if (!validateImage(source) || !validateImage(target)) {
+      res.status(400).json({ error: `Both source and target must start with "${ALLOWED_IMAGE_PREFIX}"` });
+      return;
+    }
+    const [repo, tag] = target.split(':');
+    if (!repo || !tag) {
+      res.status(400).json({ error: 'target must be repo:tag' });
+      return;
+    }
+    await docker.getImage(source).tag({ repo, tag });
+    console.log(`[provisioner] Tagged ${source} as ${target}`);
+    res.json({ status: 'tagged', source, target });
+  } catch (err: any) {
+    if (err.statusCode === 404) { res.status(404).json({ error: 'Source image not found' }); return; }
+    console.error('[provisioner] image tag error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/images/remove', async (req: Request, res: Response) => {
   try {
     const { tag } = req.body;

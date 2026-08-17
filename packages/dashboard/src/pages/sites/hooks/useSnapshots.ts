@@ -38,6 +38,7 @@ export function useSnapshots(): SnapshotsController {
       });
       if (res.ok) {
         await load(siteId);
+        toast.success('Snapshot taken');
       } else {
         const data = await res.json();
         toast.error(data.error || 'Failed to take snapshot');
@@ -56,7 +57,12 @@ export function useSnapshots(): SnapshotsController {
       const res = await apiFetch(`/api/sites/${siteId}/snapshots/${snapshotId}/restore`, {
         method: 'POST',
       });
-      if (!res.ok) {
+      if (res.ok) {
+        // Reload so the "Last restored" badge reflects what just happened —
+        // without this the panel looks identical before and after a restore.
+        await load(siteId);
+        toast.success('Snapshot restored');
+      } else {
         const data = await res.json();
         toast.error(data.error || 'Failed to restore');
       }
@@ -70,9 +76,19 @@ export function useSnapshots(): SnapshotsController {
   async function remove(siteId: string, snapshotId: string) {
     if (!confirm('Delete this snapshot?')) return;
     try {
-      await apiFetch(`/api/sites/${siteId}/snapshots/${snapshotId}`, { method: 'DELETE' });
-      await load(siteId);
-    } catch { /* ignore */ }
+      const res = await apiFetch(`/api/sites/${siteId}/snapshots/${snapshotId}`, { method: 'DELETE' });
+      if (res.ok) {
+        await load(siteId);
+        toast.success('Snapshot deleted');
+      } else {
+        // Previously swallowed, which made a failed delete indistinguishable
+        // from a successful one — the snapshot simply stayed in the list.
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Failed to delete snapshot');
+      }
+    } catch {
+      toast.error('Failed to delete snapshot');
+    }
   }
 
   return { bySite, busyId, load, take, restore, remove };
