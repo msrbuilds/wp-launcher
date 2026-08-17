@@ -82,10 +82,23 @@ member. That is inconsistent with the rest of the panel, where `seesAllRows`
 grants owner/admin everything, and it orphans records when a member is deleted.
 
 Owner and admin will see **and manage** all clients, projects and invoices —
-read, edit and delete alike, matching how they already act on sites. Members
-keep seeing only their own, including their own projects' boards.
-**This widens visibility on existing installs** and belongs in the upgrade
-notes, not just a changelog.
+read, edit and delete alike, matching how they already act on sites.
+
+**Members have no CRM access at all, before or after this change.** `projects`
+is listed in `ADMIN_ONLY_FEATURES`, so `isFeatureEnabled('projects', 'member')`
+is false by construction and every CRM route answers 403. The per-user filter is
+therefore not separating members from admins today — it is separating *admins
+from each other*, which is the actual complaint.
+
+The per-user branch is nevertheless kept rather than deleted. Reaching for
+"only privileged callers get here, so drop the filter" would bake that
+assumption into every query, and granting `projects` more widely later would
+then expose every record silently. Scoping is implemented as a privileged
+*override* over the existing `scopeClause` helper, so a non-privileged caller
+stays confined even though none can currently arrive.
+
+**This widens visibility on existing installs** — a second admin's clients
+become visible — and belongs in the upgrade notes, not just a changelog.
 
 ### Board depth
 
@@ -312,8 +325,10 @@ a client can read a record they shouldn't.
 
 - **A client token reaching a staff endpoint.** Mitigated by rejecting on the
   claim rather than the role, plus the router-enumeration test.
-- **Phase 0 widens visibility.** Admins begin seeing clients created by members.
-  Intended, but existing installs will notice; it goes in the upgrade notes.
+- **Phase 0 widens visibility.** An admin begins seeing clients created by
+  *another admin or the owner*. Intended, but existing installs will notice; it
+  goes in the upgrade notes. Members are unaffected — they have no CRM access
+  either way.
 - **Proof files are financial documents.** Authenticated serving, magic-byte
   validation, stored outside the checkout.
 - **The portal shares the panel's origin**, so it must inherit the existing CSRF
