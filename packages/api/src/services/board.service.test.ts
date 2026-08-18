@@ -49,6 +49,7 @@ describe('columns', () => {
     expect(() => createColumn('p1', STRANGER, { name: 'Sneak' })).toThrow(/not found/i);
     expect(() => updateColumn(col.id, STRANGER, { name: 'Renamed' })).toThrow(/not found/i);
     expect(() => deleteColumn(col.id, STRANGER)).toThrow(/not found/i);
+    expect(() => reorderColumns('p1', STRANGER, [col.id])).toThrow(/not found/i);
   });
 
   it('reorders columns and renumbers them contiguously', () => {
@@ -67,6 +68,18 @@ describe('columns', () => {
     deleteColumn(col.id, OWNER);
     expect(getBoard('p1', OWNER).columns).toEqual([]);
     expect((db.prepare('SELECT COUNT(*) c FROM board_cards').get() as { c: number }).c).toBe(0);
+  });
+
+  it('renumbers the remaining columns after deleting one from the middle', () => {
+    // A regression that dropped the renumbering loop would leave the
+    // survivors at their original positions [0, 2] instead of [0, 1].
+    const a = createColumn('p1', OWNER, { name: 'A' });
+    const b = createColumn('p1', OWNER, { name: 'B' });
+    const c = createColumn('p1', OWNER, { name: 'C' });
+    deleteColumn(b.id, OWNER);
+    const cols = getBoard('p1', OWNER).columns;
+    expect(cols.map((x) => x.name)).toEqual(['A', 'C']);
+    expect(cols.map((x) => x.position)).toEqual([0, 1]);
   });
 });
 
@@ -145,5 +158,18 @@ describe('cards', () => {
     const [todo] = seedColumns();
     const card = createCard(todo.id, OWNER, { title: 'Stays put' });
     expect(() => moveCard(card.id, OWNER, foreign.id, 0)).toThrow(/same project/i);
+  });
+
+  it('deletes a card and renumbers the remaining ones', () => {
+    // A regression that dropped the renumbering loop would leave the
+    // survivors at their original positions [0, 2] instead of [0, 1].
+    const [todo] = seedColumns();
+    const a = createCard(todo.id, OWNER, { title: 'A' });
+    const b = createCard(todo.id, OWNER, { title: 'B' });
+    const c = createCard(todo.id, OWNER, { title: 'C' });
+    deleteCard(b.id, OWNER);
+    const cards = getBoard('p1', OWNER).columns[0].cards;
+    expect(cards.map((x) => x.title)).toEqual(['A', 'C']);
+    expect(cards.map((x) => x.position)).toEqual([0, 1]);
   });
 });
