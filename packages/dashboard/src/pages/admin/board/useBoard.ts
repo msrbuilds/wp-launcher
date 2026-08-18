@@ -53,6 +53,23 @@ export function useBoard(projectId: string, headers: Record<string, string>) {
     }
   }, [headers, reload, toast]);
 
+  const moveCardTo = useCallback(async (cardId: string, toColumnId: string, toIndex: number) => {
+    // Applied before the request so the card doesn't snap back to its old spot
+    // and then jump once the reload inside send() lands.
+    setColumns((current) => {
+      const card = current.flatMap((c) => c.cards).find((c) => c.id === cardId);
+      if (!card) return current;
+      return current.map((column) => {
+        const without = column.cards.filter((c) => c.id !== cardId);
+        if (column.id !== toColumnId) return { ...column, cards: without };
+        const index = Math.max(0, Math.min(toIndex, without.length));
+        return { ...column, cards: [...without.slice(0, index), { ...card, column_id: toColumnId }, ...without.slice(index)] };
+      });
+    });
+    // The reload inside send() is what corrects this if the server disagrees.
+    await send(`/api/projects/board/cards/${cardId}/move`, 'PUT', { toColumnId, toIndex });
+  }, [send]);
+
   return {
     columns, loading, error, reload,
     addColumn: (name: string) => send(`/api/projects/list/${projectId}/board/columns`, 'POST', { name }),
@@ -65,8 +82,7 @@ export function useBoard(projectId: string, headers: Record<string, string>) {
     editCard: (cardId: string, data: { title?: string; description?: string; due_date?: string | null; labels?: string[] }) =>
       send(`/api/projects/board/cards/${cardId}`, 'PUT', data),
     removeCard: (cardId: string) => send(`/api/projects/board/cards/${cardId}`, 'DELETE'),
-    moveCardTo: (cardId: string, toColumnId: string, toIndex: number) =>
-      send(`/api/projects/board/cards/${cardId}/move`, 'PUT', { toColumnId, toIndex }),
+    moveCardTo,
     reorderColumns: (columnIds: string[]) =>
       send(`/api/projects/list/${projectId}/board/columns/reorder`, 'PUT', { columnIds }),
   };
