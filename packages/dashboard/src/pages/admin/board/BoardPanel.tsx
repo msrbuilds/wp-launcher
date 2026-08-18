@@ -10,26 +10,43 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useAdminHeaders } from '../AdminLayout';
 import { useConfirm } from '../../../components/ConfirmDialog';
-import { useBoard, BoardColumn } from './useBoard';
+import { useBoard, BoardColumn, BoardCard } from './useBoard';
 
-function CardTile({ card }: { card: { id: string; title: string; due_date: string | null; labels: string } }) {
+/** Labels are stored as a JSON string; a malformed value renders as no labels rather than throwing. */
+function parseLabels(labels: string): string[] {
+  try {
+    const parsed = JSON.parse(labels);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function CardTile({ card, onOpen }: { card: BoardCard; onOpen: (card: BoardCard) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
-  const labels: string[] = (() => {
-    try {
-      const parsed = JSON.parse(card.labels);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  })();
+  const labels = parseLabels(card.labels);
   return (
     <div
       ref={setNodeRef}
       {...attributes}
       {...listeners}
+      // A plain click never exceeds the pointer sensor's activation distance,
+      // so it reaches this handler untouched; a real drag is claimed by the
+      // sensor before release, which swallows the resulting click. Distance
+      // and swallowing are dnd-kit's own doing (`activationConstraint` below).
+      onClick={() => onOpen(card)}
       // dnd-kit computes a per-frame pixel translation; there is no class for it.
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`cursor-grab rounded-lg border border-border bg-background p-3 shadow-sm ${isDragging ? 'opacity-50' : ''}`}
@@ -51,7 +68,102 @@ function CardTile({ card }: { card: { id: string; title: string; due_date: strin
   );
 }
 
-function Column({ column, board }: { column: BoardColumn; board: ReturnType<typeof useBoard> }) {
+/**
+ * Title, description, due date and labels for one card, plus delete.
+ * `open` tracks `card !== null` directly so there is nothing to resync —
+ * the dialog's own fields are seeded fresh from `card` each time it opens.
+ */
+function CardEditorDialog({ card, board, onClose }: {
+  card: BoardCard | null; board: ReturnType<typeof useBoard>; onClose: () => void;
+}) {
+  const confirm = useConfirm();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [labelsText, setLabelsText] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!card) return;
+    setTitle(card.title);
+    setDescription(card.description || '');
+    setDueDate(card.due_date || '');
+    setLabelsText(parseLabels(card.labels).join(', '));
+  }, [card]);
+
+  async function handleSave() {
+    if (!card || !title.trim()) return;
+    setSaving(true);
+    const ok = await board.editCard(card.id, {
+      title: title.trim(),
+      description: description.trim(),
+      due_date: dueDate || null,
+      labels: labelsText.split(',').map((label) => label.trim()).filter(Boolean),
+    });
+    setSaving(false);
+    // A failed save already toasted its reason (useBoard's send()); leave the
+    // dialog open with what the user typed so they can retry.
+    if (ok) onClose();
+  }
+
+  async function handleDelete() {
+    if (!card) return;
+    const ok = await confirm({
+      title: `Delete "${card.title}"?`,
+      description: 'This permanently removes the card.',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
+    setSaving(true);
+    const removed = await board.removeCard(card.id);
+    setSaving(false);
+    if (removed) onClose();
+  }
+
+  return (
+    <Dialog open={card !== null} onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit Card</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-2">
+          <Label htmlFor="card-title">Title *</Label>
+          <Input id="card-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="card-description">Description</Label>
+          <Textarea id="card-description" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+        </div>
+        <div className="flex flex-wrap gap-4">
+          <div className="grid min-w-32 flex-1 gap-2">
+            <Label htmlFor="card-due">Due date</Label>
+            <Input id="card-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          </div>
+          <div className="grid min-w-48 flex-1 gap-2">
+            <Label htmlFor="card-labels">Labels</Label>
+            <Input
+              id="card-labels" placeholder="urgent, design" value={labelsText}
+              onChange={(e) => setLabelsText(e.target.value)}
+            />
+          </div>
+        </div>
+        <DialogFooter className="sm:justify-between">
+          <Button variant="destructive" onClick={handleDelete} disabled={saving}>Delete</Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving || !title.trim()}>
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Column({ column, board, onOpenCard }: {
+  column: BoardColumn; board: ReturnType<typeof useBoard>; onOpenCard: (card: BoardCard) => void;
+}) {
   const confirm = useConfirm();
   const [title, setTitle] = useState('');
   const [name, setName] = useState(column.name);
@@ -109,7 +221,7 @@ function Column({ column, board }: { column: BoardColumn; board: ReturnType<type
 
       <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         <div className="flex min-h-[3rem] flex-col gap-2">
-          {column.cards.map((card) => <CardTile key={card.id} card={card} />)}
+          {column.cards.map((card) => <CardTile key={card.id} card={card} onOpen={onOpenCard} />)}
         </div>
       </SortableContext>
 
@@ -135,6 +247,7 @@ export default function BoardPanel({ projectId }: { projectId: string }) {
   const headers = useAdminHeaders();
   const board = useBoard(projectId, headers);
   const [newColumn, setNewColumn] = useState('');
+  const [editingCard, setEditingCard] = useState<BoardCard | null>(null);
 
   const sensors = useSensors(
     // A `distance` threshold keeps a plain click from being interpreted as a
@@ -202,10 +315,14 @@ export default function BoardPanel({ projectId }: { projectId: string }) {
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
           <div className="flex gap-3 overflow-x-auto pb-2">
-            {board.columns.map((column) => <Column key={column.id} column={column} board={board} />)}
+            {board.columns.map((column) => (
+              <Column key={column.id} column={column} board={board} onOpenCard={setEditingCard} />
+            ))}
           </div>
         </DndContext>
       )}
+
+      <CardEditorDialog card={editingCard} board={board} onClose={() => setEditingCard(null)} />
     </div>
   );
 }
