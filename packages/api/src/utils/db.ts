@@ -302,6 +302,37 @@ function initSchema(db: Database.Database): void {
       FOREIGN KEY (site_id) REFERENCES sites(id)
     );
 
+    CREATE TABLE IF NOT EXISTS board_columns (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      -- Deny by default: forgetting the toggle hides work from the client
+      -- rather than exposing an internal column to them.
+      client_visible INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_board_columns_project ON board_columns(project_id);
+
+    CREATE TABLE IF NOT EXISTS board_cards (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      column_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      position INTEGER NOT NULL DEFAULT 0,
+      due_date TEXT,
+      labels TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (project_id) REFERENCES projects(id),
+      FOREIGN KEY (column_id) REFERENCES board_columns(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_board_cards_column ON board_cards(column_id);
+
     CREATE TABLE IF NOT EXISTS invoices (
       id TEXT PRIMARY KEY,
       invoice_number TEXT UNIQUE NOT NULL,

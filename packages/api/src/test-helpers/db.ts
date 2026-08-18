@@ -97,6 +97,33 @@ const PROJECT_SITES_TABLE = `
     FOREIGN KEY (site_id) REFERENCES sites(id)
   )`;
 
+const BOARD_COLUMNS_TABLE = `
+  CREATE TABLE board_columns (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    client_visible INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+  )`;
+
+const BOARD_CARDS_TABLE = `
+  CREATE TABLE board_cards (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    column_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    position INTEGER NOT NULL DEFAULT 0,
+    due_date TEXT,
+    labels TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (column_id) REFERENCES board_columns(id)
+  )`;
+
 const INVOICES_TABLE = `
   CREATE TABLE invoices (
     id TEXT PRIMARY KEY,
@@ -169,7 +196,7 @@ const IMAGE_BUILDS_TABLE = `
  */
 export function createTestDb(): Database.Database {
   const db = new Database(':memory:');
-  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, PROJECTS_TABLE, PROJECT_SITES_TABLE, INVOICES_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE, SNAPSHOTS_TABLE, PAYMENT_METHODS_TABLE, INVOICE_PAYMENT_METHODS_TABLE]) {
+  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, PROJECTS_TABLE, PROJECT_SITES_TABLE, BOARD_COLUMNS_TABLE, BOARD_CARDS_TABLE, INVOICES_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE, SNAPSHOTS_TABLE, PAYMENT_METHODS_TABLE, INVOICE_PAYMENT_METHODS_TABLE]) {
     db.prepare(ddl).run();
   }
   return db;
