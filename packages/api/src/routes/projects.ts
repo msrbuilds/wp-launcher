@@ -13,6 +13,10 @@ import {
   listPaymentMethods, createPaymentMethod, updatePaymentMethod, deletePaymentMethod,
   getInvoicePaymentMethods, setInvoicePaymentMethods,
 } from '../services/paymentMethod.service';
+import {
+  getBoard, createColumn, updateColumn, deleteColumn, reorderColumns,
+  createCard, updateCard, deleteCard, moveCard,
+} from '../services/board.service';
 import { seesAllRows } from '../utils/scope';
 
 const router = Router();
@@ -182,6 +186,91 @@ router.delete('/list/:id/sites/:siteId', (req: AuthRequest, res: Response) => {
   try {
     unlinkSiteFromProject(req.params.id, req.params.siteId, req.userId!);
     res.json({ message: 'Site unlinked' });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// ── Project board ──
+
+router.get('/list/:id/board', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(getBoard(req.params.id, req.userId!));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/list/:id/board/columns', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(createColumn(req.params.id, req.userId!, req.body));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.put('/list/:id/board/columns/reorder', (req: AuthRequest, res: Response) => {
+  try {
+    const { columnIds } = req.body || {};
+    if (!Array.isArray(columnIds)) { res.status(400).json({ error: 'columnIds must be an array' }); return; }
+    reorderColumns(req.params.id, req.userId!, columnIds);
+    res.json(getBoard(req.params.id, req.userId!));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.put('/board/columns/:columnId', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(updateColumn(req.params.columnId, req.userId!, req.body));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.delete('/board/columns/:columnId', (req: AuthRequest, res: Response) => {
+  try {
+    deleteColumn(req.params.columnId, req.userId!);
+    res.json({ status: 'deleted' });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/board/columns/:columnId/cards', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(createCard(req.params.columnId, req.userId!, req.body));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.put('/board/cards/:cardId', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(updateCard(req.params.cardId, req.userId!, req.body));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.delete('/board/cards/:cardId', (req: AuthRequest, res: Response) => {
+  try {
+    deleteCard(req.params.cardId, req.userId!);
+    res.json({ status: 'deleted' });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.put('/board/cards/:cardId/move', (req: AuthRequest, res: Response) => {
+  try {
+    const { toColumnId, toIndex } = req.body || {};
+    if (typeof toColumnId !== 'string' || typeof toIndex !== 'number') {
+      res.status(400).json({ error: 'toColumnId must be a string and toIndex a number' });
+      return;
+    }
+    moveCard(req.params.cardId, req.userId!, toColumnId, toIndex);
+    res.json({ status: 'moved' });
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
