@@ -7,7 +7,7 @@ import {
   createProject, updateProject, deleteProject, getProject, listProjects, getProjectsCount,
   linkSiteToProject, unlinkSiteFromProject, getProjectSites,
   createInvoice, updateInvoice, deleteInvoice, getInvoice, listInvoices, getInvoicesCount, updateInvoiceStatus,
-  listAllClients, listAllProjects,
+  listAllClients, listAllProjects, assertInvoiceIsDraft,
 } from '../services/project.service';
 import {
   listPaymentMethods, createPaymentMethod, updatePaymentMethod, deletePaymentMethod,
@@ -269,6 +269,9 @@ router.put('/invoices/:id/payment-methods', (req: AuthRequest, res: Response) =>
   try {
     const invoice = getInvoice(req.params.id, req.userId!);
     if (!invoice) { res.status(404).json({ error: 'Invoice not found' }); return; }
+    // Same draft-only rule as updateInvoice: once sent, an invoice's content
+    // (including which payment methods it carries) is fixed.
+    assertInvoiceIsDraft(invoice);
     const ids = req.body?.methodIds;
     if (!Array.isArray(ids)) { res.status(400).json({ error: 'methodIds must be an array' }); return; }
     setInvoicePaymentMethods(req.params.id, ids);

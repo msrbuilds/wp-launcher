@@ -311,13 +311,26 @@ export function createInvoice(userId: string, data: {
   return db.prepare('SELECT * FROM invoices WHERE id = ?').get(id) as InvoiceRecord;
 }
 
+/**
+ * Guard shared by anything that mutates an invoice's content once issued.
+ *
+ * Invoices are only editable while in `draft`; `updateInvoice` enforces this
+ * for its own fields, and the payment-methods PUT route needs the identical
+ * rule (attaching/detaching methods is an edit like any other). Exported so
+ * both call sites — and their tests — share one check and one message
+ * instead of two that can quietly drift apart.
+ */
+export function assertInvoiceIsDraft(invoice: Pick<InvoiceRecord, 'status'>): void {
+  if (invoice.status !== 'draft') throw new ValidationError('Only draft invoices can be edited');
+}
+
 export function updateInvoice(id: string, userId: string, data: {
   client_id?: string; project_id?: string | null; items?: any[]; tax_rate?: number; due_date?: string | null; notes?: string; currency?: string;
 }): InvoiceRecord {
   const db = getDb();
   const existing = db.prepare('SELECT * FROM invoices WHERE id = ? AND user_id = ?').get(id, userId) as InvoiceRecord | undefined;
   if (!existing) throw new NotFoundError('Invoice not found');
-  if (existing.status !== 'draft') throw new ValidationError('Only draft invoices can be edited');
+  assertInvoiceIsDraft(existing);
   if (data.client_id) {
     const client = db.prepare('SELECT id FROM clients WHERE id = ? AND user_id = ?').get(data.client_id, userId);
     if (!client) throw new ValidationError('Client not found');
