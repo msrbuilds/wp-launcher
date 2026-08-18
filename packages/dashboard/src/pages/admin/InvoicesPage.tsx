@@ -74,6 +74,13 @@ export default function InvoicesPage() {
   const [error, setError] = useState('');
   const [methods, setMethods] = useState<{ id: string; label: string }[]>([]);
   const [selectedMethods, setSelectedMethods] = useState<string[]>([]);
+  // Methods attached to the invoice being edited that are no longer active.
+  // `methods` above is fetched once with ?activeOnly=true, so a method
+  // deactivated in Settings after being attached to a draft would otherwise
+  // have no checkbox at all — visible in `selectedMethods` but with nothing
+  // to render or uncheck it. Populated only from the per-invoice fetch, so a
+  // brand-new invoice (which never attaches anything inactive) never sees one.
+  const [inactiveAttachedMethods, setInactiveAttachedMethods] = useState<{ id: string; label: string }[]>([]);
   // Tracks the per-invoice attached-methods fetch that `openEdit` kicks off.
   // 'ready' also covers "nothing to load" (a brand-new invoice), so Save is
   // never blocked by a fetch that was never started. While 'loading' or
@@ -124,6 +131,7 @@ export default function InvoicesPage() {
     setEditing(null);
     setForm({ client_id: '', project_id: '', items: [emptyItem()], tax_rate: 0, due_date: '', notes: '', currency: 'USD' });
     setSelectedMethods([]);
+    setInactiveAttachedMethods([]);
     // Nothing to fetch for a brand-new invoice, so there's no load to wait on.
     setMethodsLoadStatus('ready');
     openInvoiceIdRef.current = null;
@@ -147,7 +155,12 @@ export default function InvoicesPage() {
       if (!res.ok) { setMethodsLoadStatus('error'); return; }
       const full = await res.json();
       if (openInvoiceIdRef.current !== inv.id) return;
-      setSelectedMethods((full.paymentMethods || []).map((m: { id: string }) => m.id));
+      const attached: { id: string; label: string; active: number | boolean }[] = full.paymentMethods || [];
+      setSelectedMethods(attached.map((m) => m.id));
+      // getInvoicePaymentMethods deliberately isn't filtered by `active` (a
+      // retired method must still render on invoices already sent), so this
+      // can legitimately include inactive ones.
+      setInactiveAttachedMethods(attached.filter((m) => !m.active).map((m) => ({ id: m.id, label: m.label })));
       setMethodsLoadStatus('ready');
     } catch {
       if (openInvoiceIdRef.current !== inv.id) return;
@@ -163,6 +176,7 @@ export default function InvoicesPage() {
       tax_rate: inv.tax_rate, due_date: inv.due_date || '', notes: inv.notes || '', currency: inv.currency,
     });
     setSelectedMethods([]);
+    setInactiveAttachedMethods([]);
     openInvoiceIdRef.current = inv.id;
     setError('');
     setShowModal(true);
@@ -188,6 +202,16 @@ export default function InvoicesPage() {
   const subtotal = form.items.reduce((s, item) => s + Number(item.qty) * Number(item.rate), 0);
   const taxAmount = subtotal * (Number(form.tax_rate) / 100);
   const formTotal = Math.round((subtotal + taxAmount) * 100) / 100;
+
+  // The offered list for the checkboxes: every active method, plus any
+  // method already attached to this invoice even if it's since been
+  // deactivated — otherwise a retired-but-attached method has no checkbox
+  // and can't be seen or unchecked. `methods` is active-only by construction
+  // so this filter is only a defensive dedupe.
+  const displayedMethods = [
+    ...methods,
+    ...inactiveAttachedMethods.filter((im) => !methods.some((m) => m.id === im.id)),
+  ];
 
   async function handleSave() {
     if (!form.client_id) { setError('Client is required'); return; }
@@ -469,21 +493,32 @@ export default function InvoicesPage() {
             </Alert>
           )}
 
-          {methods.length > 0 && (
+          {displayedMethods.length > 0 && (
             <div className="space-y-2">
               <Label>Payment methods shown on this invoice</Label>
               <div className="space-y-2 rounded-lg border border-border p-3">
-                {methods.map((m) => (
-                  <label key={m.id} className="flex items-center gap-2 text-sm text-foreground">
-                    <Checkbox
-                      checked={selectedMethods.includes(m.id)}
-                      onCheckedChange={(checked) =>
-                        setSelectedMethods((prev) =>
-                          checked ? [...prev, m.id] : prev.filter((x) => x !== m.id))}
-                    />
-                    {m.label}
-                  </label>
-                ))}
+                {displayedMethods.map((m) => {
+                  const isInactive = inactiveAttachedMethods.some((im) => im.id === m.id);
+                  return (
+                    <label key={m.id} className="flex items-center gap-2 text-sm text-foreground">
+                      <Checkbox
+                        checked={selectedMethods.includes(m.id)}
+                        onCheckedChange={(checked) =>
+                          setSelectedMethods((prev) =>
+                            checked ? [...prev, m.id] : prev.filter((x) => x !== m.id))}
+                      />
+                      {m.label}
+                      {isInactive && (
+                        <Badge
+                          variant="outline"
+                          title="Deactivated in Settings — shown because it's already attached to this invoice"
+                        >
+                          Inactive
+                        </Badge>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
               <p className="text-xs text-muted-foreground">
                 Leave all unchecked to show no payment instructions on this invoice.
