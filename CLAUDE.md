@@ -120,6 +120,8 @@ Tables in `data/wp-launcher.db`:
 - **clients** — id, user_id, name, email, phone, company, notes, created_at, updated_at
 - **projects** — id, user_id, client_id, name, description, status (active/completed/on-hold/archived), created_at, updated_at
 - **project_sites** — id, project_id, site_id, created_at (link table)
+- **board_columns** — id, project_id, name, position, client_visible, created_at. `client_visible` defaults to **0**: a forgotten toggle hides work from the client rather than leaking an internal column
+- **board_cards** — id, project_id, column_id, title, description, position, due_date, labels (JSON array), created_at, updated_at. `project_id` is denormalised beside `column_id` so a card authorises against its project without joining through its column. **No assignee** — a panel has one operator
 - **invoices** — id, invoice_number (INV-0001), user_id, client_id, project_id, items (JSON line items), subtotal, tax_rate, tax_amount, total, currency, status (draft/sent/paid/overdue/cancelled), issue_date, due_date, notes, created_at, updated_at
 - **payment_methods** — id, label, instructions (free-form), active, sort_order, created_at, updated_at. Install-wide, not per-user: these are the business's bank details. Only owner/admin may change the list
 - **invoice_payment_methods** — invoice_id, payment_method_id (link table). **Absence means hidden** — an invoice shows only the methods attached to it, so adding a method later never alters an invoice already sent
@@ -205,6 +207,15 @@ a second staff member CRM access.
 - `GET /payment-methods` — list (`?activeOnly=true` for the ones offered on new invoices)
 - `POST|PUT|DELETE /payment-methods[/:id]` — manage the list; owner/admin only. Deleting one an invoice still uses returns 409 — deactivate instead, which hides it from new invoices while leaving sent ones intact
 - `GET|PUT /invoices/:id/payment-methods` — read or replace an invoice's attached methods; `PUT` takes `{ methodIds: string[] }` and authorises through the invoice first
+- `GET /list/:id/board` — columns with their cards, ordered by position
+- `POST /list/:id/board/columns`, `PUT|DELETE /board/columns/:columnId` — manage columns; deleting one deletes its cards
+- `PUT /list/:id/board/columns/reorder` — `{ columnIds }`; unknown ids are ignored and omitted columns appended, so a stale client cannot drop a column
+- `POST /board/columns/:columnId/cards`, `PUT|DELETE /board/cards/:cardId` — manage cards
+- `PUT /board/cards/:cardId/move` — `{ toColumnId, toIndex }`; refuses a destination in another project, and renumbers both affected columns in one transaction
+
+Board ordering is a contiguous integer `position` rewritten for every affected
+column inside a transaction; the arithmetic is in `services/boardOrder.ts` and
+tested independently of the database.
 
 ### Productivity (`/api/productivity/*`) — feature-gated (`productivityMonitor`)
 - `POST /heartbeats` — batch heartbeat ingestion (no auth, requires cloud linked, CSRF exempt)
