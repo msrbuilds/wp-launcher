@@ -74,6 +74,13 @@ export default function InvoicesPage() {
   const [error, setError] = useState('');
   const [methods, setMethods] = useState<{ id: string; label: string }[]>([]);
   const [selectedMethods, setSelectedMethods] = useState<string[]>([]);
+  // Tracks the per-invoice attached-methods fetch that `openEdit` kicks off.
+  // 'ready' also covers "nothing to load" (a brand-new invoice), so Save is
+  // never blocked by a fetch that was never started. While 'loading' or
+  // 'error', `selectedMethods` cannot be trusted to reflect what's actually
+  // attached, so Save is disabled rather than risking a PUT that silently
+  // detaches everything (see handleSave).
+  const [methodsLoadStatus, setMethodsLoadStatus] = useState<'ready' | 'loading' | 'error'>('ready');
   // Which invoice the dialog is currently showing (null for a new, unsaved
   // one). Captured so a payment-methods fetch that resolves after the dialog
   // has moved on to a different invoice — or to "New Invoice" — is discarded
@@ -117,12 +124,38 @@ export default function InvoicesPage() {
     setEditing(null);
     setForm({ client_id: '', project_id: '', items: [emptyItem()], tax_rate: 0, due_date: '', notes: '', currency: 'USD' });
     setSelectedMethods([]);
+    // Nothing to fetch for a brand-new invoice, so there's no load to wait on.
+    setMethodsLoadStatus('ready');
     openInvoiceIdRef.current = null;
     setError('');
     setShowModal(true);
   }
 
-  async function openEdit(inv: Invoice) {
+  // Fetched after the dialog opens so it never blocks on the network; the
+  // checkboxes fill in a moment later. Guarded against the dialog having
+  // moved on by the time this resolves (Cancel then "+ New Invoice", Edit of
+  // a different row, or a second call from Retry) — applying a stale result
+  // would attach one invoice's payment methods to whatever the dialog shows
+  // now. A non-ok response or a thrown network error both land in 'error'
+  // rather than leaving `selectedMethods` at its empty default looking like
+  // "this invoice has no methods attached" — see handleSave's guard.
+  async function loadInvoicePaymentMethods(inv: Invoice) {
+    setMethodsLoadStatus('loading');
+    try {
+      const res = await apiFetch(`/api/projects/invoices/${inv.id}`, { headers });
+      if (openInvoiceIdRef.current !== inv.id) return;
+      if (!res.ok) { setMethodsLoadStatus('error'); return; }
+      const full = await res.json();
+      if (openInvoiceIdRef.current !== inv.id) return;
+      setSelectedMethods((full.paymentMethods || []).map((m: { id: string }) => m.id));
+      setMethodsLoadStatus('ready');
+    } catch {
+      if (openInvoiceIdRef.current !== inv.id) return;
+      setMethodsLoadStatus('error');
+    }
+  }
+
+  function openEdit(inv: Invoice) {
     setEditing(inv);
     setForm({
       client_id: inv.client_id, project_id: inv.project_id || '',
@@ -133,18 +166,11 @@ export default function InvoicesPage() {
     openInvoiceIdRef.current = inv.id;
     setError('');
     setShowModal(true);
-    // Fetched after the dialog opens so it never blocks on the network; the
-    // checkboxes fill in a moment later. Guarded against the dialog having
-    // moved on by the time this resolves (Cancel then "+ New Invoice", or
-    // Edit of a different row) — applying a stale result would attach one
-    // invoice's payment methods to whatever the dialog shows now.
-    const res = await apiFetch(`/api/projects/invoices/${inv.id}`, { headers });
-    if (openInvoiceIdRef.current !== inv.id) return;
-    if (res.ok) {
-      const full = await res.json();
-      if (openInvoiceIdRef.current !== inv.id) return;
-      setSelectedMethods((full.paymentMethods || []).map((m: { id: string }) => m.id));
-    }
+    loadInvoicePaymentMethods(inv);
+  }
+
+  function retryLoadMethods() {
+    if (editing) loadInvoicePaymentMethods(editing);
   }
 
   function updateItem(idx: number, field: keyof InvoiceLineItem, value: string | number) {
@@ -166,6 +192,17 @@ export default function InvoicesPage() {
   async function handleSave() {
     if (!form.client_id) { setError('Client is required'); return; }
     if (form.items.some(i => !i.description.trim())) { setError('All items need a description'); return; }
+    // `selectedMethods` cannot be trusted yet: still loading means it hasn't
+    // been filled in from the server, and 'error' means it never was.
+    // Submitting either would PUT an empty (or stale) selection and silently
+    // detach whatever was actually attached. The Save button is disabled for
+    // the same reason; this is the belt-and-suspenders check.
+    if (editing && methodsLoadStatus !== 'ready') {
+      setError(methodsLoadStatus === 'loading'
+        ? "Still loading this invoice's payment methods — please wait."
+        : "Could not load this invoice's payment methods. Retry before saving.");
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -418,6 +455,20 @@ export default function InvoicesPage() {
             </div>
           </div>
 
+          {editing && methodsLoadStatus === 'loading' && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" /> Loading this invoice's attached payment methods…
+            </div>
+          )}
+          {editing && methodsLoadStatus === 'error' && (
+            <Alert variant="destructive">
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+                <span>Could not load this invoice's attached payment methods. Save is disabled until this loads.</span>
+                <Button type="button" variant="secondary" size="xs" onClick={retryLoadMethods}>Retry</Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {methods.length > 0 && (
             <div className="space-y-2">
               <Label>Payment methods shown on this invoice</Label>
@@ -455,7 +506,9 @@ export default function InvoicesPage() {
 
           <DialogFooter>
             <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+            <Button onClick={handleSave} disabled={saving || (!!editing && methodsLoadStatus !== 'ready')}>
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
