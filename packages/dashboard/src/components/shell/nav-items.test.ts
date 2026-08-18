@@ -71,4 +71,10 @@ describe('buildNavGroups', () => {
       }
     }
   });
+
+  it('offers payment methods in Settings to privileged roles only', () => {
+    const settings = buildNavGroups(allFeatures, 'admin').find((g) => g.label === 'Settings');
+    expect(settings?.items.map((i) => i.to)).toContain('/payment-methods');
+    expect(buildNavGroups(allFeatures, 'member').find((g) => g.label === 'Settings')).toBeUndefined();
+  });
 });
