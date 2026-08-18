@@ -23,6 +23,7 @@ export default function InvoicePrintPage() {
   const branding = useBranding();
   const [invoice, setInvoice] = useState<(Invoice & { clientName: string | null; clientEmail?: string; clientCompany?: string; clientPhone?: string; projectName: string | null }) | null>(null);
   const [loading, setLoading] = useState(true);
+  const [methods, setMethods] = useState<{ id: string; label: string; instructions: string }[]>([]);
 
   useEffect(() => {
     apiFetch(`/api/projects/invoices/${id}`, { headers })
@@ -44,6 +45,10 @@ export default function InvoicePrintPage() {
       })
       .catch(() => setInvoice(null))
       .finally(() => setLoading(false));
+    apiFetch(`/api/projects/invoices/${id}/payment-methods`, { headers })
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setMethods)
+      .catch(() => setMethods([]));
   }, [id, headers]);
 
   if (loading) {
@@ -147,6 +152,20 @@ export default function InvoicePrintPage() {
           <div className="mt-8 border-t border-black/15 pt-4 text-sm">
             <h4 className="mb-1 font-semibold uppercase tracking-wide">Notes</h4>
             <p>{invoice.notes}</p>
+          </div>
+        )}
+
+        {methods.length > 0 && (
+          <div className="mt-8 border-t border-black/15 pt-4 text-sm">
+            <h4 className="mb-2 font-semibold uppercase tracking-wide">How to pay</h4>
+            <div className="space-y-3">
+              {methods.map((m) => (
+                <div key={m.id}>
+                  <div className="font-semibold">{m.label}</div>
+                  <p className="whitespace-pre-wrap">{m.instructions}</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

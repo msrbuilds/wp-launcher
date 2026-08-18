@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
@@ -71,6 +72,8 @@ export default function InvoicesPage() {
   const [form, setForm] = useState({ client_id: '', project_id: '', items: [emptyItem()], tax_rate: 0, due_date: '', notes: '', currency: 'USD' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [methods, setMethods] = useState<{ id: string; label: string }[]>([]);
+  const [selectedMethods, setSelectedMethods] = useState<string[]>([]);
 
   const fetchInvoices = useCallback(() => {
     setLoading(true);
@@ -98,22 +101,38 @@ export default function InvoicesPage() {
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
   useEffect(() => { fetchDropdowns(); }, [fetchDropdowns]);
 
+  useEffect(() => {
+    apiFetch('/api/projects/payment-methods?activeOnly=true')
+      .then((r) => (r.ok ? r.json() : []))
+      .then(setMethods)
+      .catch(() => setMethods([]));
+  }, []);
+
   function openCreate() {
     setEditing(null);
     setForm({ client_id: '', project_id: '', items: [emptyItem()], tax_rate: 0, due_date: '', notes: '', currency: 'USD' });
+    setSelectedMethods([]);
     setError('');
     setShowModal(true);
   }
 
-  function openEdit(inv: Invoice) {
+  async function openEdit(inv: Invoice) {
     setEditing(inv);
     setForm({
       client_id: inv.client_id, project_id: inv.project_id || '',
       items: inv.items.length ? inv.items : [emptyItem()],
       tax_rate: inv.tax_rate, due_date: inv.due_date || '', notes: inv.notes || '', currency: inv.currency,
     });
+    setSelectedMethods([]);
     setError('');
     setShowModal(true);
+    // Fetched after the dialog opens so it never blocks on the network; the
+    // checkboxes fill in a moment later.
+    const res = await apiFetch(`/api/projects/invoices/${inv.id}`, { headers });
+    if (res.ok) {
+      const full = await res.json();
+      setSelectedMethods((full.paymentMethods || []).map((m: { id: string }) => m.id));
+    }
   }
 
   function updateItem(idx: number, field: keyof InvoiceLineItem, value: string | number) {
@@ -143,6 +162,16 @@ export default function InvoicesPage() {
       const res = await apiFetch(url, { method, headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to save'); return; }
+      // The invoice must exist before anything can attach to it, so this
+      // follows the save. `data.id` covers a create; `editing.id` an update.
+      const invoiceId = editing ? editing.id : data.id;
+      if (invoiceId) {
+        await apiFetch(`/api/projects/invoices/${invoiceId}/payment-methods`, {
+          method: 'PUT',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ methodIds: selectedMethods }),
+        });
+      }
       setShowModal(false);
       fetchInvoices();
     } catch { setError('Network error'); } finally { setSaving(false); }
@@ -361,6 +390,28 @@ export default function InvoicesPage() {
               <Input id="invoice-due" className="rounded-lg" type="date" value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })} />
             </div>
           </div>
+
+          {methods.length > 0 && (
+            <div className="space-y-2">
+              <Label>Payment methods shown on this invoice</Label>
+              <div className="space-y-2 rounded-lg border border-border p-3">
+                {methods.map((m) => (
+                  <label key={m.id} className="flex items-center gap-2 text-sm text-foreground">
+                    <Checkbox
+                      checked={selectedMethods.includes(m.id)}
+                      onCheckedChange={(checked) =>
+                        setSelectedMethods((prev) =>
+                          checked ? [...prev, m.id] : prev.filter((x) => x !== m.id))}
+                    />
+                    {m.label}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Leave all unchecked to show no payment instructions on this invoice.
+              </p>
+            </div>
+          )}
 
           <div className="flex flex-col items-end gap-1 rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
             <div>Subtotal: <strong className="font-medium text-foreground">{subtotal.toFixed(2)}</strong></div>
