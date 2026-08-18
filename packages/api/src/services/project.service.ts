@@ -168,8 +168,16 @@ export function deleteProject(id: string, userId: string): void {
   if (!existing) throw new NotFoundError('Project not found');
   const invoiceCount = (db.prepare('SELECT COUNT(*) as count FROM invoices WHERE project_id = ? AND user_id = ?').get(id, userId) as { count: number }).count;
   if (invoiceCount > 0) throw new ConflictError('Cannot delete project with invoices. Delete the invoices first.');
-  db.prepare('DELETE FROM project_sites WHERE project_id = ?').run(id);
-  db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+  const remove = db.transaction(() => {
+    // board_columns and board_cards both carry FOREIGN KEY (project_id)
+    // REFERENCES projects(id), enforced by better-sqlite3's default
+    // foreign_keys pragma. Cards reference columns too, so they must go first.
+    db.prepare('DELETE FROM board_cards WHERE project_id = ?').run(id);
+    db.prepare('DELETE FROM board_columns WHERE project_id = ?').run(id);
+    db.prepare('DELETE FROM project_sites WHERE project_id = ?').run(id);
+    db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+  });
+  remove();
 }
 
 export function getProject(id: string, userId: string): (ProjectRecord & { clientName: string | null; siteCount: number }) | undefined {

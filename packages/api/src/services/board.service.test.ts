@@ -6,6 +6,7 @@ import {
   getBoard, createColumn, updateColumn, deleteColumn,
   createCard, updateCard, deleteCard, moveCard, reorderColumns,
 } from './board.service';
+import { deleteProject } from './project.service';
 
 let db: Database.Database;
 const OWNER = 'u-owner';
@@ -171,5 +172,22 @@ describe('cards', () => {
     const cards = getBoard('p1', OWNER).columns[0].cards;
     expect(cards.map((x) => x.title)).toEqual(['A', 'C']);
     expect(cards.map((x) => x.position)).toEqual([0, 1]);
+  });
+});
+
+describe('project deletion', () => {
+  // board_columns and board_cards both carry FOREIGN KEY (project_id)
+  // REFERENCES projects(id), and better-sqlite3 enforces foreign keys by
+  // default. deleteProject must clear both before removing the project row,
+  // or the DELETE dies on the constraint as soon as the project has a column.
+  it('deletes a project that has board columns and cards', () => {
+    const column = createColumn('p1', OWNER, { name: 'To do' });
+    createCard(column.id, OWNER, { title: 'Card' });
+
+    expect(() => deleteProject('p1', OWNER)).not.toThrow();
+
+    expect((db.prepare('SELECT COUNT(*) c FROM board_columns WHERE project_id = ?').get('p1') as { c: number }).c).toBe(0);
+    expect((db.prepare('SELECT COUNT(*) c FROM board_cards WHERE project_id = ?').get('p1') as { c: number }).c).toBe(0);
+    expect(db.prepare('SELECT id FROM projects WHERE id = ?').get('p1')).toBeUndefined();
   });
 });
