@@ -63,6 +63,31 @@ describe('columns', () => {
     expect(cols.map((x) => x.position)).toEqual([0, 1, 2]);
   });
 
+  it('keeps a column the caller omitted on the board, appended at a contiguous position', () => {
+    // A stale client must not be able to drop a column off the board just by
+    // not mentioning it.
+    const a = createColumn('p1', OWNER, { name: 'A' });
+    const b = createColumn('p1', OWNER, { name: 'B' });
+    const c = createColumn('p1', OWNER, { name: 'C' });
+    reorderColumns('p1', OWNER, [c.id, a.id]); // b omitted
+    const cols = getBoard('p1', OWNER).columns;
+    expect(cols.map((x) => x.name)).toEqual(['C', 'A', 'B']);
+    expect(cols.map((x) => x.position)).toEqual([0, 1, 2]);
+  });
+
+  it('ignores a column id that belongs to a different project', () => {
+    db.prepare("INSERT INTO projects (id, user_id, name) VALUES ('p2', 'u-owner', 'Other')").run();
+    const foreign = createColumn('p2', OWNER, { name: 'Elsewhere' });
+    const a = createColumn('p1', OWNER, { name: 'A' });
+    const b = createColumn('p1', OWNER, { name: 'B' });
+    reorderColumns('p1', OWNER, [foreign.id, b.id, a.id]);
+    const cols = getBoard('p1', OWNER).columns;
+    expect(cols.map((x) => x.name)).toEqual(['B', 'A']);
+    expect(cols.map((x) => x.position)).toEqual([0, 1]);
+    // The foreign project's own column must be untouched by the call.
+    expect(getBoard('p2', OWNER).columns.map((x) => x.position)).toEqual([0]);
+  });
+
   it('deletes a column and the cards inside it', () => {
     const col = createColumn('p1', OWNER, { name: 'Doomed' });
     createCard(col.id, OWNER, { title: 'Goes with it' });
