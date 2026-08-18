@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useAdminHeaders } from './AdminLayout';
+import BoardPanel from './board/BoardPanel';
 import { apiFetch } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmDialog';
@@ -156,6 +157,11 @@ export default function ProjectDetailPage() {
         <p className="mt-2 text-sm text-muted-foreground">
           Created: {new Date(project.created_at + 'Z').toLocaleDateString()}
         </p>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-border bg-card p-6 text-card-foreground">
+        <h4 className="mb-4 text-base font-semibold">Board</h4>
+        <BoardPanel projectId={id!} />
       </div>
 
       <div className="mt-4 rounded-xl border border-border bg-card p-6 text-card-foreground">
