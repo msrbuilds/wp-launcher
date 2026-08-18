@@ -121,6 +121,8 @@ Tables in `data/wp-launcher.db`:
 - **projects** — id, user_id, client_id, name, description, status (active/completed/on-hold/archived), created_at, updated_at
 - **project_sites** — id, project_id, site_id, created_at (link table)
 - **invoices** — id, invoice_number (INV-0001), user_id, client_id, project_id, items (JSON line items), subtotal, tax_rate, tax_amount, total, currency, status (draft/sent/paid/overdue/cancelled), issue_date, due_date, notes, created_at, updated_at
+- **payment_methods** — id, label, instructions (free-form), active, sort_order, created_at, updated_at. Install-wide, not per-user: these are the business's bank details. Only owner/admin may change the list
+- **invoice_payment_methods** — invoice_id, payment_method_id (link table). **Absence means hidden** — an invoice shows only the methods attached to it, so adding a method later never alters an invoice already sent
 - **productivity_heartbeats** — id, source (editor|wordpress), entity, entity_type, project, language, category, editor, site_id, machine_id, branch, is_write, created_at, synced
 - **productivity_goals** — id, daily_goal_seconds, updated_at
 - **productivity_cloud_config** — key, value (cloud_url, cloud_api_key, device_name, machine_id, last_synced_at, heartbeat_secret — the secret is per-install and outlives cloud linking)
@@ -200,6 +202,9 @@ a second staff member CRM access.
 - `GET|POST /invoices` — list invoices (paginated, ?status=, ?clientId=) / create invoice
 - `GET|PUT|DELETE /invoices/:id` — get / update (draft only) / delete (draft only)
 - `PATCH /invoices/:id/status` — change status (draft→sent→paid, any→cancelled)
+- `GET /payment-methods` — list (`?activeOnly=true` for the ones offered on new invoices)
+- `POST|PUT|DELETE /payment-methods[/:id]` — manage the list; owner/admin only. Deleting one an invoice still uses returns 409 — deactivate instead, which hides it from new invoices while leaving sent ones intact
+- `GET|PUT /invoices/:id/payment-methods` — read or replace an invoice's attached methods; `PUT` takes `{ methodIds: string[] }` and authorises through the invoice first
 
 ### Productivity (`/api/productivity/*`) — feature-gated (`productivityMonitor`)
 - `POST /heartbeats` — batch heartbeat ingestion (no auth, requires cloud linked, CSRF exempt)
