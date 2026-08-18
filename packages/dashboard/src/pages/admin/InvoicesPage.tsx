@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, X } from 'lucide-react';
 import { useAdminHeaders } from './AdminLayout';
@@ -74,6 +74,11 @@ export default function InvoicesPage() {
   const [error, setError] = useState('');
   const [methods, setMethods] = useState<{ id: string; label: string }[]>([]);
   const [selectedMethods, setSelectedMethods] = useState<string[]>([]);
+  // Which invoice the dialog is currently showing (null for a new, unsaved
+  // one). Captured so a payment-methods fetch that resolves after the dialog
+  // has moved on to a different invoice — or to "New Invoice" — is discarded
+  // instead of overwriting the checkboxes with a stale result.
+  const openInvoiceIdRef = useRef<string | null>(null);
 
   const fetchInvoices = useCallback(() => {
     setLoading(true);
@@ -112,6 +117,7 @@ export default function InvoicesPage() {
     setEditing(null);
     setForm({ client_id: '', project_id: '', items: [emptyItem()], tax_rate: 0, due_date: '', notes: '', currency: 'USD' });
     setSelectedMethods([]);
+    openInvoiceIdRef.current = null;
     setError('');
     setShowModal(true);
   }
@@ -124,13 +130,19 @@ export default function InvoicesPage() {
       tax_rate: inv.tax_rate, due_date: inv.due_date || '', notes: inv.notes || '', currency: inv.currency,
     });
     setSelectedMethods([]);
+    openInvoiceIdRef.current = inv.id;
     setError('');
     setShowModal(true);
     // Fetched after the dialog opens so it never blocks on the network; the
-    // checkboxes fill in a moment later.
+    // checkboxes fill in a moment later. Guarded against the dialog having
+    // moved on by the time this resolves (Cancel then "+ New Invoice", or
+    // Edit of a different row) — applying a stale result would attach one
+    // invoice's payment methods to whatever the dialog shows now.
     const res = await apiFetch(`/api/projects/invoices/${inv.id}`, { headers });
+    if (openInvoiceIdRef.current !== inv.id) return;
     if (res.ok) {
       const full = await res.json();
+      if (openInvoiceIdRef.current !== inv.id) return;
       setSelectedMethods((full.paymentMethods || []).map((m: { id: string }) => m.id));
     }
   }
@@ -165,12 +177,27 @@ export default function InvoicesPage() {
       // The invoice must exist before anything can attach to it, so this
       // follows the save. `data.id` covers a create; `editing.id` an update.
       const invoiceId = editing ? editing.id : data.id;
+      // Point `editing` at the now-saved invoice immediately — before the
+      // attach call, and even if that call throws below — so a Save retry
+      // (e.g. after a failed attach) issues a PUT against this invoice
+      // instead of re-POSTing a second invoice under a second invoice number.
+      if (!editing) setEditing(data);
       if (invoiceId) {
-        await apiFetch(`/api/projects/invoices/${invoiceId}/payment-methods`, {
+        const pmRes = await apiFetch(`/api/projects/invoices/${invoiceId}/payment-methods`, {
           method: 'PUT',
           headers: { ...headers, 'Content-Type': 'application/json' },
           body: JSON.stringify({ methodIds: selectedMethods }),
         });
+        if (!pmRes.ok) {
+          // The invoice itself saved fine; only the attach step failed. Say
+          // so explicitly instead of closing as if everything succeeded —
+          // and instead of implying the whole save failed, since it didn't.
+          // `editing` above now points at the saved invoice, so Save from
+          // here retries only the attach.
+          setError('Invoice saved, but the payment methods could not be attached. Click Save to retry.');
+          fetchInvoices();
+          return;
+        }
       }
       setShowModal(false);
       fetchInvoices();
