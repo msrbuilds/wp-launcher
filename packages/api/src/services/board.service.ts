@@ -115,12 +115,25 @@ export function reorderColumns(projectId: string, userId: string, columnIds: str
   apply();
 }
 
+/**
+ * `labels` reaches here as whatever JSON the caller sent, typed as
+ * `string[]` only by the TS signature — a frontend guard is not a guarantee.
+ * `undefined` (not supplied) is left to the caller to interpret.
+ */
+function assertLabels(labels: unknown): void {
+  if (labels === undefined) return;
+  if (!Array.isArray(labels) || labels.some((label) => typeof label !== 'string')) {
+    throw new ValidationError('Labels must be an array of strings');
+  }
+}
+
 export function createCard(
   columnId: string, userId: string,
   data: { title: string; description?: string; due_date?: string; labels?: string[] },
 ): BoardCard {
   const column = columnOrFail(columnId, userId);
   if (!data.title?.trim()) throw new ValidationError('Card title is required');
+  assertLabels(data.labels);
   const db = getDb();
   const id = uuidv4();
   const now = stamp();
@@ -140,6 +153,7 @@ export function updateCard(
 ): BoardCard {
   const existing = cardOrFail(cardId, userId);
   if (data.title !== undefined && !data.title.trim()) throw new ValidationError('Card title is required');
+  assertLabels(data.labels);
   const db = getDb();
   db.prepare('UPDATE board_cards SET title = ?, description = ?, due_date = ?, labels = ?, updated_at = ? WHERE id = ?').run(
     data.title?.trim() || existing.title,

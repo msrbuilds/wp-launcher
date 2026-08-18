@@ -135,6 +135,20 @@ describe('cards', () => {
     expect(() => createCard(todo.id, OWNER, { title: '' })).toThrow(/title/i);
   });
 
+  it('rejects labels that are not an array of strings on create', () => {
+    const [todo] = seedColumns();
+    // Only a frontend guard stood between arbitrary JSON and the stored
+    // value; the service must refuse it too.
+    expect(() => createCard(todo.id, OWNER, { title: 'X', labels: 'urgent' as any })).toThrow(/labels/i);
+    expect(() => createCard(todo.id, OWNER, { title: 'X', labels: [1, 2] as any })).toThrow(/labels/i);
+  });
+
+  it('rejects labels that are not an array of strings on update', () => {
+    const [todo] = seedColumns();
+    const card = createCard(todo.id, OWNER, { title: 'X' });
+    expect(() => updateCard(card.id, OWNER, { labels: { tag: 'urgent' } as any })).toThrow(/labels/i);
+  });
+
   it('clears a due date when explicitly set to null', () => {
     // Distinguishing "not supplied" from "cleared" matters: omitting the field
     // must leave the date alone.
