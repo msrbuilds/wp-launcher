@@ -9,14 +9,6 @@ import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -141,85 +133,89 @@ export default function ProjectDetailPage() {
         <ArrowLeft /> Back to Projects
       </Button>
 
-      <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-base font-semibold">{project.name}</h3>
-          <Badge variant={PROJECT_STATUS_VARIANTS[project.status] || 'secondary'}>
-            {STATUS_LABELS[project.status] || project.status}
-          </Badge>
+      <div className="grid gap-4 lg:grid-cols-4">
+        {/* The board is the working surface, so it takes three of the four
+            columns. On small screens it drops below the sidebar. */}
+        <div className="order-2 rounded-xl border border-border bg-card p-6 text-card-foreground lg:order-1 lg:col-span-3">
+          <h4 className="mb-4 text-base font-semibold">Board</h4>
+          <BoardPanel projectId={id!} />
         </div>
-        {project.clientName && (
-          <p className="text-sm text-muted-foreground">
-            Client: <strong className="font-medium text-card-foreground">{project.clientName}</strong>
-          </p>
-        )}
-        {project.description && <p className="mt-2 text-sm">{project.description}</p>}
-        <p className="mt-2 text-sm text-muted-foreground">
-          Created: {new Date(project.created_at + 'Z').toLocaleDateString()}
-        </p>
-      </div>
 
-      <div className="mt-4 rounded-xl border border-border bg-card p-6 text-card-foreground">
-        <h4 className="mb-4 text-base font-semibold">Board</h4>
-        <BoardPanel projectId={id!} />
-      </div>
-
-      <div className="mt-4 rounded-xl border border-border bg-card p-6 text-card-foreground">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h4 className="text-base font-semibold">Linked Sites ({project.sites.length})</h4>
-        </div>
-        {availableSites.length > 0 && (
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <Select value={selectedSite} onValueChange={setSelectedSite}>
-              <SelectTrigger className="min-w-0 flex-1 rounded-lg">
-                <SelectValue placeholder="— Select a site to link —" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableSites.map(s => <SelectItem key={s.id} value={s.id}>{s.subdomain}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button size="sm" onClick={linkSite} disabled={!selectedSite}>Link Site</Button>
+        {/* Reference material. Ordered first on small screens so the project
+            this board belongs to is identifiable without scrolling past it. */}
+        <div className="order-1 flex flex-col gap-4 lg:order-2">
+          <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-base font-semibold">{project.name}</h3>
+              <Badge variant={PROJECT_STATUS_VARIANTS[project.status] || 'secondary'}>
+                {STATUS_LABELS[project.status] || project.status}
+              </Badge>
+            </div>
+            {project.clientName && (
+              <p className="text-sm text-muted-foreground">
+                Client: <strong className="font-medium text-card-foreground">{project.clientName}</strong>
+              </p>
+            )}
+            {project.description && <p className="mt-2 text-sm">{project.description}</p>}
+            <p className="mt-2 text-sm text-muted-foreground">
+              Created: {new Date(project.created_at + 'Z').toLocaleDateString()}
+            </p>
           </div>
-        )}
-        {project.sites.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">No sites linked to this project yet.</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Subdomain</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {project.sites.map(s => (
-                <TableRow key={s.id}>
-                  <TableCell>
-                    {s.site_url ? (
-                      <a
-                        href={s.site_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-medium text-primary underline-offset-4 hover:underline"
-                      >
-                        {s.subdomain}
-                      </a>
-                    ) : s.subdomain}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={SITE_STATUS_VARIANTS[s.status] || 'secondary'}>{s.status}</Badge>
-                  </TableCell>
-                  <TableCell>{new Date(s.created_at + 'Z').toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    <Button variant="destructive" size="xs" onClick={() => unlinkSite(s.id)}>Unlink</Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+
+          <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+            <h4 className="mb-4 text-base font-semibold">Linked Sites ({project.sites.length})</h4>
+            {availableSites.length > 0 && (
+              <div className="mb-4 flex flex-col gap-2">
+                <Select value={selectedSite} onValueChange={setSelectedSite}>
+                  <SelectTrigger className="min-w-0 rounded-lg">
+                    <SelectValue placeholder="— Select a site to link —" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSites.map(s => <SelectItem key={s.id} value={s.id}>{s.subdomain}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" onClick={linkSite} disabled={!selectedSite}>Link Site</Button>
+              </div>
+            )}
+            {project.sites.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">No sites linked to this project yet.</p>
+            ) : (
+              // A stacked list rather than a table: four columns of subdomain,
+              // status, date and action do not fit a quarter-width sidebar.
+              <ul className="flex flex-col gap-2">
+                {project.sites.map(s => (
+                  <li key={s.id} className="rounded-lg border border-border p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        {s.site_url ? (
+                          <a
+                            href={s.site_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block truncate font-medium text-primary underline-offset-4 hover:underline"
+                          >
+                            {s.subdomain}
+                          </a>
+                        ) : (
+                          <span className="block truncate font-medium">{s.subdomain}</span>
+                        )}
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {new Date(s.created_at + 'Z').toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Badge variant={SITE_STATUS_VARIANTS[s.status] || 'secondary'} className="shrink-0">
+                        {s.status}
+                      </Badge>
+                    </div>
+                    <Button variant="destructive" size="xs" className="mt-2 w-full" onClick={() => unlinkSite(s.id)}>
+                      Unlink
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
