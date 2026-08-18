@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Eye, EyeOff, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +8,14 @@ import { useConfirm } from '../../../components/ConfirmDialog';
 import { useBoard, BoardColumn } from './useBoard';
 
 function CardTile({ card }: { card: { id: string; title: string; due_date: string | null; labels: string } }) {
-  const labels: string[] = (() => { try { return JSON.parse(card.labels); } catch { return []; } })();
+  const labels: string[] = (() => {
+    try {
+      const parsed = JSON.parse(card.labels);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
   return (
     <div className="rounded-lg border border-border bg-background p-3 shadow-sm">
       <p className="text-sm text-foreground">{card.title}</p>
@@ -31,15 +38,29 @@ function CardTile({ card }: { card: { id: string; title: string; due_date: strin
 function Column({ column, board }: { column: BoardColumn; board: ReturnType<typeof useBoard> }) {
   const confirm = useConfirm();
   const [title, setTitle] = useState('');
+  const [name, setName] = useState(column.name);
+
+  // Re-sync the field whenever the server's name actually changes (e.g. a
+  // successful rename lands after a reload). This never fires mid-keystroke,
+  // since typing only touches local `name` state, not the `column` prop.
+  useEffect(() => { setName(column.name); }, [column.name]);
 
   return (
     <div className="flex w-72 shrink-0 flex-col gap-3 rounded-xl border border-border bg-muted/40 p-3">
       <div className="flex items-center justify-between gap-2">
         <Input
           className="h-8 border-transparent bg-transparent font-medium"
-          defaultValue={column.name}
-          onBlur={(e) => e.target.value.trim() && e.target.value !== column.name
-            && board.renameColumn(column.id, e.target.value)}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={async (e) => {
+            const trimmed = e.target.value.trim();
+            // No real edit: snap back to the committed name (covers blank/whitespace-only too).
+            if (!trimmed || trimmed === column.name) { setName(column.name); return; }
+            // `column.name` here is the pre-edit value from this render's closure — exactly
+            // what a rejected rename should fall back to, since the server never changed it.
+            const ok = await board.renameColumn(column.id, trimmed);
+            if (!ok) setName(column.name);
+          }}
         />
         <div className="flex shrink-0 items-center gap-1">
           <Button
