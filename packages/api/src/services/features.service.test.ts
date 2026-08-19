@@ -9,17 +9,17 @@ import {
 } from './features.service';
 
 describe('catalogs', () => {
-  it('classifies every feature exactly once and covers all 17', () => {
-    expect(ADMIN_ONLY_FEATURES.length).toBe(5);
+  it('classifies every feature exactly once and covers all 18', () => {
+    expect(ADMIN_ONLY_FEATURES.length).toBe(6);
     expect(GRANTABLE_FEATURES.length).toBe(12);
-    expect(ALL_FEATURES.length).toBe(17);
+    expect(ALL_FEATURES.length).toBe(18);
     const overlap = ADMIN_ONLY_FEATURES.filter((k) => GRANTABLE_FEATURES.includes(k));
     expect(overlap).toEqual([]);
-    expect(new Set(ALL_FEATURES).size).toBe(17);
+    expect(new Set(ALL_FEATURES).size).toBe(18);
   });
 
-  it('puts the five admin-only features out of members reach', () => {
-    for (const k of ['projects', 'productivityMonitor', 'siteSync', 'webhooks', 'collaborativeSites']) {
+  it('puts the six admin-only features out of members reach', () => {
+    for (const k of ['projects', 'productivityMonitor', 'siteSync', 'webhooks', 'collaborativeSites', 'clientPortal']) {
       expect(isAdminOnlyFeature(k)).toBe(true);
     }
     expect(isAdminOnlyFeature('cloning')).toBe(false);
@@ -111,7 +111,7 @@ describe('DB-backed lookups', () => {
 
   it('builds an effective map covering all features for an admin', () => {
     const map = effectiveFeatures('admin');
-    expect(Object.keys(map).length).toBe(17);
+    expect(Object.keys(map).length).toBe(18);
     expect(map.cloning).toBe(true);
     expect(map.projects).toBe(true);
   });
