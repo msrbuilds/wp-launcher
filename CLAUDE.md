@@ -118,6 +118,7 @@ Tables in `data/wp-launcher.db`:
 - **remote_connections** — id, name, url, api_key, instance_mode, last_tested_at, status, created_at
 - **sync_history** — id, site_id, remote_connection_id, direction (push|pull), status, remote_site_url, snapshot_id, db_engine, size_bytes, error, started_at, completed_at
 - **clients** — id, user_id, name, email, phone, company, notes, created_at, updated_at
+- **client_users** — id, client_id, email (unique), password_hash, verified, invite_token, invite_expires_at, token_version, last_login_at, created_at. Portal logins. **Not** a role on `users`: `features.service` resolves any non-privileged role through the member namespace, which permits launching demo sites
 - **projects** — id, user_id, client_id, name, description, status (active/completed/on-hold/archived), created_at, updated_at
 - **project_sites** — id, project_id, site_id, created_at (link table)
 - **board_columns** — id, project_id, name, position, client_visible, created_at. `client_visible` defaults to **0**: a forgotten toggle hides work from the client rather than leaking an internal column
@@ -216,6 +217,18 @@ a second staff member CRM access.
 Board ordering is a contiguous integer `position` rewritten for every affected
 column inside a transaction; the arithmetic is in `services/boardOrder.ts` and
 tested independently of the database.
+
+### Client Portal (`/api/portal/*`) — client-scoped token, feature-gated (`clientPortal`, off by default)
+
+- `POST /auth/accept-invite`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`
+- `GET /projects`, `GET /projects/:id` — only columns with `client_visible = 1`, and their cards
+- `GET /invoices`, `GET /invoices/:id` — drafts and cancelled invoices are never exposed; includes the invoice's attached payment methods
+
+Staff-side, on the Mini CRM router: `GET|POST /clients/:id/portal-users` and `DELETE /portal-users/:id`.
+
+**The auth boundary.** Portal tokens carry `scope: 'client'` and **no `userId`** — the field staff middleware reads. Both `userAuth` and `optionalUserAuth` reject them on that claim rather than on a failed user lookup, so a panel endpoint added later without its own guard is still unreachable by a client. Tests assert the user store is *never consulted*, not merely that the answer is 401: an unguarded `userAuth` looks up an undefined id, finds nothing and answers 401 too, so the status alone cannot tell the guard from its absence.
+
+The cookie is `wpl_client_token` at `path: '/api/portal'` — a different name **and** path from the staff `wpl_token` at `/api` — so a client signing in cannot overwrite a colleague's panel session in a shared browser. Portal queries take `client_id` from the verified token; there is no `?clientId=` anywhere. The feature check runs before sign-in and answers 404, so a disabled portal looks absent rather than refused and cannot be probed for which addresses hold accounts.
 
 ### Productivity (`/api/productivity/*`) — feature-gated (`productivityMonitor`)
 - `POST /heartbeats` — batch heartbeat ingestion (no auth, requires cloud linked, CSRF exempt)
@@ -337,8 +350,8 @@ Stored in the `settings` table. Controlled via Admin > Features.
 
 Two scopes. `feature.<key>` is the **admin/owner** set (the original rows — unchanged). `feature.demo.<key>` is the **member** set, and absent means off, so members start with nothing until granted.
 
-**Admin-only (5)** — no member counterpart, never granted:
-`projects`, `productivityMonitor`, `siteSync`, `webhooks`, `collaborativeSites`
+**Admin-only (6)** — no member counterpart, never granted:
+`projects`, `productivityMonitor`, `siteSync`, `webhooks`, `collaborativeSites`, `clientPortal`
 
 **Grantable (12)** — one toggle per audience:
 `cloning`, `snapshots`, `templates`, `customDomains`, `phpConfig`, `siteExtend`, `sitePassword`, `exportZip`, `healthMonitoring`, `scheduledLaunch`, `adminer`, `publicSharing`

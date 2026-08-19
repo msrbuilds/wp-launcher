@@ -24,6 +24,7 @@ import bulkRouter from './routes/bulk';
 import imagesRouter from './routes/images';
 import syncRouter from './routes/sync';
 import projectsRouter from './routes/projects';
+import portalRouter from './routes/portal';
 import productivityRouter from './routes/productivity';
 import monitoringRouter from './routes/monitoring';
 import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cleanup.service';
@@ -561,6 +562,11 @@ app.use('/api/sync', syncRouter);
 
 // Projects, clients, invoices routes (auth + feature gate handled inside router)
 app.use('/api/projects', projectsRouter);
+
+// Portal sign-in and invitation acceptance are exactly the endpoints worth
+// brute-forcing, so they share the panel's auth write limiter.
+app.use('/api/portal/auth', authWriteLimiter);
+app.use('/api/portal', portalRouter);
 
 // Productivity monitor routes (heartbeat ingestion, stats, cloud sync)
 app.use('/api/productivity', productivityRouter);
