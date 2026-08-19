@@ -98,9 +98,11 @@ function AppRoutes() {
           reachable from a client session, and it never mounts AppShell. */}
       <Route path="/portal" element={<PortalLoginPage />} />
       <Route path="/portal/accept" element={<PortalAcceptPage />} />
-      <Route path="/portal" element={<PortalLayout />}>
-        <Route path="projects" element={<PortalProjectsPage />} />
-        <Route path="invoices" element={<PortalInvoicesPage />} />
+      {/* Pathless layout route: giving it path="/portal" would tie with the
+          login route above, and which one won would depend on their order. */}
+      <Route element={<PortalLayout />}>
+        <Route path="/portal/projects" element={<PortalProjectsPage />} />
+        <Route path="/portal/invoices" element={<PortalInvoicesPage />} />
       </Route>
 
       <Route path="/" element={<AppShell />}>
