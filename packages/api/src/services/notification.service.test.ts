@@ -10,7 +10,7 @@ vi.mock('./email.service', () => ({ sendNotificationEmail }));
 
 import {
   getNotificationMode, setNotificationMode, notifyStaff, notifyClient,
-  pendingByRecipient, digestContent, sendDigests,
+  pendingByRecipient, digestContent, sendDigests, getInbox, markRead, INBOX_LIMIT,
 } from './notification.service';
 
 let db: Database.Database;
@@ -88,14 +88,101 @@ describe('daily mode', () => {
 });
 
 describe('off mode', () => {
-  it('neither sends nor records', async () => {
-    // A suppressed notification is neither pending nor sent; stamping it sent
-    // would put a lie in the table, and leaving it pending would resurrect it
-    // in the next digest.
+  it('records the notification but sends no email', async () => {
+    // The preference governs email. Dropping the row would mean the
+    // notification centre silently misses things that happened.
     setNotificationMode('staff', 'u1', 'off');
     await notifyStaff('u1', event());
     expect(sendNotificationEmail).not.toHaveBeenCalled();
-    expect(db.prepare('SELECT COUNT(*) AS c FROM notifications').get()).toEqual({ c: 0 });
+    expect(getInbox('staff', 'u1').items.map((i) => i.subject)).toEqual(['Payment proof submitted']);
+  });
+
+  it('is never picked up by the digest', async () => {
+    // Marked suppressed rather than left merely unsent, or the digest would
+    // mail exactly the people who asked not to be mailed.
+    setNotificationMode('staff', 'u1', 'off');
+    await notifyStaff('u1', event());
+    expect(pendingByRecipient()).toEqual([]);
+    expect(await sendDigests()).toEqual({ recipients: 0, notifications: 0 });
+    expect(sendNotificationEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('the notification centre', () => {
+  it('shows every notification whatever the email preference was', async () => {
+    setNotificationMode('staff', 'u1', 'immediate');
+    await notifyStaff('u1', { ...event(), subject: 'Emailed' });
+    setNotificationMode('staff', 'u1', 'daily');
+    await notifyStaff('u1', { ...event(), subject: 'Queued' });
+    setNotificationMode('staff', 'u1', 'off');
+    await notifyStaff('u1', { ...event(), subject: 'Silent' });
+    expect(getInbox('staff', 'u1').items.map((i) => i.subject)).toEqual(['Silent', 'Queued', 'Emailed']);
+  });
+
+  it('shows nobody else notifications', async () => {
+    await notifyStaff('u1', event());
+    await notifyClient('c1', { ...event(), subject: 'For the client' });
+    expect(getInbox('staff', 'u1').items.map((i) => i.subject)).toEqual(['Payment proof submitted']);
+    expect(getInbox('client', 'cu1').items.map((i) => i.subject)).toEqual(['For the client']);
+    expect(getInbox('client', 'cu2').items).toEqual([]);
+  });
+
+  it('counts unread over everything, not just the returned page', async () => {
+    // A badge that stops climbing at the page size tells someone there are
+    // fifty when there are more.
+    setNotificationMode('staff', 'u1', 'off');
+    for (let i = 0; i < INBOX_LIMIT + 5; i++) await notifyStaff('u1', { ...event(), subject: `n${i}` });
+    const inbox = getInbox('staff', 'u1');
+    expect(inbox.items).toHaveLength(INBOX_LIMIT);
+    expect(inbox.unread).toBe(INBOX_LIMIT + 5);
+  });
+
+  it('filters to unread on request', async () => {
+    setNotificationMode('staff', 'u1', 'off');
+    await notifyStaff('u1', { ...event(), subject: 'First' });
+    await notifyStaff('u1', { ...event(), subject: 'Second' });
+    const first = getInbox('staff', 'u1').items.find((i) => i.subject === 'First')!;
+    markRead('staff', 'u1', [first.id]);
+    expect(getInbox('staff', 'u1', { unreadOnly: true }).items.map((i) => i.subject)).toEqual(['Second']);
+    expect(getInbox('staff', 'u1').items).toHaveLength(2);
+  });
+});
+
+describe('markRead', () => {
+  beforeEach(() => { setNotificationMode('staff', 'u1', 'off'); });
+
+  it('marks the named notifications and reports how many changed', async () => {
+    await notifyStaff('u1', { ...event(), subject: 'One' });
+    await notifyStaff('u1', { ...event(), subject: 'Two' });
+    const [a] = getInbox('staff', 'u1').items;
+    expect(markRead('staff', 'u1', [a.id])).toBe(1);
+    expect(getInbox('staff', 'u1').unread).toBe(1);
+  });
+
+  it('marks everything when given no ids', async () => {
+    await notifyStaff('u1', { ...event(), subject: 'One' });
+    await notifyStaff('u1', { ...event(), subject: 'Two' });
+    expect(markRead('staff', 'u1')).toBe(2);
+    expect(getInbox('staff', 'u1').unread).toBe(0);
+  });
+
+  it('refuses to mark another recipient notification', async () => {
+    // Scoped in the statement itself, so a borrowed id matches nothing rather
+    // than being marked on someone else's behalf.
+    setNotificationMode('client', 'cu1', 'off');
+    await notifyClient('c1', event());
+    const theirs = getInbox('client', 'cu1').items[0];
+    expect(markRead('staff', 'u1', [theirs.id])).toBe(0);
+    expect(getInbox('client', 'cu1').unread).toBe(1);
+  });
+
+  it('leaves an already-read notification alone', async () => {
+    await notifyStaff('u1', event());
+    const [item] = getInbox('staff', 'u1').items;
+    markRead('staff', 'u1', [item.id]);
+    const readAt = getInbox('staff', 'u1').items[0].read_at;
+    expect(markRead('staff', 'u1', [item.id])).toBe(0);
+    expect(getInbox('staff', 'u1').items[0].read_at).toBe(readAt);
   });
 });
 

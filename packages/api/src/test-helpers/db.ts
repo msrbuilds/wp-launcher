@@ -256,7 +256,9 @@ const NOTIFICATIONS_TABLE = `
     body TEXT NOT NULL,
     link TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    sent_at TEXT
+    sent_at TEXT,
+    email_suppressed INTEGER NOT NULL DEFAULT 0,
+    read_at TEXT
   )`;
 
 const NOTIFICATION_PREFS_TABLE = `

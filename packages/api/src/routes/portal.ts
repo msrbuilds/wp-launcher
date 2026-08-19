@@ -11,7 +11,9 @@ import {
   createPaymentProof, getClientProof, listProofsForInvoice,
 } from '../services/paymentProof.service';
 import { readStoredFile, safeDownloadName, MAX_FILE_BYTES } from '../services/fileStore';
-import { notifyStaff, getNotificationMode, setNotificationMode } from '../services/notification.service';
+import {
+  notifyStaff, getNotificationMode, setNotificationMode, getInbox, markRead,
+} from '../services/notification.service';
 import { listClientMessages, postClientMessage } from '../services/clientMessage.service';
 import { isFeatureEnabled } from '../services/features.service';
 import { getDb } from '../utils/db';
@@ -201,6 +203,17 @@ router.get('/notification-pref', clientAuth, (req: ClientAuthRequest, res: Respo
 
 router.put('/notification-pref', clientAuth, (req: ClientAuthRequest, res: Response) => {
   res.json({ mode: setNotificationMode('client', req.clientUserId!, req.body?.mode) });
+});
+
+// ── Notification centre ──
+
+router.get('/notifications', clientAuth, (req: ClientAuthRequest, res: Response) => {
+  res.json(getInbox('client', req.clientUserId!, { unreadOnly: req.query.unreadOnly === 'true' }));
+});
+
+router.post('/notifications/read', clientAuth, (req: ClientAuthRequest, res: Response) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : undefined;
+  res.json({ marked: markRead('client', req.clientUserId!, ids) });
 });
 
 export default router;

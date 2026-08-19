@@ -130,7 +130,7 @@ Tables in `data/wp-launcher.db`:
 - **invoice_payment_methods** — invoice_id, payment_method_id (link table). **Absence means hidden** — an invoice shows only the methods attached to it, so adding a method later never alters an invoice already sent
 - **payment_proofs** — id, invoice_id, client_user_id, storage_path, original_name, mime, size_bytes, amount, note, status (pending/accepted/rejected), reviewed_by, reviewed_at, reject_reason, created_at. `client_user_id` carries **no foreign key**: revoking a portal login deletes that row, and the proof must survive as a record of what was submitted
 - **client_messages** — id, client_id, author_type (staff/client), author_id, author_label, body, project_id, invoice_id, created_at. **One thread per client**, not per project or per invoice: per-thread unread state and forcing the client to choose where to write both buy nothing. `author_id` carries no foreign key, so a revoked portal login does not take their side of the conversation with it
-- **notifications** — id, recipient_type (staff/client), recipient_id, kind, subject, body, link, created_at, sent_at. **A null `sent_at` is a line waiting for that recipient's next digest**
+- **notifications** — id, recipient_type (staff/client), recipient_id, kind, subject, body, link, created_at, sent_at, email_suppressed, read_at. Every notification is recorded whatever the email preference says — the preference governs *email*, and the notification centre must not silently miss things. `sent_at`/`email_suppressed` are about email; `read_at` is the in-app read state and unrelated. **A null `sent_at` with `email_suppressed = 0` is a line waiting for that recipient's next digest**
 - **notification_prefs** — recipient_type, recipient_id, mode (immediate/daily/off), updated_at, primary key on the first two. **A missing row means `immediate`** — nobody is silently opted out of hearing about their own invoices
 - **productivity_heartbeats** — id, source (editor|wordpress), entity, entity_type, project, language, category, editor, site_id, machine_id, branch, is_write, created_at, synced
 - **productivity_goals** — id, daily_goal_seconds, updated_at
@@ -217,6 +217,7 @@ a second staff member CRM access.
 - `GET /invoices/:id/proofs`, `GET /proofs/:id/file`, `POST /proofs/:id/accept`, `POST /proofs/:id/reject` — the payment-proof queue. `GET /proofs/pending-count` backs the badge
 - `GET|POST /clients/:id/messages` — the staff side of a client's conversation
 - `GET|PUT /notification-pref` — the signed-in staff user's own email preference
+- `GET /notifications` (`?unreadOnly=true`), `POST /notifications/read` — the staff notification centre; `read` takes `{ ids }` or an empty body to mark everything
 - `GET /list/:id/board` — columns with their cards, ordered by position
 - `POST /list/:id/board/columns`, `PUT|DELETE /board/columns/:columnId` — manage columns; deleting one deletes its cards
 - `PUT /list/:id/board/columns/reorder` — `{ columnIds }`; unknown ids are ignored and omitted columns appended, so a stale client cannot drop a column
@@ -264,6 +265,7 @@ ambiguous.
 - `POST /invoices/:id/proofs` (multipart, field `file`), `GET /proofs/:id/file`
 - `GET|POST /messages` — the client side of the same conversation
 - `GET|PUT /notification-pref` — this login's own email preference
+- `GET /notifications` (`?unreadOnly=true`), `POST /notifications/read` — the same centre, client-side
 
 Staff-side, on the Mini CRM router: `GET|POST /clients/:id/portal-users` and `DELETE /portal-users/:id`.
 
@@ -337,9 +339,11 @@ mode, sends or queues, and records the result.
 - **`daily`** — queue only. A cron at **08:00** groups everything pending per
   recipient into one email. A digest that arrives at an unpredictable hour is
   not a daily digest.
-- **`off`** — writes no row at all. Stamping a suppressed notification as sent
-  would put a lie in the table, and leaving it pending would resurrect it in
-  the next digest.
+- **`off`** — recorded as `email_suppressed`, no email ever. The row still
+  exists so the notification centre shows it: the preference is about email,
+  not about whether the person is told. Suppressed is a distinct state from
+  "not sent yet", or the digest would mail exactly the people who asked not to
+  be mailed.
 
 An unrecognised mode resolves to `immediate` rather than silence — the failure
 mode of a bad value must not be that someone stops hearing about their invoices.
@@ -351,6 +355,17 @@ for the life of the install.
 Each portal login has its own preference, so one person at a client choosing
 daily does not mute their colleague. Staff set theirs on the Account page, and
 only when Mini CRM is on — they are the only audience for these.
+
+**The notification centre.** A bell in the panel topbar and in the portal
+header, sharing one `NotificationBell` component: the endpoint identifies the
+recipient from their own session, so neither side passes an id. The unread
+count is computed over **everything**, not the returned page — a badge that
+stops climbing at the page size (`INBOX_LIMIT`, 50) would report fifty when
+there are three hundred. `markRead` scopes every statement to the recipient, so
+a borrowed id matches nothing rather than being marked on someone else's
+behalf, and an already-read row keeps its original timestamp. Polling is every
+60s and skipped while the tab is hidden. The panel bell is hidden from members
+and when Mini CRM is off, since every notification kind is a Mini CRM event.
 
 ### Productivity (`/api/productivity/*`) — feature-gated (`productivityMonitor`)
 - `POST /heartbeats` — batch heartbeat ingestion (no auth, requires cloud linked, CSRF exempt)
