@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Loader2, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiFetch } from '../../utils/api';
+import NotificationBell from '../../components/NotificationBell';
 
 /**
  * The portal frame.
@@ -51,6 +52,7 @@ export default function PortalLayout() {
             <NavLink to="/portal/messages" className={linkClass}>Messages</NavLink>
           </nav>
           <div className="flex items-center gap-3">
+            <NotificationBell endpoint="/api/portal/notifications" />
             <span className="text-sm text-muted-foreground">{email}</span>
             <Button variant="secondary" size="xs" onClick={signOut}>
               <LogOut className="h-3 w-3" /> Sign out

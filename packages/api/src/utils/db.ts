@@ -475,8 +475,10 @@ function initSchema(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_client_messages_client ON client_messages(client_id, created_at);
 
-    -- What we told someone, and whether it has gone out yet. A null sent_at is
-    -- a line waiting for that recipient's next daily digest.
+    -- What we told someone: the in-app record, and separately whether an email
+    -- for it has gone out. Every notification is recorded whatever the email
+    -- preference says, so the notification centre is never missing something
+    -- that happened.
     CREATE TABLE IF NOT EXISTS notifications (
       id TEXT PRIMARY KEY,
       recipient_type TEXT NOT NULL,
@@ -486,10 +488,19 @@ function initSchema(db: Database.Database): void {
       body TEXT NOT NULL,
       link TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      sent_at TEXT
+      -- Email only. A null sent_at with email_suppressed = 0 is a line waiting
+      -- for that recipient's next daily digest.
+      sent_at TEXT,
+      -- The recipient asked for no email. Distinct from "not sent yet", or the
+      -- digest would mail people who turned email off.
+      email_suppressed INTEGER NOT NULL DEFAULT 0,
+      -- In-app read state, unrelated to whether an email went out.
+      read_at TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_notifications_pending
       ON notifications(recipient_type, recipient_id, sent_at);
+    CREATE INDEX IF NOT EXISTS idx_notifications_inbox
+      ON notifications(recipient_type, recipient_id, created_at);
 
     -- immediate | daily | off. A missing row means immediate: nobody is
     -- silently opted out of hearing about their own invoices.
@@ -597,6 +608,16 @@ function initSchema(db: Database.Database): void {
   // Migrations for existing databases
   try {
     db.exec(`ALTER TABLE sites ADD COLUMN auto_login_token TEXT`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE notifications ADD COLUMN email_suppressed INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.exec(`ALTER TABLE notifications ADD COLUMN read_at TEXT`);
   } catch {
     // Column already exists
   }

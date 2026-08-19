@@ -96,21 +96,23 @@ async function deliver(
 /**
  * Record and route one notification.
  *
- * `off` writes no row at all: a suppressed notification is neither pending nor
- * sent, and stamping it as sent would put a lie in the table. A failed
- * immediate send leaves the row pending, so the digest carries it rather than
- * the news being lost to a temporary mail outage.
+ * The row is always written, whatever the preference says: the preference
+ * governs **email**, and someone who turned email off still expects to find
+ * what happened in their notification centre. `off` is recorded as
+ * `email_suppressed`, which is what keeps the digest from mailing them anyway
+ * — distinct from "not sent yet", which is what a failed immediate send leaves
+ * behind so the next digest carries it.
  */
 async function notifyOne(type: RecipientType, id: string, input: NotificationInput): Promise<void> {
   const mode = getNotificationMode(type, id);
-  if (mode === 'off') return;
 
   const body = input.lines.join('\n');
   const rowId = uuidv4();
   getDb().prepare(`INSERT INTO notifications
-    (id, recipient_type, recipient_id, kind, subject, body, link, created_at, sent_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`)
-    .run(rowId, type, id, input.kind, input.subject, body, input.link ?? null, stamp());
+    (id, recipient_type, recipient_id, kind, subject, body, link, created_at, sent_at, email_suppressed, read_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL)`)
+    .run(rowId, type, id, input.kind, input.subject, body, input.link ?? null, stamp(),
+      mode === 'off' ? 1 : 0);
 
   if (mode !== 'immediate') return;
 
@@ -167,11 +169,17 @@ export interface PendingGroup {
   rows: { id: string; subject: string; body: string; link: string | null; created_at: string }[];
 }
 
-/** Everything still waiting to go out, grouped by who it is for. */
+/**
+ * Everything still waiting to go out by email, grouped by who it is for.
+ *
+ * Suppressed rows are excluded: they exist for the notification centre, and
+ * collecting them here would email exactly the people who asked not to be.
+ */
 export function pendingByRecipient(): PendingGroup[] {
   const rows = getDb().prepare(`
     SELECT id, recipient_type, recipient_id, subject, body, link, created_at
-    FROM notifications WHERE sent_at IS NULL ORDER BY recipient_type, recipient_id, created_at, rowid
+    FROM notifications WHERE sent_at IS NULL AND email_suppressed = 0
+    ORDER BY recipient_type, recipient_id, created_at, rowid
   `).all() as (PendingGroup['rows'][number] & { recipient_type: RecipientType; recipient_id: string })[];
 
   const groups = new Map<string, PendingGroup>();
@@ -240,6 +248,71 @@ export async function sendDigests(): Promise<{ recipients: number; notifications
   }
 
   return { recipients, notifications };
+}
+
+// ── The notification centre ──
+
+export interface InboxItem {
+  id: string;
+  kind: string;
+  subject: string;
+  body: string;
+  link: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+
+/** How many entries one inbox request returns at most. */
+export const INBOX_LIMIT = 50;
+
+/**
+ * One recipient's notifications, newest first, with the unread count.
+ *
+ * The count is computed over everything rather than over the returned page: a
+ * badge that stops climbing at the page size would tell the recipient there
+ * are fifty when there are three hundred.
+ */
+export function getInbox(
+  type: RecipientType, id: string, opts: { unreadOnly?: boolean } = {},
+): { items: InboxItem[]; unread: number } {
+  const db = getDb();
+  const items = db.prepare(`
+    SELECT id, kind, subject, body, link, created_at, read_at
+    FROM notifications
+    WHERE recipient_type = ? AND recipient_id = ?${opts.unreadOnly ? ' AND read_at IS NULL' : ''}
+    ORDER BY created_at DESC, rowid DESC
+    LIMIT ?
+  `).all(type, id, INBOX_LIMIT) as InboxItem[];
+
+  const unread = (db.prepare(`
+    SELECT COUNT(*) AS count FROM notifications
+    WHERE recipient_type = ? AND recipient_id = ? AND read_at IS NULL
+  `).get(type, id) as { count: number }).count;
+
+  return { items, unread };
+}
+
+/**
+ * Mark notifications read. An empty or missing id list means all of them.
+ *
+ * Every statement is scoped to the recipient, so an id belonging to someone
+ * else simply matches nothing rather than being marked on their behalf.
+ * Already-read rows keep their original timestamp.
+ */
+export function markRead(type: RecipientType, id: string, ids?: string[]): number {
+  const db = getDb();
+  const now = stamp();
+  if (!ids || ids.length === 0) {
+    return db.prepare(`
+      UPDATE notifications SET read_at = ?
+      WHERE recipient_type = ? AND recipient_id = ? AND read_at IS NULL
+    `).run(now, type, id).changes;
+  }
+  const placeholders = ids.map(() => '?').join(', ');
+  return db.prepare(`
+    UPDATE notifications SET read_at = ?
+    WHERE recipient_type = ? AND recipient_id = ? AND read_at IS NULL AND id IN (${placeholders})
+  `).run(now, type, id, ...ids).changes;
 }
 
 export function startDigestScheduler(): void {

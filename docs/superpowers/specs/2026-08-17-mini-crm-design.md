@@ -369,5 +369,7 @@ a client can read a record they shouldn't.
 
 - **Online payment collection.** The payment-method model deliberately stops at
   instructions. Adding a gateway later would extend it rather than replace it.
-- **In-app notification centre.** The `notifications` table makes this mostly a
-  UI exercise once phase 7 lands; not built here.
+- ~~**In-app notification centre.**~~ Built after phase 7. It changed one thing
+  decided here: `off` no longer means "record nothing", because a preference
+  about *email* should not erase someone's history. Suppressed rows are marked
+  as such so the digest still skips them.

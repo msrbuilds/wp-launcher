@@ -11,6 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useFeatures } from '../../context/SettingsContext';
 import { buildNavGroups } from './nav-items';
+import NotificationBell from '../NotificationBell';
 
 function useBreadcrumb(): string {
   const { pathname } = useLocation();
@@ -36,6 +37,10 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const crumb = useBreadcrumb();
+  const features = useFeatures() as unknown as Record<string, boolean>;
+  // Every notification kind is a Mini CRM event, and Mini CRM is admin-only,
+  // so a member has nothing this bell could ever show.
+  const showBell = (user?.role === 'owner' || user?.role === 'admin') && features.projects;
 
   const ThemeIcon = choice === 'light' ? Sun : choice === 'dark' ? Moon : Monitor;
 
@@ -48,6 +53,8 @@ export function Topbar({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
       <div className="ml-auto flex items-center gap-1">
         <ServerClock />
+
+        {showBell && <NotificationBell endpoint="/api/projects/notifications" />}
 
         <Button variant="outline" size="sm" className="mr-1" onClick={() => navigate('/sites/new')}>
           <Plus className="h-4 w-4 sm:mr-1" />

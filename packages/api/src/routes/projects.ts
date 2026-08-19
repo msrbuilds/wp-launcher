@@ -32,7 +32,9 @@ import {
   listCardAttachments, addCardAttachment, getCardAttachment, deleteCardAttachment,
   countsForProject,
 } from '../services/cardActivity.service';
-import { notifyClient, getNotificationMode, setNotificationMode } from '../services/notification.service';
+import {
+  notifyClient, getNotificationMode, setNotificationMode, getInbox, markRead,
+} from '../services/notification.service';
 import { listStaffClientMessages, postStaffMessage } from '../services/clientMessage.service';
 
 const router = Router();
@@ -640,6 +642,17 @@ router.get('/notification-pref', (req: AuthRequest, res: Response) => {
 
 router.put('/notification-pref', (req: AuthRequest, res: Response) => {
   res.json({ mode: setNotificationMode('staff', req.userId!, req.body?.mode) });
+});
+
+// ── Notification centre (the signed-in staff user's own) ──
+
+router.get('/notifications', (req: AuthRequest, res: Response) => {
+  res.json(getInbox('staff', req.userId!, { unreadOnly: req.query.unreadOnly === 'true' }));
+});
+
+router.post('/notifications/read', (req: AuthRequest, res: Response) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : undefined;
+  res.json({ marked: markRead('staff', req.userId!, ids) });
 });
 
 export default router;
