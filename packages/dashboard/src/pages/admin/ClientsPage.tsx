@@ -6,6 +6,8 @@ import { PAGE_SIZE, Client } from './shared';
 import { apiFetch } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmDialog';
+import { useSettings } from '../../context/SettingsContext';
+import PortalAccessDialog from './PortalAccessDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -59,6 +61,8 @@ function SensitiveCell({ value }: { value?: string | null }) {
 }
 
 export default function ClientsPage() {
+  const { features } = useSettings();
+  const [portalFor, setPortalFor] = useState<Client | null>(null);
   const headers = useAdminHeaders();
   const toast = useToast();
   const confirm = useConfirm();
@@ -182,6 +186,9 @@ export default function ClientsPage() {
                   <TableCell>
                     <div className="flex flex-wrap gap-2">
                       <Button variant="secondary" size="xs" onClick={() => openEdit(c)}>Edit</Button>
+                      {features.clientPortal && (
+                        <Button variant="secondary" size="xs" onClick={() => setPortalFor(c)}>Portal</Button>
+                      )}
                       <Button variant="destructive" size="xs" onClick={() => handleDelete(c.id)}>Delete</Button>
                     </div>
                   </TableCell>
@@ -192,6 +199,15 @@ export default function ClientsPage() {
         )}
         <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
       </div>
+
+      {portalFor && (
+        <PortalAccessDialog
+          clientId={portalFor.id}
+          clientName={portalFor.name}
+          open={!!portalFor}
+          onOpenChange={(v) => { if (!v) setPortalFor(null); }}
+        />
+      )}
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent>

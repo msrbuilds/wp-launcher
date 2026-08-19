@@ -20,6 +20,7 @@ export interface FeatureFlags {
   siteSync: boolean;
   projects: boolean;
   productivityMonitor: boolean;
+  clientPortal: boolean;
 }
 
 export interface Branding {
@@ -66,6 +67,7 @@ const DEFAULT_FEATURES: FeatureFlags = {
   siteSync: false,
   projects: false,
   productivityMonitor: false,
+  clientPortal: false,
 };
 
 const DEFAULT_BRANDING: Branding = {
