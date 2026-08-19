@@ -71,7 +71,14 @@ export function userAuth(req: AuthRequest, res: Response, next: NextFunction): v
   }
 
   try {
-    const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string; tv?: number };
+    const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string; tv?: number; scope?: string };
+    // A portal token must never satisfy a staff guard. Rejected on the claim
+    // rather than on a failed user lookup, so an endpoint added later without
+    // its own check is still unreachable by a client.
+    if (decoded.scope === 'client') {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
     const user = getUserById(decoded.userId);
 
     if (!user || !user.verified) {
@@ -106,7 +113,10 @@ export function optionalUserAuth(req: AuthRequest, _res: Response, next: NextFun
   if (!token) return next();
 
   try {
-    const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string; tv?: number };
+    const decoded = jwt.verify(token, config.jwtSecret) as { userId: string; email: string; role?: string; tv?: number; scope?: string };
+    // Same rule for optional auth, but it may not send a response: a portal
+    // token is treated as no token, never as a signed-in staff user.
+    if (decoded.scope === 'client') return next();
     const user = getUserById(decoded.userId);
     // A superseded token is treated as no token at all, not an error.
     if (user && !tokenVersionMatches(decoded.tv, user)) return next();
