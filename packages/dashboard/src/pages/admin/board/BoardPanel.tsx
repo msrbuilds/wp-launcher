@@ -326,7 +326,14 @@ export default function BoardPanel({ projectId }: { projectId: string }) {
     </p>;
   }
   if (board.error) {
-    return <p className="text-sm text-destructive">{board.error}</p>;
+    // Replacing the whole panel with a sentence left no way back short of a
+    // page reload, for what is usually a momentary blip.
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-sm text-destructive">{board.error}</p>
+        <Button variant="secondary" size="sm" onClick={() => board.reload()}>Try again</Button>
+      </div>
+    );
   }
 
   return (
