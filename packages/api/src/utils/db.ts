@@ -428,6 +428,26 @@ function initSchema(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_payment_proofs_invoice ON payment_proofs(invoice_id);
     CREATE INDEX IF NOT EXISTS idx_payment_proofs_status ON payment_proofs(status);
 
+    -- One chronological conversation per client. Any message may point at a
+    -- project or invoice, rendered as a chip; per-project and per-invoice
+    -- threads were rejected because they force the client to choose where to
+    -- write and need per-thread unread state.
+    CREATE TABLE IF NOT EXISTS client_messages (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      author_type TEXT NOT NULL,
+      -- No foreign key: the author may be a staff user or a portal login, and
+      -- a revoked login must not take their side of the conversation with it.
+      author_id TEXT,
+      author_label TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL,
+      project_id TEXT,
+      invoice_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (client_id) REFERENCES clients(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_messages_client ON client_messages(client_id, created_at);
+
     -- Productivity Monitor tables
     CREATE TABLE IF NOT EXISTS productivity_heartbeats (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

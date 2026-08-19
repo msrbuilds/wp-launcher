@@ -127,6 +127,7 @@ Tables in `data/wp-launcher.db`:
 - **payment_methods** — id, label, instructions (free-form), active, sort_order, created_at, updated_at. Install-wide, not per-user: these are the business's bank details. Only owner/admin may change the list
 - **invoice_payment_methods** — invoice_id, payment_method_id (link table). **Absence means hidden** — an invoice shows only the methods attached to it, so adding a method later never alters an invoice already sent
 - **payment_proofs** — id, invoice_id, client_user_id, storage_path, original_name, mime, size_bytes, amount, note, status (pending/accepted/rejected), reviewed_by, reviewed_at, reject_reason, created_at. `client_user_id` carries **no foreign key**: revoking a portal login deletes that row, and the proof must survive as a record of what was submitted
+- **client_messages** — id, client_id, author_type (staff/client), author_id, author_label, body, project_id, invoice_id, created_at. **One thread per client**, not per project or per invoice: per-thread unread state and forcing the client to choose where to write both buy nothing. `author_id` carries no foreign key, so a revoked portal login does not take their side of the conversation with it
 - **productivity_heartbeats** — id, source (editor|wordpress), entity, entity_type, project, language, category, editor, site_id, machine_id, branch, is_write, created_at, synced
 - **productivity_goals** — id, daily_goal_seconds, updated_at
 - **productivity_cloud_config** — key, value (cloud_url, cloud_api_key, device_name, machine_id, last_synced_at, heartbeat_secret — the secret is per-install and outlives cloud linking)
@@ -210,6 +211,7 @@ a second staff member CRM access.
 - `POST|PUT|DELETE /payment-methods[/:id]` — manage the list; owner/admin only. Deleting one an invoice still uses returns 409 — deactivate instead, which hides it from new invoices while leaving sent ones intact
 - `GET|PUT /invoices/:id/payment-methods` — read or replace an invoice's attached methods; `PUT` takes `{ methodIds: string[] }` and authorises through the invoice first
 - `GET /invoices/:id/proofs`, `GET /proofs/:id/file`, `POST /proofs/:id/accept`, `POST /proofs/:id/reject` — the payment-proof queue. `GET /proofs/pending-count` backs the badge
+- `GET|POST /clients/:id/messages` — the staff side of a client's conversation
 - `GET /list/:id/board` — columns with their cards, ordered by position
 - `POST /list/:id/board/columns`, `PUT|DELETE /board/columns/:columnId` — manage columns; deleting one deletes its cards
 - `PUT /list/:id/board/columns/reorder` — `{ columnIds }`; unknown ids are ignored and omitted columns appended, so a stale client cannot drop a column
@@ -226,6 +228,7 @@ tested independently of the database.
 - `GET /projects`, `GET /projects/:id` — only columns with `client_visible = 1`, and their cards
 - `GET /invoices`, `GET /invoices/:id` — drafts and cancelled invoices are never exposed; includes the invoice's attached payment methods
 - `POST /invoices/:id/proofs` (multipart, field `file`), `GET /proofs/:id/file`
+- `GET|POST /messages` — the client side of the same conversation
 
 Staff-side, on the Mini CRM router: `GET|POST /clients/:id/portal-users` and `DELETE /portal-users/:id`.
 
@@ -262,6 +265,28 @@ never touches an invoice that was settled some other way meanwhile.
 
 Uploads are validated and written before any row is inserted, and the file is
 removed if the insert fails — a rejected file leaves no row and no status change.
+
+### Communications
+
+One chronological thread per client, written from both sides. A message may
+reference a project or an invoice, rendered as a chip; composing from a project
+page offers that project's reference.
+
+**References are validated against the message's own client before the row is
+written.** The chip renders the project *name*, so an unchecked reference would
+pull another client's project title into this conversation. A reference that
+does not belong is dropped rather than rejected — a stale id in a form should
+not lose the message someone just typed.
+
+Ordering is `created_at, rowid`: timestamps are second-resolution, so several
+messages written in the same second would otherwise reorder themselves on every
+read.
+
+Both sides notify by email immediately through `services/notification.service.ts`
+— staff are not sitting in the panel waiting, and a conversation that only works
+when someone happens to look is not a conversation. Delivery failures are logged,
+never thrown: a bounced email must not roll back the message that caused it.
+Message bodies are escaped before they reach an HTML email.
 
 ### Productivity (`/api/productivity/*`) — feature-gated (`productivityMonitor`)
 - `POST /heartbeats` — batch heartbeat ingestion (no auth, requires cloud linked, CSRF exempt)

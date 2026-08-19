@@ -27,6 +27,7 @@ import {
 } from '../services/paymentProof.service';
 import { readStoredFile, safeDownloadName } from '../services/fileStore';
 import { notifyClient } from '../services/notification.service';
+import { listStaffClientMessages, postStaffMessage } from '../services/clientMessage.service';
 
 const router = Router();
 
@@ -519,6 +520,34 @@ router.post('/proofs/:id/reject', (req: AuthRequest, res: Response) => {
       });
     }
     res.json(proof);
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// ── Client conversation ──
+
+router.get('/clients/:id/messages', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(listStaffClientMessages(req.userId!, req.params.id));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/clients/:id/messages', (req: AuthRequest, res: Response) => {
+  try {
+    const message = postStaffMessage(req.userId!, req.params.id, {
+      body: req.body?.body, projectId: req.body?.projectId, invoiceId: req.body?.invoiceId,
+    });
+    void notifyClient(req.params.id, {
+      kind: 'message.fromStaff',
+      subject: 'You have a new message',
+      heading: `${message.author_label} wrote to you`,
+      lines: [message.body],
+      link: '/portal/messages',
+    });
+    res.json(message);
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }

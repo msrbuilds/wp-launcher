@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { useAdminHeaders } from './AdminLayout';
 import BoardPanel from './board/BoardPanel';
+import MessageThread from '../../components/MessageThread';
 import { apiFetch } from '../../utils/api';
 import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmDialog';
@@ -215,6 +216,25 @@ export default function ProjectDetailPage() {
               </ul>
             )}
           </div>
+
+          {project.client_id && (
+            <div className="rounded-xl border border-border bg-card p-6 text-card-foreground">
+              <h4 className="mb-1 text-base font-semibold">Client conversation</h4>
+              <p className="mb-3 text-xs text-muted-foreground">
+                One thread per client, shared with every page. Messages sent here reach them by email.
+              </p>
+              {/* Composing from a project offers its reference, so the client
+                  sees which piece of work a message is about. */}
+              <MessageThread
+                endpoint={`/api/projects/clients/${project.client_id}/messages`}
+                side="staff"
+                extraHeaders={headers}
+                preset={{ projectId: project.id }}
+                presetLabel={`Mention ${project.name}`}
+                emptyText="Nothing has been said yet."
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

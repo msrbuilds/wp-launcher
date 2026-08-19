@@ -12,6 +12,7 @@ import {
 } from '../services/paymentProof.service';
 import { readStoredFile, safeDownloadName, MAX_FILE_BYTES } from '../services/fileStore';
 import { notifyStaff } from '../services/notification.service';
+import { listClientMessages, postClientMessage } from '../services/clientMessage.service';
 import { isFeatureEnabled } from '../services/features.service';
 import { getDb } from '../utils/db';
 import { config } from '../config';
@@ -155,6 +156,38 @@ router.get('/proofs/:id/file', clientAuth, (req: ClientAuthRequest, res: Respons
     res.setHeader('Content-Type', proof.mime);
     res.setHeader('Content-Disposition', `inline; filename="${safeDownloadName(proof.original_name)}"`);
     res.send(readStoredFile(proof.storage_path));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// ── Messages ──
+
+router.get('/messages', clientAuth, (req: ClientAuthRequest, res: Response) => {
+  res.json(listClientMessages(req.clientId!));
+});
+
+router.post('/messages', clientAuth, (req: ClientAuthRequest, res: Response) => {
+  try {
+    const message = postClientMessage(req.clientId!, req.clientUserId!, {
+      body: req.body?.body, projectId: req.body?.projectId, invoiceId: req.body?.invoiceId,
+    });
+
+    // The operator is not sitting in the panel waiting; without this the
+    // conversation only works when they happen to look.
+    const owner = getDb().prepare('SELECT user_id FROM clients WHERE id = ?').get(req.clientId!) as
+      { user_id: string } | undefined;
+    if (owner) {
+      void notifyStaff(owner.user_id, {
+        kind: 'message.fromClient',
+        subject: `New message from ${message.author_label}`,
+        heading: 'A client wrote to you',
+        lines: [message.body],
+        link: '/clients',
+      });
+    }
+
+    res.json(message);
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
