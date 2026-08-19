@@ -189,6 +189,25 @@ const INVOICE_PAYMENT_METHODS_TABLE = `
     FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id)
   )`;
 
+const PAYMENT_PROOFS_TABLE = `
+  CREATE TABLE payment_proofs (
+    id TEXT PRIMARY KEY,
+    invoice_id TEXT NOT NULL,
+    client_user_id TEXT,
+    storage_path TEXT NOT NULL,
+    original_name TEXT NOT NULL DEFAULT '',
+    mime TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    amount REAL,
+    note TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    reviewed_by TEXT,
+    reviewed_at TEXT,
+    reject_reason TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+  )`;
+
 const IMAGE_BUILDS_TABLE = `
   CREATE TABLE image_builds (
     id TEXT PRIMARY KEY,
@@ -211,7 +230,7 @@ const IMAGE_BUILDS_TABLE = `
  */
 export function createTestDb(): Database.Database {
   const db = new Database(':memory:');
-  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, CLIENT_USERS_TABLE, PROJECTS_TABLE, PROJECT_SITES_TABLE, BOARD_COLUMNS_TABLE, BOARD_CARDS_TABLE, INVOICES_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE, SNAPSHOTS_TABLE, PAYMENT_METHODS_TABLE, INVOICE_PAYMENT_METHODS_TABLE]) {
+  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, CLIENT_USERS_TABLE, PROJECTS_TABLE, PROJECT_SITES_TABLE, BOARD_COLUMNS_TABLE, BOARD_CARDS_TABLE, INVOICES_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE, SNAPSHOTS_TABLE, PAYMENT_METHODS_TABLE, INVOICE_PAYMENT_METHODS_TABLE, PAYMENT_PROOFS_TABLE]) {
     db.prepare(ddl).run();
   }
   return db;

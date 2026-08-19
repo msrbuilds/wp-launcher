@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import {
   clientAuth, ClientAuthRequest, generateClientToken, CLIENT_COOKIE, CLIENT_COOKIE_PATH,
 } from '../middleware/clientAuth';
@@ -6,10 +7,21 @@ import { acceptInvite, authenticateClientUser, getClientUserById } from '../serv
 import {
   getPortalProjects, getPortalProject, getPortalInvoices, getPortalInvoice,
 } from '../services/portal.service';
+import {
+  createPaymentProof, getClientProof, listProofsForInvoice,
+} from '../services/paymentProof.service';
+import { readStoredFile, safeDownloadName, MAX_FILE_BYTES } from '../services/fileStore';
+import { notifyStaff } from '../services/notification.service';
 import { isFeatureEnabled } from '../services/features.service';
+import { getDb } from '../utils/db';
 import { config } from '../config';
 
 const router = Router();
+
+// In memory, because the file is validated by its bytes before anything is
+// written. Multer's own limit stops an oversized upload at the socket rather
+// than after buffering it whole.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE_BYTES, files: 1 } });
 
 /**
  * The portal is off unless the operator turns it on, and that is checked
@@ -86,7 +98,66 @@ router.get('/invoices/:id', clientAuth, (req: ClientAuthRequest, res: Response) 
   if (!result) { res.status(404).json({ error: 'Not found' }); return; }
   let items: unknown = [];
   try { items = JSON.parse(String(result.invoice.items ?? '[]')); } catch { items = []; }
-  res.json({ ...result, invoice: { ...result.invoice, items } });
+  // The client sees their own submissions and the decision on each, so a
+  // rejection reaches them here as well as by email.
+  const proofs = listProofsForInvoice(req.params.id).map((proof) => ({
+    id: proof.id, original_name: proof.original_name, mime: proof.mime,
+    size_bytes: proof.size_bytes, amount: proof.amount, note: proof.note,
+    status: proof.status, reject_reason: proof.reject_reason, created_at: proof.created_at,
+  }));
+  res.json({ ...result, invoice: { ...result.invoice, items }, proofs });
+});
+
+// ── Payment proofs ──
+
+router.post('/invoices/:id/proofs', clientAuth, upload.single('file'), async (req: ClientAuthRequest, res: Response) => {
+  try {
+    if (!req.file?.buffer) { res.status(400).json({ error: 'Attach the payment document' }); return; }
+    const proof = createPaymentProof(
+      req.clientId!, req.params.id, req.clientUserId!,
+      { buffer: req.file.buffer, originalName: req.file.originalname },
+      { amount: req.body?.amount, note: req.body?.note },
+    );
+
+    // Fire and forget: the proof is recorded, and an unreachable mail server
+    // must not turn a successful upload into an error the client retries.
+    const invoice = getDb()
+      .prepare('SELECT user_id, invoice_number FROM invoices WHERE id = ?')
+      .get(req.params.id) as { user_id: string; invoice_number: string } | undefined;
+    if (invoice) {
+      void notifyStaff(invoice.user_id, {
+        kind: 'proof.uploaded',
+        subject: `Payment proof submitted for ${invoice.invoice_number}`,
+        heading: 'A client sent proof of payment',
+        lines: [
+          `${invoice.invoice_number} is now awaiting your verification.`,
+          proof.amount != null ? `They stated an amount of ${proof.amount}.` : 'No amount was stated.',
+          proof.note ? `Their note: ${proof.note}` : 'They left no note.',
+        ],
+        link: `/invoices/${req.params.id}`,
+      });
+    }
+
+    res.json(proof);
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+/**
+ * Payment documents are served only through this route, never from a static
+ * path: a guessable URL for someone's bank receipt is a leak nobody notices.
+ */
+router.get('/proofs/:id/file', clientAuth, (req: ClientAuthRequest, res: Response) => {
+  try {
+    const proof = getClientProof(req.clientId!, req.params.id);
+    if (!proof) { res.status(404).json({ error: 'Not found' }); return; }
+    res.setHeader('Content-Type', proof.mime);
+    res.setHeader('Content-Disposition', `inline; filename="${safeDownloadName(proof.original_name)}"`);
+    res.send(readStoredFile(proof.storage_path));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
 });
 
 export default router;

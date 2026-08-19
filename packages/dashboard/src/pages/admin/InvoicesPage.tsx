@@ -5,6 +5,7 @@ import { useAdminHeaders } from './AdminLayout';
 import Pagination from './Pagination';
 import { PAGE_SIZE, Invoice, InvoiceLineItem } from './shared';
 import { apiFetch } from '../../utils/api';
+import ProofReviewDialog from './ProofReviewDialog';
 import { useToast } from '../../components/Toast';
 import { useConfirm } from '../../components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
@@ -37,8 +38,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-const STATUS_OPTIONS = ['draft', 'sent', 'paid', 'overdue', 'cancelled'] as const;
-const STATUS_LABELS: Record<string, string> = { draft: 'Draft', sent: 'Sent', paid: 'Paid', overdue: 'Overdue', cancelled: 'Cancelled' };
+const STATUS_OPTIONS = ['draft', 'sent', 'awaiting_verification', 'paid', 'overdue', 'cancelled'] as const;
+const STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft', sent: 'Sent', awaiting_verification: 'Proof sent', paid: 'Paid',
+  overdue: 'Overdue', cancelled: 'Cancelled',
+};
 
 const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   draft: 'secondary',
@@ -46,6 +50,7 @@ const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'outline' | 'des
   paid: 'default',
   overdue: 'destructive',
   cancelled: 'outline',
+  awaiting_verification: 'default',
 };
 
 // Radix Select forbids an empty-string item value, so the "unset" choices are
@@ -65,6 +70,7 @@ export default function InvoicesPage() {
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [reviewing, setReviewing] = useState<{ id: string; number: string } | null>(null);
   const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
   const [projects, setProjects] = useState<{ id: string; name: string; client_id: string | null }[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -362,6 +368,11 @@ export default function InvoicesPage() {
                       {inv.status === 'draft' && <Button variant="secondary" size="xs" onClick={() => openEdit(inv)}>Edit</Button>}
                       {inv.status === 'draft' && <Button size="xs" onClick={() => changeStatus(inv.id, 'sent')}>Send</Button>}
                       {inv.status === 'sent' && <Button size="xs" onClick={() => changeStatus(inv.id, 'paid')}>Paid</Button>}
+                      {inv.status === 'awaiting_verification' && (
+                        <Button size="xs" onClick={() => setReviewing({ id: inv.id, number: inv.invoice_number })}>
+                          Review proof
+                        </Button>
+                      )}
                       {inv.status === 'draft' && <Button variant="destructive" size="xs" onClick={() => handleDelete(inv.id)}>Delete</Button>}
                     </div>
                   </TableCell>
@@ -372,6 +383,16 @@ export default function InvoicesPage() {
         )}
         <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
       </div>
+
+      {reviewing && (
+        <ProofReviewDialog
+          invoiceId={reviewing.id}
+          invoiceNumber={reviewing.number}
+          open={!!reviewing}
+          onOpenChange={(v) => { if (!v) setReviewing(null); }}
+          onReviewed={fetchInvoices}
+        />
+      )}
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">

@@ -22,6 +22,11 @@ import {
   inviteClientUser, listClientUsers, revokeClientUser,
 } from '../services/clientUser.service';
 import { sendPortalInviteEmail } from '../services/email.service';
+import {
+  listProofsForInvoice, getStaffProof, acceptPaymentProof, rejectPaymentProof, countPendingProofs,
+} from '../services/paymentProof.service';
+import { readStoredFile, safeDownloadName } from '../services/fileStore';
+import { notifyClient } from '../services/notification.service';
 
 const router = Router();
 
@@ -438,6 +443,82 @@ router.delete('/portal-users/:id', (req: AuthRequest, res: Response) => {
   try {
     revokeClientUser(req.params.id, req.userId!);
     res.json({ status: 'revoked' });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// ── Payment proofs ──
+
+/** How many proofs are waiting on a decision, for the badge on Invoices. */
+router.get('/proofs/pending-count', (req: AuthRequest, res: Response) => {
+  try {
+    res.json({ count: countPendingProofs(req.userId!) });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.get('/invoices/:id/proofs', (req: AuthRequest, res: Response) => {
+  try {
+    // Authorised through the invoice: getInvoice already filters by owner, so
+    // a proof list cannot be read by knowing an invoice id alone.
+    const invoice = getInvoice(req.params.id, req.userId!);
+    if (!invoice) { res.status(404).json({ error: 'Invoice not found' }); return; }
+    res.json(listProofsForInvoice(req.params.id));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.get('/proofs/:id/file', (req: AuthRequest, res: Response) => {
+  try {
+    const proof = getStaffProof(req.userId!, req.params.id);
+    if (!proof) { res.status(404).json({ error: 'Payment proof not found' }); return; }
+    res.setHeader('Content-Type', proof.mime);
+    res.setHeader('Content-Disposition', `inline; filename="${safeDownloadName(proof.original_name)}"`);
+    res.send(readStoredFile(proof.storage_path));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/proofs/:id/accept', (req: AuthRequest, res: Response) => {
+  try {
+    const proof = acceptPaymentProof(req.userId!, req.params.id);
+    const invoice = getInvoice(proof.invoice_id, req.userId!);
+    if (invoice) {
+      void notifyClient(invoice.client_id, {
+        kind: 'proof.accepted',
+        subject: `Payment received for ${invoice.invoice_number}`,
+        heading: 'Thank you — your payment is confirmed',
+        lines: [`${invoice.invoice_number} is now marked as paid.`],
+        link: `/portal/invoices`,
+      });
+    }
+    res.json(proof);
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/proofs/:id/reject', (req: AuthRequest, res: Response) => {
+  try {
+    const proof = rejectPaymentProof(req.userId!, req.params.id, req.body?.reason);
+    const invoice = getInvoice(proof.invoice_id, req.userId!);
+    if (invoice) {
+      void notifyClient(invoice.client_id, {
+        kind: 'proof.rejected',
+        subject: `We could not confirm your payment for ${invoice.invoice_number}`,
+        heading: 'Your payment proof needs another look',
+        lines: [
+          `${invoice.invoice_number} is still outstanding.`,
+          `Reason given: ${proof.reject_reason}`,
+        ],
+        link: `/portal/invoices`,
+      });
+    }
+    res.json(proof);
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }

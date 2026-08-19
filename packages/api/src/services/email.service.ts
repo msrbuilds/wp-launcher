@@ -208,3 +208,47 @@ export async function sendPortalInviteEmail(email: string, token: string): Promi
   await sendEmail(email, 'Your client portal invitation', html);
   console.log(`[email] Portal invite sent to ${email} via ${config.emailProvider}`);
 }
+
+/**
+ * A plain notification: a heading, a paragraph or two, and one link.
+ *
+ * Every Mini CRM notification uses this rather than a bespoke template, so the
+ * decision of *what* to tell someone stays in notification.service and this
+ * file stays responsible only for how mail looks.
+ */
+export async function sendNotificationEmail(
+  to: string,
+  subject: string,
+  opts: { heading: string; lines: string[]; linkUrl?: string; linkLabel?: string },
+): Promise<void> {
+  const paragraphs = opts.lines
+    .map((line) => `<p style="color: #334155;">${escapeHtml(line)}</p>`)
+    .join('');
+  const button = opts.linkUrl
+    ? `<a href="${opts.linkUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500; margin: 1rem 0;">${escapeHtml(opts.linkLabel || 'Open')}</a>`
+    : '';
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 2rem;">
+      <h2 style="color: #1a1a2e;">${escapeHtml(opts.heading)}</h2>
+      ${paragraphs}
+      ${button}
+    </div>
+  `;
+
+  await sendEmail(to, subject, html);
+}
+
+/**
+ * Message bodies are written by clients and by staff, and land in an HTML
+ * email. Escaping here is what stops a message body becoming markup in
+ * someone else's inbox.
+ */
+export function escapeHtml(value: string): string {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}

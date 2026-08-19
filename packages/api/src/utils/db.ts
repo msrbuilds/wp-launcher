@@ -403,6 +403,31 @@ function initSchema(db: Database.Database): void {
       FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id)
     );
 
+    -- A client's evidence that they paid. Uploading one moves the invoice to
+    -- awaiting_verification; it is never marked paid on upload, or anyone
+    -- could clear their own balance with any file.
+    CREATE TABLE IF NOT EXISTS payment_proofs (
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT NOT NULL,
+      -- No foreign key: revoking a portal login deletes that row, and the
+      -- proof they uploaded must survive as a record of what was submitted.
+      client_user_id TEXT,
+      storage_path TEXT NOT NULL,
+      original_name TEXT NOT NULL DEFAULT '',
+      mime TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL DEFAULT 0,
+      amount REAL,
+      note TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reviewed_by TEXT,
+      reviewed_at TEXT,
+      reject_reason TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_payment_proofs_invoice ON payment_proofs(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_payment_proofs_status ON payment_proofs(status);
+
     -- Productivity Monitor tables
     CREATE TABLE IF NOT EXISTS productivity_heartbeats (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

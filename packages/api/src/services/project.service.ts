@@ -413,11 +413,16 @@ export function updateInvoiceStatus(id: string, userId: string, newStatus: strin
   const existing = db.prepare('SELECT * FROM invoices WHERE id = ? AND user_id = ?').get(id, userId) as InvoiceRecord | undefined;
   if (!existing) throw new NotFoundError('Invoice not found');
 
+  // `awaiting_verification` is reachable only by a client uploading a proof,
+  // never by staff setting it: it means "someone claims to have paid", which
+  // is not a thing the operator can assert on the client's behalf. From there
+  // staff settle it, hand it back, or cancel.
   const validTransitions: Record<string, string[]> = {
     draft: ['sent', 'cancelled'],
     sent: ['paid', 'cancelled'],
     paid: ['cancelled'],
     overdue: ['paid', 'cancelled'],
+    awaiting_verification: ['paid', 'sent', 'cancelled'],
     cancelled: [],
   };
   const allowed = validTransitions[existing.status] || [];
