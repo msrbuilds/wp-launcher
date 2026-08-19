@@ -188,3 +188,23 @@ export async function sendShareNotificationEmail(
   await sendEmail(recipientEmail, `${ownerEmail} shared a site with you - WP Launcher`, html);
   console.log(`[email] Share notification sent to ${recipientEmail} via ${config.emailProvider}`);
 }
+
+export async function sendPortalInviteEmail(email: string, token: string): Promise<void> {
+  const acceptUrl = `${config.publicUrl}/portal/accept?token=${token}`;
+
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 2rem;">
+      <h2 style="color: #1a1a2e;">Your client portal</h2>
+      <p>You've been given access to view your projects and invoices.</p>
+      <p>Click below to set a password and sign in:</p>
+      <a href="${acceptUrl}" style="display: inline-block; background: #2563eb; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; text-decoration: none; font-weight: 500; margin: 1rem 0;">
+        Set your password
+      </a>
+      <p style="color: #64748b; font-size: 0.85rem;">This link works once and expires in 72 hours. If you weren't expecting it, you can ignore this email.</p>
+      <p style="color: #94a3b8; font-size: 0.8rem;">Or copy this link: ${acceptUrl}</p>
+    </div>
+  `;
+
+  await sendEmail(email, 'Your client portal invitation', html);
+  console.log(`[email] Portal invite sent to ${email} via ${config.emailProvider}`);
+}

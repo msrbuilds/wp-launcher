@@ -17,6 +17,9 @@ export const ADMIN_ONLY_FEATURES: readonly string[] = [
   // Invites other users by email: an access-granting and outbound-mail vector
   // that should not sit behind self-service signup.
   'collaborativeSites',
+  // Governs whether people outside the business can sign in at all, so it has
+  // no member counterpart to grant.
+  'clientPortal',
 ];
 
 /** Per-site capabilities an admin may grant to members. */

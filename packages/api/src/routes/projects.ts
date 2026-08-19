@@ -18,6 +18,10 @@ import {
   createCard, updateCard, deleteCard, moveCard,
 } from '../services/board.service';
 import { seesAllRows } from '../utils/scope';
+import {
+  inviteClientUser, listClientUsers, revokeClientUser,
+} from '../services/clientUser.service';
+import { sendPortalInviteEmail } from '../services/email.service';
 
 const router = Router();
 
@@ -400,6 +404,40 @@ router.delete('/payment-methods/:id', requirePrivileged, (req: AuthRequest, res:
   try {
     deletePaymentMethod(req.params.id);
     res.json({ status: 'deleted' });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// ── Portal logins ──
+
+router.get('/clients/:id/portal-users', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(listClientUsers(req.params.id, req.userId!));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/clients/:id/portal-users', async (req: AuthRequest, res: Response) => {
+  try {
+    const { record, token } = inviteClientUser(req.params.id, req.body?.email, req.userId!);
+    // The invitation exists whether or not the mail goes out, so a bounced
+    // send leaves the operator able to re-invite rather than losing the
+    // account. Logged rather than swallowed.
+    await sendPortalInviteEmail(record.email, token).catch((mailErr: any) => {
+      console.error('[portal] Invite email failed:', mailErr.message);
+    });
+    res.json(record);
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.delete('/portal-users/:id', (req: AuthRequest, res: Response) => {
+  try {
+    revokeClientUser(req.params.id, req.userId!);
+    res.json({ status: 'revoked' });
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
