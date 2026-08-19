@@ -32,7 +32,7 @@ import {
   listCardAttachments, addCardAttachment, getCardAttachment, deleteCardAttachment,
   countsForProject,
 } from '../services/cardActivity.service';
-import { notifyClient } from '../services/notification.service';
+import { notifyClient, getNotificationMode, setNotificationMode } from '../services/notification.service';
 import { listStaffClientMessages, postStaffMessage } from '../services/clientMessage.service';
 
 const router = Router();
@@ -630,6 +630,16 @@ router.post('/clients/:id/messages', (req: AuthRequest, res: Response) => {
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
+});
+
+// ── Email preference (the signed-in staff user's own) ──
+
+router.get('/notification-pref', (req: AuthRequest, res: Response) => {
+  res.json({ mode: getNotificationMode('staff', req.userId!) });
+});
+
+router.put('/notification-pref', (req: AuthRequest, res: Response) => {
+  res.json({ mode: setNotificationMode('staff', req.userId!, req.body?.mode) });
 });
 
 export default router;

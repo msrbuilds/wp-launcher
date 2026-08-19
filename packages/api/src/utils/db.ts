@@ -475,6 +475,32 @@ function initSchema(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_client_messages_client ON client_messages(client_id, created_at);
 
+    -- What we told someone, and whether it has gone out yet. A null sent_at is
+    -- a line waiting for that recipient's next daily digest.
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      recipient_type TEXT NOT NULL,
+      recipient_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      link TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      sent_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_notifications_pending
+      ON notifications(recipient_type, recipient_id, sent_at);
+
+    -- immediate | daily | off. A missing row means immediate: nobody is
+    -- silently opted out of hearing about their own invoices.
+    CREATE TABLE IF NOT EXISTS notification_prefs (
+      recipient_type TEXT NOT NULL,
+      recipient_id TEXT NOT NULL,
+      mode TEXT NOT NULL DEFAULT 'immediate',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (recipient_type, recipient_id)
+    );
+
     -- Productivity Monitor tables
     CREATE TABLE IF NOT EXISTS productivity_heartbeats (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -11,7 +11,7 @@ import {
   createPaymentProof, getClientProof, listProofsForInvoice,
 } from '../services/paymentProof.service';
 import { readStoredFile, safeDownloadName, MAX_FILE_BYTES } from '../services/fileStore';
-import { notifyStaff } from '../services/notification.service';
+import { notifyStaff, getNotificationMode, setNotificationMode } from '../services/notification.service';
 import { listClientMessages, postClientMessage } from '../services/clientMessage.service';
 import { isFeatureEnabled } from '../services/features.service';
 import { getDb } from '../utils/db';
@@ -191,6 +191,16 @@ router.post('/messages', clientAuth, (req: ClientAuthRequest, res: Response) => 
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
+});
+
+// ── Email preference ──
+
+router.get('/notification-pref', clientAuth, (req: ClientAuthRequest, res: Response) => {
+  res.json({ mode: getNotificationMode('client', req.clientUserId!) });
+});
+
+router.put('/notification-pref', clientAuth, (req: ClientAuthRequest, res: Response) => {
+  res.json({ mode: setNotificationMode('client', req.clientUserId!, req.body?.mode) });
 });
 
 export default router;

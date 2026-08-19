@@ -30,6 +30,7 @@ import monitoringRouter from './routes/monitoring';
 import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cleanup.service';
 import { startScheduleProcessor } from './services/schedule.service';
 import { startProductivitySync } from './services/productivity-sync.service';
+import { startDigestScheduler } from './services/notification.service';
 import { ensureHeartbeatSecret } from './services/productivity.service';
 import { reconcileStuckImageBuilds } from './services/imageBuildJob.service';
 import { publicApiBaseUrl, isLocalDeployment } from './utils/deployment';
@@ -642,6 +643,8 @@ startScheduleProcessor();
 
 // Start productivity cloud sync scheduler (every 6 hours)
 startProductivitySync();
+
+startDigestScheduler();
 
 // Run orphan cleanup every 5 minutes
 setInterval(() => {

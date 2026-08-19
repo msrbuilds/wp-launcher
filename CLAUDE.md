@@ -130,6 +130,8 @@ Tables in `data/wp-launcher.db`:
 - **invoice_payment_methods** — invoice_id, payment_method_id (link table). **Absence means hidden** — an invoice shows only the methods attached to it, so adding a method later never alters an invoice already sent
 - **payment_proofs** — id, invoice_id, client_user_id, storage_path, original_name, mime, size_bytes, amount, note, status (pending/accepted/rejected), reviewed_by, reviewed_at, reject_reason, created_at. `client_user_id` carries **no foreign key**: revoking a portal login deletes that row, and the proof must survive as a record of what was submitted
 - **client_messages** — id, client_id, author_type (staff/client), author_id, author_label, body, project_id, invoice_id, created_at. **One thread per client**, not per project or per invoice: per-thread unread state and forcing the client to choose where to write both buy nothing. `author_id` carries no foreign key, so a revoked portal login does not take their side of the conversation with it
+- **notifications** — id, recipient_type (staff/client), recipient_id, kind, subject, body, link, created_at, sent_at. **A null `sent_at` is a line waiting for that recipient's next digest**
+- **notification_prefs** — recipient_type, recipient_id, mode (immediate/daily/off), updated_at, primary key on the first two. **A missing row means `immediate`** — nobody is silently opted out of hearing about their own invoices
 - **productivity_heartbeats** — id, source (editor|wordpress), entity, entity_type, project, language, category, editor, site_id, machine_id, branch, is_write, created_at, synced
 - **productivity_goals** — id, daily_goal_seconds, updated_at
 - **productivity_cloud_config** — key, value (cloud_url, cloud_api_key, device_name, machine_id, last_synced_at, heartbeat_secret — the secret is per-install and outlives cloud linking)
@@ -214,6 +216,7 @@ a second staff member CRM access.
 - `GET|PUT /invoices/:id/payment-methods` — read or replace an invoice's attached methods; `PUT` takes `{ methodIds: string[] }` and authorises through the invoice first
 - `GET /invoices/:id/proofs`, `GET /proofs/:id/file`, `POST /proofs/:id/accept`, `POST /proofs/:id/reject` — the payment-proof queue. `GET /proofs/pending-count` backs the badge
 - `GET|POST /clients/:id/messages` — the staff side of a client's conversation
+- `GET|PUT /notification-pref` — the signed-in staff user's own email preference
 - `GET /list/:id/board` — columns with their cards, ordered by position
 - `POST /list/:id/board/columns`, `PUT|DELETE /board/columns/:columnId` — manage columns; deleting one deletes its cards
 - `PUT /list/:id/board/columns/reorder` — `{ columnIds }`; unknown ids are ignored and omitted columns appended, so a stale client cannot drop a column
@@ -250,6 +253,7 @@ tested independently of the database.
 - `GET /invoices`, `GET /invoices/:id` — drafts and cancelled invoices are never exposed; includes the invoice's attached payment methods
 - `POST /invoices/:id/proofs` (multipart, field `file`), `GET /proofs/:id/file`
 - `GET|POST /messages` — the client side of the same conversation
+- `GET|PUT /notification-pref` — this login's own email preference
 
 Staff-side, on the Mini CRM router: `GET|POST /clients/:id/portal-users` and `DELETE /portal-users/:id`.
 
@@ -308,6 +312,33 @@ Both sides notify by email immediately through `services/notification.service.ts
 when someone happens to look is not a conversation. Delivery failures are logged,
 never thrown: a bounced email must not roll back the message that caused it.
 Message bodies are escaped before they reach an HTML email.
+
+### Notifications and digests
+
+`services/notification.service.ts` is the only place that decides who hears
+about a Mini CRM event. Callers say what happened; it resolves the recipient's
+mode, sends or queues, and records the result.
+
+- **`immediate`** — send now, stamp `sent_at`. A *failed* send leaves the row
+  pending, so the next digest carries it rather than the news being lost to one
+  bad night for the mail server.
+- **`daily`** — queue only. A cron at **08:00** groups everything pending per
+  recipient into one email. A digest that arrives at an unpredictable hour is
+  not a daily digest.
+- **`off`** — writes no row at all. Stamping a suppressed notification as sent
+  would put a lie in the table, and leaving it pending would resurrect it in
+  the next digest.
+
+An unrecognised mode resolves to `immediate` rather than silence — the failure
+mode of a bad value must not be that someone stops hearing about their invoices.
+
+A recipient whose address has gone (a revoked portal login) has their pending
+rows stamped anyway, or the same undeliverable lines are retried every morning
+for the life of the install.
+
+Each portal login has its own preference, so one person at a client choosing
+daily does not mute their colleague. Staff set theirs on the Account page, and
+only when Mini CRM is on — they are the only audience for these.
 
 ### Productivity (`/api/productivity/*`) — feature-gated (`productivityMonitor`)
 - `POST /heartbeats` — batch heartbeat ingestion (no auth, requires cloud linked, CSRF exempt)
