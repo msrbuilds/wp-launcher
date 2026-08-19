@@ -50,6 +50,9 @@ export function buildNavGroups(features: Features, role: string | undefined): Na
             { to: '/clients', label: 'Clients', icon: Users },
             { to: '/projects', label: 'Projects', icon: FolderKanban },
             { to: '/invoices', label: 'Invoices', icon: Receipt },
+            // Payment methods sat under Settings, away from the invoices that
+            // are the only thing that uses them.
+            { to: '/payment-methods', label: 'Payment Methods', icon: CreditCard },
           ]
         : [],
     },
@@ -74,7 +77,6 @@ export function buildNavGroups(features: Features, role: string | undefined): Na
             { to: '/panel', label: 'General', icon: SlidersHorizontal },
             { to: '/features', label: 'Features', icon: ToggleLeft },
             { to: '/branding', label: 'Branding', icon: Palette },
-            { to: '/payment-methods', label: 'Payment Methods', icon: CreditCard },
             { to: '/images', label: 'Images', icon: Boxes },
             { to: '/users', label: 'Users', icon: UserCog },
             { to: '/system', label: 'System', icon: Server },
