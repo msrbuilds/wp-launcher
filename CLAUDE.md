@@ -287,6 +287,8 @@ never touches an invoice that was settled some other way meanwhile.
   wipes on redeploy. `resolveStoredPath` refuses anything escaping that root.
 - Served **only** through an authenticated route. A guessable public URL for a
   payment document is a leak nobody notices.
+- Both upload endpoints carry their own rate limit (30 per 15 min), separate
+  from the read limits — bytes on disk cost more than a JSON response does.
 
 Uploads are validated and written before any row is inserted, and the file is
 removed if the insert fails — a rejected file leaves no row and no status change.

@@ -124,9 +124,19 @@ async function notifyOne(type: RecipientType, id: string, input: NotificationInp
   }
 }
 
-/** Tell one staff user. */
+/**
+ * Tell one staff user.
+ *
+ * Never rejects. Call sites fire these without awaiting, so a rejection would
+ * surface as an unhandled rejection rather than anywhere useful — and none of
+ * them should fail the request that triggered the notification.
+ */
 export async function notifyStaff(userId: string, input: NotificationInput): Promise<void> {
-  await notifyOne('staff', userId, input);
+  try {
+    await notifyOne('staff', userId, input);
+  } catch (err: any) {
+    console.error(`[notify] ${input.kind} for staff ${userId} failed:`, err?.message || err);
+  }
 }
 
 /**
@@ -134,14 +144,18 @@ export async function notifyStaff(userId: string, input: NotificationInput): Pro
  *
  * Unverified invitees are skipped: they have no password yet, so a link into
  * the portal would only bounce them to a sign-in they cannot complete. Each
- * has their own preference.
+ * has their own preference. Never rejects, for the same reason as notifyStaff.
  */
 export async function notifyClient(clientId: string, input: NotificationInput): Promise<void> {
-  const recipients = getDb()
-    .prepare('SELECT id FROM client_users WHERE client_id = ? AND verified = 1')
-    .all(clientId) as { id: string }[];
-  for (const recipient of recipients) {
-    await notifyOne('client', recipient.id, input);
+  try {
+    const recipients = getDb()
+      .prepare('SELECT id FROM client_users WHERE client_id = ? AND verified = 1')
+      .all(clientId) as { id: string }[];
+    for (const recipient of recipients) {
+      await notifyOne('client', recipient.id, input);
+    }
+  } catch (err: any) {
+    console.error(`[notify] ${input.kind} for client ${clientId} failed:`, err?.message || err);
   }
 }
 

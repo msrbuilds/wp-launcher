@@ -107,6 +107,16 @@ const inviteLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// File uploads land on disk and cost real bytes, so both sides of the portal
+// get a cap independent of how many reads they make.
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { error: 'Too many uploads. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Unauthenticated public surfaces (demo portal listing).
 const publicReadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -562,11 +572,13 @@ app.delete('/api/admin/branding/logo', ...brandingAuth, (_req: any, res: any) =>
 app.use('/api/sync', syncRouter);
 
 // Projects, clients, invoices routes (auth + feature gate handled inside router)
+app.post('/api/projects/board/cards/:cardId/attachments', uploadLimiter);
 app.use('/api/projects', projectsRouter);
 
 // Portal sign-in and invitation acceptance are exactly the endpoints worth
 // brute-forcing, so they share the panel's auth write limiter.
 app.use('/api/portal/auth', authWriteLimiter);
+app.post('/api/portal/invoices/:id/proofs', uploadLimiter);
 app.use('/api/portal', portalRouter);
 
 // Productivity monitor routes (heartbeat ingestion, stats, cloud sync)
