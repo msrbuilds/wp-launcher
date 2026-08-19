@@ -15,6 +15,10 @@ import LoginPage from './pages/LoginPage';
 import SetupPage from './pages/SetupPage';
 import AccountPage from './pages/AccountPage';
 import VerifyPage from './pages/VerifyPage';
+import { PortalLoginPage, PortalAcceptPage } from './pages/portal/PortalAuthPages';
+import PortalLayout from './pages/portal/PortalLayout';
+import PortalProjectsPage from './pages/portal/PortalProjectsPage';
+import PortalInvoicesPage from './pages/portal/PortalInvoicesPage';
 import VerifyEmailChangePage from './pages/VerifyEmailChangePage';
 import SignupPage from './pages/SignupPage';
 import DemoPortalPage from './pages/DemoPortalPage';
@@ -89,6 +93,15 @@ function AppRoutes() {
       <Route path="/verify" element={<VerifyPage />} />
       <Route path="/verify-email-change" element={<VerifyEmailChangePage />} />
       <Route path="/setup" element={<Navigate to="/" replace />} />
+
+      {/* The client portal. Outside the shell so no staff navigation is
+          reachable from a client session, and it never mounts AppShell. */}
+      <Route path="/portal" element={<PortalLoginPage />} />
+      <Route path="/portal/accept" element={<PortalAcceptPage />} />
+      <Route path="/portal" element={<PortalLayout />}>
+        <Route path="projects" element={<PortalProjectsPage />} />
+        <Route path="invoices" element={<PortalInvoicesPage />} />
+      </Route>
 
       <Route path="/" element={<AppShell />}>
         {/* Available to every signed-in account (members included). */}
