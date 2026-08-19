@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Eye, EyeOff, Loader2, MessageSquare, Paperclip, Plus, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, GripVertical, Loader2, MessageSquare, Paperclip, Plus, Trash2 } from 'lucide-react';
 import {
   DndContext, DragEndEvent, KeyboardSensor, PointerSensor,
-  closestCorners, useDroppable, useSensor, useSensors,
+  closestCorners, useSensor, useSensors,
 } from '@dnd-kit/core';
 import {
-  SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy,
+  SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ import { useAdminHeaders } from '../AdminLayout';
 import { useConfirm } from '../../../components/ConfirmDialog';
 import { useBoard, BoardColumn, BoardCard } from './useBoard';
 import CardActivity from './CardActivity';
+import { cardDestination, reorderedColumnIds } from './dragResolve';
 
 /** Labels are stored as a JSON string; a malformed value renders as no labels rather than throwing. */
 function parseLabels(labels: string): string[] {
@@ -40,7 +42,8 @@ function CardTile({ card, counts, onOpen }: {
   counts?: { comments: number; attachments: number };
   onOpen: (card: BoardCard) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: card.id, data: { type: 'card' } });
   const labels = parseLabels(card.labels);
   return (
     <div
@@ -188,9 +191,12 @@ function Column({ column, board, onOpenCard }: {
   const confirm = useConfirm();
   const [title, setTitle] = useState('');
   const [name, setName] = useState(column.name);
-  // Registers the whole column (not just the card list) as a drop target,
-  // so a card can be dropped into an empty column.
-  const { setNodeRef: setDropRef } = useDroppable({ id: `column:${column.id}` });
+  // One registration serving both jobs: the column is a drop target for cards
+  // (including on its empty space) and a draggable in the column order.
+  // Its listeners go on the grip alone — put them on the whole column and
+  // every card drag would grab the column out from under it.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: column.id, data: { type: 'column' } });
 
   // Re-sync the field whenever the server's name actually changes (e.g. a
   // successful rename lands after a reload). This never fires mid-keystroke,
@@ -198,8 +204,23 @@ function Column({ column, board, onOpenCard }: {
   useEffect(() => { setName(column.name); }, [column.name]);
 
   return (
-    <div ref={setDropRef} className="flex w-72 shrink-0 flex-col gap-3 rounded-xl border border-border bg-muted/40 p-3">
+    <div
+      ref={setNodeRef}
+      // dnd-kit computes a per-frame pixel translation; there is no class for it.
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex w-72 shrink-0 flex-col gap-3 rounded-xl border border-border bg-muted/40 p-3 ${isDragging ? 'opacity-60' : ''}`}
+    >
       <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          title="Drag to reorder"
+          aria-label={`Reorder ${column.name}`}
+          className="shrink-0 cursor-grab rounded p-1 text-muted-foreground hover:text-foreground"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
         <Input
           className="h-8 border-transparent bg-transparent font-medium"
           value={name}
@@ -284,26 +305,19 @@ export default function BoardPanel({ projectId }: { projectId: string }) {
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over) return;
-    const cardId = String(active.id);
+    const activeId = String(active.id);
     const overId = String(over.id);
 
-    // Dropped on empty space in a column: the droppable id carries the column.
-    if (overId.startsWith('column:')) {
-      const toColumnId = overId.slice('column:'.length);
-      const target = board.columns.find((c) => c.id === toColumnId);
-      if (!target) return;
-      const alreadyThere = target.cards.some((c) => c.id === cardId);
-      if (alreadyThere && target.cards[target.cards.length - 1]?.id === cardId) return;
-      board.moveCardTo(cardId, toColumnId, target.cards.length);
+    // Both kinds of drag end over the same pool of ids, so the branch reads
+    // what was picked up rather than guessing from what it landed on.
+    if (active.data.current?.type === 'column') {
+      const order = reorderedColumnIds(board.columns, activeId, overId);
+      if (order) board.reorderColumns(order);
       return;
     }
 
-    // Dropped on another card: take that card's column and index.
-    const destination = board.columns.find((c) => c.cards.some((card) => card.id === overId));
-    if (!destination) return;
-    const toIndex = destination.cards.findIndex((card) => card.id === overId);
-    if (overId === cardId) return;
-    board.moveCardTo(cardId, destination.id, toIndex);
+    const destination = cardDestination(board.columns, activeId, overId);
+    if (destination) board.moveCardTo(activeId, destination.columnId, destination.index);
   }
 
   if (board.loading) {
@@ -319,7 +333,7 @@ export default function BoardPanel({ projectId }: { projectId: string }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Columns are hidden from the client until you make them visible.
+          Drag a column by its handle to reorder. Columns are hidden from the client until you make them visible.
         </p>
         <form
           className="flex gap-2"
@@ -337,11 +351,13 @@ export default function BoardPanel({ projectId }: { projectId: string }) {
         </p>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {board.columns.map((column) => (
-              <Column key={column.id} column={column} board={board} onOpenCard={setEditingCard} />
-            ))}
-          </div>
+          <SortableContext items={board.columns.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {board.columns.map((column) => (
+                <Column key={column.id} column={column} board={board} onOpenCard={setEditingCard} />
+              ))}
+            </div>
+          </SortableContext>
         </DndContext>
       )}
 

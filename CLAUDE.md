@@ -246,6 +246,16 @@ Board ordering is a contiguous integer `position` rewritten for every affected
 column inside a transaction; the arithmetic is in `services/boardOrder.ts` and
 tested independently of the database.
 
+Cards and columns share one dnd-kit `DndContext`, so a column is dragged by a
+**grip in its header only** — listeners on the whole column would grab it out
+from under every card drag. `handleDragEnd` branches on `active.data.current.type`
+(what was picked up) rather than on what it landed over, since both kinds end
+over the same pool of ids. The id resolution lives in
+`pages/admin/board/dragResolve.ts` as plain functions over plain data, tested
+without a pointer. The column's `useSortable` registration is also its card drop
+target — a second `useDroppable` on the same node would make collision detection
+ambiguous.
+
 ### Client Portal (`/api/portal/*`) — client-scoped token, feature-gated (`clientPortal`, off by default)
 
 - `POST /auth/accept-invite`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`

@@ -76,8 +76,25 @@ export function useBoard(projectId: string, headers: Record<string, string>) {
     await send(`/api/projects/board/cards/${cardId}/move`, 'PUT', { toColumnId, toIndex });
   }, [send]);
 
+  /**
+   * Reorder locally first, for the same reason moveCardTo does: without it the
+   * column snaps back to where it was and then jumps once send()'s reload
+   * lands.
+   */
+  const reorderColumns = useCallback(async (columnIds: string[]) => {
+    setColumns((current) => {
+      const byId = new Map(current.map((column) => [column.id, column]));
+      const next = columnIds.map((id) => byId.get(id)).filter(Boolean) as BoardColumn[];
+      // Anything the caller did not mention keeps its place at the end, which
+      // is what the endpoint does with omitted columns too.
+      const mentioned = new Set(columnIds);
+      return [...next, ...current.filter((column) => !mentioned.has(column.id))];
+    });
+    await send(`/api/projects/list/${projectId}/board/columns/reorder`, 'PUT', { columnIds });
+  }, [projectId, send]);
+
   return {
-    columns, activity, loading, error, reload,
+    columns, activity, loading, error, reload, reorderColumns,
     addColumn: (name: string) => send(`/api/projects/list/${projectId}/board/columns`, 'POST', { name }),
     renameColumn: (columnId: string, name: string) => send(`/api/projects/board/columns/${columnId}`, 'PUT', { name }),
     setColumnVisibility: (columnId: string, client_visible: boolean) =>
@@ -89,7 +106,5 @@ export function useBoard(projectId: string, headers: Record<string, string>) {
       send(`/api/projects/board/cards/${cardId}`, 'PUT', data),
     removeCard: (cardId: string) => send(`/api/projects/board/cards/${cardId}`, 'DELETE'),
     moveCardTo,
-    reorderColumns: (columnIds: string[]) =>
-      send(`/api/projects/list/${projectId}/board/columns/reorder`, 'PUT', { columnIds }),
   };
 }
