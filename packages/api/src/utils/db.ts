@@ -277,6 +277,27 @@ function initSchema(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_clients_user_id ON clients(user_id);
 
+    -- Portal logins. Deliberately NOT a role on the users table:
+    -- features.service resolves any non-privileged role through the member
+    -- namespace, which permits launching demo sites, so a client role would
+    -- inherit permissions by default on an app that provisions containers.
+    CREATE TABLE IF NOT EXISTS client_users (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL DEFAULT '',
+      verified INTEGER NOT NULL DEFAULT 0,
+      invite_token TEXT,
+      invite_expires_at TEXT,
+      token_version INTEGER NOT NULL DEFAULT 0,
+      last_login_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (client_id) REFERENCES clients(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_client_users_client ON client_users(client_id);
+    CREATE INDEX IF NOT EXISTS idx_client_users_invite ON client_users(invite_token);
+
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -441,6 +462,7 @@ function initSchema(db: Database.Database): void {
 
   // Seed default feature flags and branding
   const defaultSettings: Record<string, string> = {
+    'feature.clientPortal': 'false',
     'feature.cloning': 'false',
     'feature.snapshots': 'false',
     'feature.templates': 'false',
