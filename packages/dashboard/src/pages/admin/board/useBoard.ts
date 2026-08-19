@@ -10,9 +10,13 @@ export interface BoardColumn {
   id: string; name: string; position: number; client_visible: number; cards: BoardCard[];
 }
 
+/** How many notes and files hang off each card, keyed by card id. */
+export type CardActivityCounts = Record<string, { comments: number; attachments: number }>;
+
 export function useBoard(projectId: string, headers: Record<string, string>) {
   const toast = useToast();
   const [columns, setColumns] = useState<BoardColumn[]>([]);
+  const [activity, setActivity] = useState<CardActivityCounts>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -21,7 +25,9 @@ export function useBoard(projectId: string, headers: Record<string, string>) {
       const res = await apiFetch(`/api/projects/list/${projectId}/board`, { headers });
       if (!res.ok) { setError('Could not load the board'); return; }
       setError('');
-      setColumns((await res.json()).columns);
+      const board = await res.json();
+      setColumns(board.columns);
+      setActivity(board.activity || {});
     } catch {
       setError('Could not reach the server');
     } finally {
@@ -71,7 +77,7 @@ export function useBoard(projectId: string, headers: Record<string, string>) {
   }, [send]);
 
   return {
-    columns, loading, error, reload,
+    columns, activity, loading, error, reload,
     addColumn: (name: string) => send(`/api/projects/list/${projectId}/board/columns`, 'POST', { name }),
     renameColumn: (columnId: string, name: string) => send(`/api/projects/board/columns/${columnId}`, 'PUT', { name }),
     setColumnVisibility: (columnId: string, client_visible: boolean) =>

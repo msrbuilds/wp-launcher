@@ -354,6 +354,33 @@ function initSchema(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_board_cards_column ON board_cards(column_id);
 
+    -- Staff-only. Clients see cards in visible columns but raise things in
+    -- their own thread instead, so this stays a frank internal record and no
+    -- client input is stranded on a card nobody rechecks.
+    CREATE TABLE IF NOT EXISTS card_comments (
+      id TEXT PRIMARY KEY,
+      card_id TEXT NOT NULL,
+      author_id TEXT,
+      author_label TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (card_id) REFERENCES board_cards(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_card_comments_card ON card_comments(card_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS card_attachments (
+      id TEXT PRIMARY KEY,
+      card_id TEXT NOT NULL,
+      storage_path TEXT NOT NULL,
+      original_name TEXT NOT NULL DEFAULT '',
+      mime TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL DEFAULT 0,
+      uploaded_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (card_id) REFERENCES board_cards(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_card_attachments_card ON card_attachments(card_id);
+
     CREATE TABLE IF NOT EXISTS invoices (
       id TEXT PRIMARY KEY,
       invoice_number TEXT UNIQUE NOT NULL,

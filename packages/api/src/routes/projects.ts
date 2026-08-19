@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import multer from 'multer';
 import { conditionalAuth, AuthRequest } from '../middleware/userAuth';
 import { getDb } from '../utils/db';
 import { isFeatureEnabled } from '../services/features.service';
@@ -25,11 +26,19 @@ import { sendPortalInviteEmail } from '../services/email.service';
 import {
   listProofsForInvoice, getStaffProof, acceptPaymentProof, rejectPaymentProof, countPendingProofs,
 } from '../services/paymentProof.service';
-import { readStoredFile, safeDownloadName } from '../services/fileStore';
+import { readStoredFile, safeDownloadName, MAX_FILE_BYTES } from '../services/fileStore';
+import {
+  listCardComments, addCardComment, deleteCardComment,
+  listCardAttachments, addCardAttachment, getCardAttachment, deleteCardAttachment,
+  countsForProject,
+} from '../services/cardActivity.service';
 import { notifyClient } from '../services/notification.service';
 import { listStaffClientMessages, postStaffMessage } from '../services/clientMessage.service';
 
 const router = Router();
+
+// In memory: the file is identified by its bytes before anything is written.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE_BYTES, files: 1 } });
 
 function requireProjects(req: AuthRequest, res: Response, next: () => void) {
   // projects is admin-only, so this is false for members by construction —
@@ -205,7 +214,10 @@ router.delete('/list/:id/sites/:siteId', (req: AuthRequest, res: Response) => {
 
 router.get('/list/:id/board', (req: AuthRequest, res: Response) => {
   try {
-    res.json(getBoard(req.params.id, req.userId!));
+    const board = getBoard(req.params.id, req.userId!);
+    // Counts travel with the board so a card can show its badges without the
+    // panel opening every card to find out whether it has anything on it.
+    res.json({ ...board, activity: countsForProject(req.params.id) });
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
@@ -444,6 +456,73 @@ router.delete('/portal-users/:id', (req: AuthRequest, res: Response) => {
   try {
     revokeClientUser(req.params.id, req.userId!);
     res.json({ status: 'revoked' });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// ── Card comments and attachments (staff only) ──
+
+router.get('/board/cards/:cardId/comments', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(listCardComments(req.params.cardId, req.userId!));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/board/cards/:cardId/comments', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(addCardComment(req.params.cardId, req.userId!, req.body?.body));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.delete('/board/comments/:commentId', (req: AuthRequest, res: Response) => {
+  try {
+    deleteCardComment(req.params.commentId, req.userId!);
+    res.json({ status: 'deleted' });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.get('/board/cards/:cardId/attachments', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(listCardAttachments(req.params.cardId, req.userId!));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/board/cards/:cardId/attachments', upload.single('file'), (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file?.buffer) { res.status(400).json({ error: 'Attach a file' }); return; }
+    res.json(addCardAttachment(req.params.cardId, req.userId!, {
+      buffer: req.file.buffer, originalName: req.file.originalname,
+    }));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.get('/board/attachments/:id/file', (req: AuthRequest, res: Response) => {
+  try {
+    const attachment = getCardAttachment(req.params.id, req.userId!);
+    if (!attachment) { res.status(404).json({ error: 'Attachment not found' }); return; }
+    res.setHeader('Content-Type', attachment.mime);
+    res.setHeader('Content-Disposition', `inline; filename="${safeDownloadName(attachment.original_name)}"`);
+    res.send(readStoredFile(attachment.storage_path));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.delete('/board/attachments/:id', (req: AuthRequest, res: Response) => {
+  try {
+    deleteCardAttachment(req.params.id, req.userId!);
+    res.json({ status: 'deleted' });
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }

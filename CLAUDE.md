@@ -123,6 +123,8 @@ Tables in `data/wp-launcher.db`:
 - **project_sites** — id, project_id, site_id, created_at (link table)
 - **board_columns** — id, project_id, name, position, client_visible, created_at. `client_visible` defaults to **0**: a forgotten toggle hides work from the client rather than leaking an internal column
 - **board_cards** — id, project_id, column_id, title, description, position, due_date, labels (JSON array), created_at, updated_at. `project_id` is denormalised beside `column_id` so a card authorises against its project without joining through its column. **No assignee** — a panel has one operator
+- **card_comments** — id, card_id, author_id, author_label, body, created_at. **Staff-only**: clients see cards in visible columns but raise things in their client thread, so no client input is stranded on a card nobody rechecks or in a column later hidden
+- **card_attachments** — id, card_id, storage_path, original_name, mime, size_bytes, uploaded_by, created_at. Same file store as payment proofs
 - **invoices** — id, invoice_number (INV-0001), user_id, client_id, project_id, items (JSON line items), subtotal, tax_rate, tax_amount, total, currency, status (draft/sent/awaiting_verification/paid/overdue/cancelled), issue_date, due_date, notes, created_at, updated_at
 - **payment_methods** — id, label, instructions (free-form), active, sort_order, created_at, updated_at. Install-wide, not per-user: these are the business's bank details. Only owner/admin may change the list
 - **invoice_payment_methods** — invoice_id, payment_method_id (link table). **Absence means hidden** — an invoice shows only the methods attached to it, so adding a method later never alters an invoice already sent
@@ -217,6 +219,25 @@ a second staff member CRM access.
 - `PUT /list/:id/board/columns/reorder` — `{ columnIds }`; unknown ids are ignored and omitted columns appended, so a stale client cannot drop a column
 - `POST /board/columns/:columnId/cards`, `PUT|DELETE /board/cards/:cardId` — manage cards
 - `PUT /board/cards/:cardId/move` — `{ toColumnId, toIndex }`; refuses a destination in another project, and renumbers both affected columns in one transaction
+- `GET|POST /board/cards/:cardId/comments`, `DELETE /board/comments/:commentId`
+- `GET|POST /board/cards/:cardId/attachments` (multipart, field `file`), `GET /board/attachments/:id/file`, `DELETE /board/attachments/:id`
+
+`GET /list/:id/board` also returns `activity`: per-card comment and attachment
+counts, two grouped queries rather than one per card, so a tile can show its
+badges without the panel opening every card to find out.
+
+Authorisation for the board lives in `services/boardAccess.ts` — imported by
+both `board.service` and `cardActivity.service`, which is what keeps that
+dependency one-way. `cardOrFail`/`columnOrFail` answer with their **own** noun
+whether the row is missing or simply someone else's; reporting "Project not
+found" for the second case would confirm that a guessed card id exists.
+
+Comments and attachments carry a foreign key to `board_cards`, so
+`deleteCard`, `deleteColumn` and `deleteProject` all call `purgeCardActivity`
+first — without it any card that was ever commented on is undeletable. The
+purge removes the files too, or the store grows for the life of the install.
+`deleteClient` likewise takes `client_users` and `client_messages` with it;
+projects and invoices remain the records the operator is made to clear first.
 
 Board ordering is a contiguous integer `position` rewritten for every affected
 column inside a transaction; the arithmetic is in `services/boardOrder.ts` and

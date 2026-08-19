@@ -2,6 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../utils/db';
 import { ValidationError, NotFoundError } from '../utils/errors';
 import { sequentialPositions, moveWithinList } from './boardOrder';
+import { assertProject, columnOrFail, cardOrFail } from './boardAccess';
+import { purgeCardActivity } from './cardActivity.service';
 
 export interface BoardColumn {
   id: string; project_id: string; name: string;
@@ -16,32 +18,6 @@ export interface BoardCard {
 
 const stamp = () => new Date().toISOString().replace('Z', '').replace(/\.\d+/, '');
 
-/**
- * Every board operation starts here.
- *
- * The board has no ownership of its own: a caller may touch it exactly when
- * they may see the project. Resolving that in one place means no query below
- * has to remember to filter, and a missing project is indistinguishable from
- * one belonging to someone else.
- */
-function assertProject(projectId: string, userId: string): void {
-  const project = getDb().prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?').get(projectId, userId);
-  if (!project) throw new NotFoundError('Project not found');
-}
-
-function columnOrFail(columnId: string, userId: string): BoardColumn {
-  const column = getDb().prepare('SELECT * FROM board_columns WHERE id = ?').get(columnId) as BoardColumn | undefined;
-  if (!column) throw new NotFoundError('Column not found');
-  assertProject(column.project_id, userId);
-  return column;
-}
-
-function cardOrFail(cardId: string, userId: string): BoardCard {
-  const card = getDb().prepare('SELECT * FROM board_cards WHERE id = ?').get(cardId) as BoardCard | undefined;
-  if (!card) throw new NotFoundError('Card not found');
-  assertProject(card.project_id, userId);
-  return card;
-}
 
 export function getBoard(projectId: string, userId: string): { columns: (BoardColumn & { cards: BoardCard[] })[] } {
   assertProject(projectId, userId);
@@ -89,6 +65,11 @@ export function deleteColumn(columnId: string, userId: string): void {
   const column = columnOrFail(columnId, userId);
   const db = getDb();
   const remove = db.transaction(() => {
+    // Comments and attachments carry a foreign key to board_cards, so a
+    // column holding a commented-on card is otherwise undeletable.
+    const cardIds = (db.prepare('SELECT id FROM board_cards WHERE column_id = ?')
+      .all(columnId) as { id: string }[]).map((r) => r.id);
+    purgeCardActivity(cardIds);
     db.prepare('DELETE FROM board_cards WHERE column_id = ?').run(columnId);
     db.prepare('DELETE FROM board_columns WHERE id = ?').run(columnId);
     const remaining = db.prepare('SELECT id FROM board_columns WHERE project_id = ? ORDER BY position')
@@ -170,6 +151,7 @@ export function deleteCard(cardId: string, userId: string): void {
   const card = cardOrFail(cardId, userId);
   const db = getDb();
   const remove = db.transaction(() => {
+    purgeCardActivity([cardId]);
     db.prepare('DELETE FROM board_cards WHERE id = ?').run(cardId);
     const remaining = db.prepare('SELECT id FROM board_cards WHERE column_id = ? ORDER BY position')
       .all(card.column_id) as { id: string }[];
