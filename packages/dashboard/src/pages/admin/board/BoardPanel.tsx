@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Eye, EyeOff, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, MessageSquare, Paperclip, Plus, Trash2 } from 'lucide-react';
 import {
   DndContext, DragEndEvent, KeyboardSensor, PointerSensor,
   closestCorners, useDroppable, useSensor, useSensors,
@@ -23,6 +23,7 @@ import {
 import { useAdminHeaders } from '../AdminLayout';
 import { useConfirm } from '../../../components/ConfirmDialog';
 import { useBoard, BoardColumn, BoardCard } from './useBoard';
+import CardActivity from './CardActivity';
 
 /** Labels are stored as a JSON string; a malformed value renders as no labels rather than throwing. */
 function parseLabels(labels: string): string[] {
@@ -34,7 +35,11 @@ function parseLabels(labels: string): string[] {
   }
 }
 
-function CardTile({ card, onOpen }: { card: BoardCard; onOpen: (card: BoardCard) => void }) {
+function CardTile({ card, counts, onOpen }: {
+  card: BoardCard;
+  counts?: { comments: number; attachments: number };
+  onOpen: (card: BoardCard) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
   const labels = parseLabels(card.labels);
   return (
@@ -52,7 +57,7 @@ function CardTile({ card, onOpen }: { card: BoardCard; onOpen: (card: BoardCard)
       className={`cursor-grab rounded-lg border border-border bg-background p-3 shadow-sm ${isDragging ? 'opacity-50' : ''}`}
     >
       <p className="text-sm text-foreground">{card.title}</p>
-      {(labels.length > 0 || card.due_date) && (
+      {(labels.length > 0 || card.due_date || counts) && (
         <div className="mt-2 flex flex-wrap items-center gap-1">
           {labels.map((label) => (
             <Badge key={label} variant="secondary" className="text-xs">{label}</Badge>
@@ -60,6 +65,18 @@ function CardTile({ card, onOpen }: { card: BoardCard; onOpen: (card: BoardCard)
           {card.due_date && (
             <span className="text-xs text-muted-foreground">
               due {new Date(`${card.due_date}T00:00:00Z`).toLocaleDateString()}
+            </span>
+          )}
+          {/* Badges rather than a count opening the card: the point is to see
+              from the board which cards carry a record. */}
+          {!!counts?.comments && (
+            <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+              <MessageSquare className="h-3 w-3" />{counts.comments}
+            </span>
+          )}
+          {!!counts?.attachments && (
+            <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+              <Paperclip className="h-3 w-3" />{counts.attachments}
             </span>
           )}
         </div>
@@ -122,7 +139,7 @@ function CardEditorDialog({ card, board, onClose }: {
 
   return (
     <Dialog open={card !== null} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Edit Card</DialogTitle>
         </DialogHeader>
@@ -147,6 +164,10 @@ function CardEditorDialog({ card, board, onClose }: {
             />
           </div>
         </div>
+        {/* Keyed on the card so switching cards remounts rather than showing
+            the previous card's notes while the new ones load. */}
+        {card && <CardActivity key={card.id} cardId={card.id} onChanged={board.reload} />}
+
         <DialogFooter className="sm:justify-between">
           <Button variant="destructive" onClick={handleDelete} disabled={saving}>Delete</Button>
           <div className="flex gap-2">
@@ -221,7 +242,9 @@ function Column({ column, board, onOpenCard }: {
 
       <SortableContext items={column.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
         <div className="flex min-h-[3rem] flex-col gap-2">
-          {column.cards.map((card) => <CardTile key={card.id} card={card} onOpen={onOpenCard} />)}
+          {column.cards.map((card) => (
+            <CardTile key={card.id} card={card} counts={board.activity[card.id]} onOpen={onOpenCard} />
+          ))}
         </div>
       </SortableContext>
 

@@ -354,6 +354,33 @@ function initSchema(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_board_cards_column ON board_cards(column_id);
 
+    -- Staff-only. Clients see cards in visible columns but raise things in
+    -- their own thread instead, so this stays a frank internal record and no
+    -- client input is stranded on a card nobody rechecks.
+    CREATE TABLE IF NOT EXISTS card_comments (
+      id TEXT PRIMARY KEY,
+      card_id TEXT NOT NULL,
+      author_id TEXT,
+      author_label TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (card_id) REFERENCES board_cards(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_card_comments_card ON card_comments(card_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS card_attachments (
+      id TEXT PRIMARY KEY,
+      card_id TEXT NOT NULL,
+      storage_path TEXT NOT NULL,
+      original_name TEXT NOT NULL DEFAULT '',
+      mime TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL DEFAULT 0,
+      uploaded_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (card_id) REFERENCES board_cards(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_card_attachments_card ON card_attachments(card_id);
+
     CREATE TABLE IF NOT EXISTS invoices (
       id TEXT PRIMARY KEY,
       invoice_number TEXT UNIQUE NOT NULL,
@@ -401,6 +428,77 @@ function initSchema(db: Database.Database): void {
       PRIMARY KEY (invoice_id, payment_method_id),
       FOREIGN KEY (invoice_id) REFERENCES invoices(id),
       FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id)
+    );
+
+    -- A client's evidence that they paid. Uploading one moves the invoice to
+    -- awaiting_verification; it is never marked paid on upload, or anyone
+    -- could clear their own balance with any file.
+    CREATE TABLE IF NOT EXISTS payment_proofs (
+      id TEXT PRIMARY KEY,
+      invoice_id TEXT NOT NULL,
+      -- No foreign key: revoking a portal login deletes that row, and the
+      -- proof they uploaded must survive as a record of what was submitted.
+      client_user_id TEXT,
+      storage_path TEXT NOT NULL,
+      original_name TEXT NOT NULL DEFAULT '',
+      mime TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL DEFAULT 0,
+      amount REAL,
+      note TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reviewed_by TEXT,
+      reviewed_at TEXT,
+      reject_reason TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_payment_proofs_invoice ON payment_proofs(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_payment_proofs_status ON payment_proofs(status);
+
+    -- One chronological conversation per client. Any message may point at a
+    -- project or invoice, rendered as a chip; per-project and per-invoice
+    -- threads were rejected because they force the client to choose where to
+    -- write and need per-thread unread state.
+    CREATE TABLE IF NOT EXISTS client_messages (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      author_type TEXT NOT NULL,
+      -- No foreign key: the author may be a staff user or a portal login, and
+      -- a revoked login must not take their side of the conversation with it.
+      author_id TEXT,
+      author_label TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL,
+      project_id TEXT,
+      invoice_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (client_id) REFERENCES clients(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_messages_client ON client_messages(client_id, created_at);
+
+    -- What we told someone, and whether it has gone out yet. A null sent_at is
+    -- a line waiting for that recipient's next daily digest.
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      recipient_type TEXT NOT NULL,
+      recipient_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      link TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      sent_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_notifications_pending
+      ON notifications(recipient_type, recipient_id, sent_at);
+
+    -- immediate | daily | off. A missing row means immediate: nobody is
+    -- silently opted out of hearing about their own invoices.
+    CREATE TABLE IF NOT EXISTS notification_prefs (
+      recipient_type TEXT NOT NULL,
+      recipient_id TEXT NOT NULL,
+      mode TEXT NOT NULL DEFAULT 'immediate',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (recipient_type, recipient_id)
     );
 
     -- Productivity Monitor tables

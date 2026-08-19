@@ -9,6 +9,8 @@ import { PasswordStrengthMeter } from '../components/PasswordStrengthMeter';
 import { evaluatePassword } from '@/lib/password-strength';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/api';
+import { useSettings } from '../context/SettingsContext';
+import NotificationPrefControl from '../components/NotificationPrefControl';
 
 type Note = { kind: 'ok' | 'error'; text: string } | null;
 
@@ -23,6 +25,8 @@ function NoteLine({ note }: { note: Note }) {
 
 export default function AccountPage() {
   const { user, logout, refreshUser } = useAuth();
+  const { features } = useSettings();
+  const privileged = user?.role === 'owner' || user?.role === 'admin';
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
@@ -45,6 +49,22 @@ export default function AccountPage() {
         onChanged={refreshUser}
       />
       <PasswordCard />
+
+      {/* Only the audience that receives these: Mini CRM notifications go to
+          the staff user who owns the client, and Mini CRM is admin-only. */}
+      {privileged && features.projects && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Client notifications</CardTitle>
+            <CardDescription>
+              Payment proofs and client messages. A digest arrives at 08:00.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <NotificationPrefControl endpoint="/api/projects/notification-pref" />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3">

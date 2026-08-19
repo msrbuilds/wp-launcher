@@ -48,6 +48,7 @@ export default function PortalLayout() {
           <nav className="flex items-center gap-4">
             <NavLink to="/portal/projects" className={linkClass}>Projects</NavLink>
             <NavLink to="/portal/invoices" className={linkClass}>Invoices</NavLink>
+            <NavLink to="/portal/messages" className={linkClass}>Messages</NavLink>
           </nav>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">{email}</span>

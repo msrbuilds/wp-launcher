@@ -123,9 +123,15 @@ Tables in `data/wp-launcher.db`:
 - **project_sites** — id, project_id, site_id, created_at (link table)
 - **board_columns** — id, project_id, name, position, client_visible, created_at. `client_visible` defaults to **0**: a forgotten toggle hides work from the client rather than leaking an internal column
 - **board_cards** — id, project_id, column_id, title, description, position, due_date, labels (JSON array), created_at, updated_at. `project_id` is denormalised beside `column_id` so a card authorises against its project without joining through its column. **No assignee** — a panel has one operator
-- **invoices** — id, invoice_number (INV-0001), user_id, client_id, project_id, items (JSON line items), subtotal, tax_rate, tax_amount, total, currency, status (draft/sent/paid/overdue/cancelled), issue_date, due_date, notes, created_at, updated_at
+- **card_comments** — id, card_id, author_id, author_label, body, created_at. **Staff-only**: clients see cards in visible columns but raise things in their client thread, so no client input is stranded on a card nobody rechecks or in a column later hidden
+- **card_attachments** — id, card_id, storage_path, original_name, mime, size_bytes, uploaded_by, created_at. Same file store as payment proofs
+- **invoices** — id, invoice_number (INV-0001), user_id, client_id, project_id, items (JSON line items), subtotal, tax_rate, tax_amount, total, currency, status (draft/sent/awaiting_verification/paid/overdue/cancelled), issue_date, due_date, notes, created_at, updated_at
 - **payment_methods** — id, label, instructions (free-form), active, sort_order, created_at, updated_at. Install-wide, not per-user: these are the business's bank details. Only owner/admin may change the list
 - **invoice_payment_methods** — invoice_id, payment_method_id (link table). **Absence means hidden** — an invoice shows only the methods attached to it, so adding a method later never alters an invoice already sent
+- **payment_proofs** — id, invoice_id, client_user_id, storage_path, original_name, mime, size_bytes, amount, note, status (pending/accepted/rejected), reviewed_by, reviewed_at, reject_reason, created_at. `client_user_id` carries **no foreign key**: revoking a portal login deletes that row, and the proof must survive as a record of what was submitted
+- **client_messages** — id, client_id, author_type (staff/client), author_id, author_label, body, project_id, invoice_id, created_at. **One thread per client**, not per project or per invoice: per-thread unread state and forcing the client to choose where to write both buy nothing. `author_id` carries no foreign key, so a revoked portal login does not take their side of the conversation with it
+- **notifications** — id, recipient_type (staff/client), recipient_id, kind, subject, body, link, created_at, sent_at. **A null `sent_at` is a line waiting for that recipient's next digest**
+- **notification_prefs** — recipient_type, recipient_id, mode (immediate/daily/off), updated_at, primary key on the first two. **A missing row means `immediate`** — nobody is silently opted out of hearing about their own invoices
 - **productivity_heartbeats** — id, source (editor|wordpress), entity, entity_type, project, language, category, editor, site_id, machine_id, branch, is_write, created_at, synced
 - **productivity_goals** — id, daily_goal_seconds, updated_at
 - **productivity_cloud_config** — key, value (cloud_url, cloud_api_key, device_name, machine_id, last_synced_at, heartbeat_secret — the secret is per-install and outlives cloud linking)
@@ -208,11 +214,33 @@ a second staff member CRM access.
 - `GET /payment-methods` — list (`?activeOnly=true` for the ones offered on new invoices)
 - `POST|PUT|DELETE /payment-methods[/:id]` — manage the list; owner/admin only. Deleting one an invoice still uses returns 409 — deactivate instead, which hides it from new invoices while leaving sent ones intact
 - `GET|PUT /invoices/:id/payment-methods` — read or replace an invoice's attached methods; `PUT` takes `{ methodIds: string[] }` and authorises through the invoice first
+- `GET /invoices/:id/proofs`, `GET /proofs/:id/file`, `POST /proofs/:id/accept`, `POST /proofs/:id/reject` — the payment-proof queue. `GET /proofs/pending-count` backs the badge
+- `GET|POST /clients/:id/messages` — the staff side of a client's conversation
+- `GET|PUT /notification-pref` — the signed-in staff user's own email preference
 - `GET /list/:id/board` — columns with their cards, ordered by position
 - `POST /list/:id/board/columns`, `PUT|DELETE /board/columns/:columnId` — manage columns; deleting one deletes its cards
 - `PUT /list/:id/board/columns/reorder` — `{ columnIds }`; unknown ids are ignored and omitted columns appended, so a stale client cannot drop a column
 - `POST /board/columns/:columnId/cards`, `PUT|DELETE /board/cards/:cardId` — manage cards
 - `PUT /board/cards/:cardId/move` — `{ toColumnId, toIndex }`; refuses a destination in another project, and renumbers both affected columns in one transaction
+- `GET|POST /board/cards/:cardId/comments`, `DELETE /board/comments/:commentId`
+- `GET|POST /board/cards/:cardId/attachments` (multipart, field `file`), `GET /board/attachments/:id/file`, `DELETE /board/attachments/:id`
+
+`GET /list/:id/board` also returns `activity`: per-card comment and attachment
+counts, two grouped queries rather than one per card, so a tile can show its
+badges without the panel opening every card to find out.
+
+Authorisation for the board lives in `services/boardAccess.ts` — imported by
+both `board.service` and `cardActivity.service`, which is what keeps that
+dependency one-way. `cardOrFail`/`columnOrFail` answer with their **own** noun
+whether the row is missing or simply someone else's; reporting "Project not
+found" for the second case would confirm that a guessed card id exists.
+
+Comments and attachments carry a foreign key to `board_cards`, so
+`deleteCard`, `deleteColumn` and `deleteProject` all call `purgeCardActivity`
+first — without it any card that was ever commented on is undeletable. The
+purge removes the files too, or the store grows for the life of the install.
+`deleteClient` likewise takes `client_users` and `client_messages` with it;
+projects and invoices remain the records the operator is made to clear first.
 
 Board ordering is a contiguous integer `position` rewritten for every affected
 column inside a transaction; the arithmetic is in `services/boardOrder.ts` and
@@ -223,12 +251,96 @@ tested independently of the database.
 - `POST /auth/accept-invite`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`
 - `GET /projects`, `GET /projects/:id` — only columns with `client_visible = 1`, and their cards
 - `GET /invoices`, `GET /invoices/:id` — drafts and cancelled invoices are never exposed; includes the invoice's attached payment methods
+- `POST /invoices/:id/proofs` (multipart, field `file`), `GET /proofs/:id/file`
+- `GET|POST /messages` — the client side of the same conversation
+- `GET|PUT /notification-pref` — this login's own email preference
 
 Staff-side, on the Mini CRM router: `GET|POST /clients/:id/portal-users` and `DELETE /portal-users/:id`.
 
 **The auth boundary.** Portal tokens carry `scope: 'client'` and **no `userId`** — the field staff middleware reads. Both `userAuth` and `optionalUserAuth` reject them on that claim rather than on a failed user lookup, so a panel endpoint added later without its own guard is still unreachable by a client. Tests assert the user store is *never consulted*, not merely that the answer is 401: an unguarded `userAuth` looks up an undefined id, finds nothing and answers 401 too, so the status alone cannot tell the guard from its absence.
 
 The cookie is `wpl_client_token` at `path: '/api/portal'` — a different name **and** path from the staff `wpl_token` at `/api` — so a client signing in cannot overwrite a colleague's panel session in a shared browser. Portal queries take `client_id` from the verified token; there is no `?clientId=` anywhere. The feature check runs before sign-in and answers 404, so a disabled portal looks absent rather than refused and cannot be probed for which addresses hold accounts.
+
+### Payment proofs and the file store
+
+Uploading a proof moves the invoice to **`awaiting_verification`** — never to
+`paid`. Accepting is what records money received; without that split any client
+could clear their own balance with any file, and the books would hold claims
+rather than confirmed payments. `awaiting_verification` is unreachable from
+`updateInvoiceStatus`: staff cannot assert on a client's behalf that someone
+claims to have paid. Out of it, staff may go to `paid`, back to `sent`, or
+cancel.
+
+Accepting closes every other pending proof on the invoice (it is settled, so
+nothing is left to decide). Rejecting demands a reason the client reads, and
+only returns the invoice to `sent` once **no** proof is still pending — and
+never touches an invoice that was settled some other way meanwhile.
+
+`services/fileStore.ts` is shared by payment proofs and card attachments:
+
+- PNG, JPEG, WebP and PDF, 5 MB cap, **identified by magic bytes** — the
+  declared MIME type is supplied by the uploader and is not evidence. WebP needs
+  its second prefix checked at offset 8, or every RIFF file (`.wav`) passes.
+- The stored name is random; the uploader's filename is kept for display only,
+  so nothing they control decides where bytes land.
+- Files live under `data/uploads/<kind>/`, never the checkout, which Dokploy
+  wipes on redeploy. `resolveStoredPath` refuses anything escaping that root.
+- Served **only** through an authenticated route. A guessable public URL for a
+  payment document is a leak nobody notices.
+- Both upload endpoints carry their own rate limit (30 per 15 min), separate
+  from the read limits — bytes on disk cost more than a JSON response does.
+
+Uploads are validated and written before any row is inserted, and the file is
+removed if the insert fails — a rejected file leaves no row and no status change.
+
+### Communications
+
+One chronological thread per client, written from both sides. A message may
+reference a project or an invoice, rendered as a chip; composing from a project
+page offers that project's reference.
+
+**References are validated against the message's own client before the row is
+written.** The chip renders the project *name*, so an unchecked reference would
+pull another client's project title into this conversation. A reference that
+does not belong is dropped rather than rejected — a stale id in a form should
+not lose the message someone just typed.
+
+Ordering is `created_at, rowid`: timestamps are second-resolution, so several
+messages written in the same second would otherwise reorder themselves on every
+read.
+
+Both sides notify by email immediately through `services/notification.service.ts`
+— staff are not sitting in the panel waiting, and a conversation that only works
+when someone happens to look is not a conversation. Delivery failures are logged,
+never thrown: a bounced email must not roll back the message that caused it.
+Message bodies are escaped before they reach an HTML email.
+
+### Notifications and digests
+
+`services/notification.service.ts` is the only place that decides who hears
+about a Mini CRM event. Callers say what happened; it resolves the recipient's
+mode, sends or queues, and records the result.
+
+- **`immediate`** — send now, stamp `sent_at`. A *failed* send leaves the row
+  pending, so the next digest carries it rather than the news being lost to one
+  bad night for the mail server.
+- **`daily`** — queue only. A cron at **08:00** groups everything pending per
+  recipient into one email. A digest that arrives at an unpredictable hour is
+  not a daily digest.
+- **`off`** — writes no row at all. Stamping a suppressed notification as sent
+  would put a lie in the table, and leaving it pending would resurrect it in
+  the next digest.
+
+An unrecognised mode resolves to `immediate` rather than silence — the failure
+mode of a bad value must not be that someone stops hearing about their invoices.
+
+A recipient whose address has gone (a revoked portal login) has their pending
+rows stamped anyway, or the same undeliverable lines are retried every morning
+for the life of the install.
+
+Each portal login has its own preference, so one person at a client choosing
+daily does not mute their colleague. Staff set theirs on the Account page, and
+only when Mini CRM is on — they are the only audience for these.
 
 ### Productivity (`/api/productivity/*`) — feature-gated (`productivityMonitor`)
 - `POST /heartbeats` — batch heartbeat ingestion (no auth, requires cloud linked, CSRF exempt)

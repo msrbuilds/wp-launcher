@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import multer from 'multer';
 import { conditionalAuth, AuthRequest } from '../middleware/userAuth';
 import { getDb } from '../utils/db';
 import { isFeatureEnabled } from '../services/features.service';
@@ -22,8 +23,22 @@ import {
   inviteClientUser, listClientUsers, revokeClientUser,
 } from '../services/clientUser.service';
 import { sendPortalInviteEmail } from '../services/email.service';
+import {
+  listProofsForInvoice, getStaffProof, acceptPaymentProof, rejectPaymentProof, countPendingProofs,
+} from '../services/paymentProof.service';
+import { readStoredFile, safeDownloadName, MAX_FILE_BYTES } from '../services/fileStore';
+import {
+  listCardComments, addCardComment, deleteCardComment,
+  listCardAttachments, addCardAttachment, getCardAttachment, deleteCardAttachment,
+  countsForProject,
+} from '../services/cardActivity.service';
+import { notifyClient, getNotificationMode, setNotificationMode } from '../services/notification.service';
+import { listStaffClientMessages, postStaffMessage } from '../services/clientMessage.service';
 
 const router = Router();
+
+// In memory: the file is identified by its bytes before anything is written.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE_BYTES, files: 1 } });
 
 function requireProjects(req: AuthRequest, res: Response, next: () => void) {
   // projects is admin-only, so this is false for members by construction —
@@ -199,7 +214,10 @@ router.delete('/list/:id/sites/:siteId', (req: AuthRequest, res: Response) => {
 
 router.get('/list/:id/board', (req: AuthRequest, res: Response) => {
   try {
-    res.json(getBoard(req.params.id, req.userId!));
+    const board = getBoard(req.params.id, req.userId!);
+    // Counts travel with the board so a card can show its badges without the
+    // panel opening every card to find out whether it has anything on it.
+    res.json({ ...board, activity: countsForProject(req.params.id) });
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
@@ -441,6 +459,187 @@ router.delete('/portal-users/:id', (req: AuthRequest, res: Response) => {
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.message });
   }
+});
+
+// ── Card comments and attachments (staff only) ──
+
+router.get('/board/cards/:cardId/comments', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(listCardComments(req.params.cardId, req.userId!));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/board/cards/:cardId/comments', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(addCardComment(req.params.cardId, req.userId!, req.body?.body));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.delete('/board/comments/:commentId', (req: AuthRequest, res: Response) => {
+  try {
+    deleteCardComment(req.params.commentId, req.userId!);
+    res.json({ status: 'deleted' });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.get('/board/cards/:cardId/attachments', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(listCardAttachments(req.params.cardId, req.userId!));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/board/cards/:cardId/attachments', upload.single('file'), (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file?.buffer) { res.status(400).json({ error: 'Attach a file' }); return; }
+    res.json(addCardAttachment(req.params.cardId, req.userId!, {
+      buffer: req.file.buffer, originalName: req.file.originalname,
+    }));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.get('/board/attachments/:id/file', (req: AuthRequest, res: Response) => {
+  try {
+    const attachment = getCardAttachment(req.params.id, req.userId!);
+    if (!attachment) { res.status(404).json({ error: 'Attachment not found' }); return; }
+    res.setHeader('Content-Type', attachment.mime);
+    res.setHeader('Content-Disposition', `inline; filename="${safeDownloadName(attachment.original_name)}"`);
+    res.send(readStoredFile(attachment.storage_path));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.delete('/board/attachments/:id', (req: AuthRequest, res: Response) => {
+  try {
+    deleteCardAttachment(req.params.id, req.userId!);
+    res.json({ status: 'deleted' });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// ── Payment proofs ──
+
+/** How many proofs are waiting on a decision, for the badge on Invoices. */
+router.get('/proofs/pending-count', (req: AuthRequest, res: Response) => {
+  try {
+    res.json({ count: countPendingProofs(req.userId!) });
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.get('/invoices/:id/proofs', (req: AuthRequest, res: Response) => {
+  try {
+    // Authorised through the invoice: getInvoice already filters by owner, so
+    // a proof list cannot be read by knowing an invoice id alone.
+    const invoice = getInvoice(req.params.id, req.userId!);
+    if (!invoice) { res.status(404).json({ error: 'Invoice not found' }); return; }
+    res.json(listProofsForInvoice(req.params.id));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.get('/proofs/:id/file', (req: AuthRequest, res: Response) => {
+  try {
+    const proof = getStaffProof(req.userId!, req.params.id);
+    if (!proof) { res.status(404).json({ error: 'Payment proof not found' }); return; }
+    res.setHeader('Content-Type', proof.mime);
+    res.setHeader('Content-Disposition', `inline; filename="${safeDownloadName(proof.original_name)}"`);
+    res.send(readStoredFile(proof.storage_path));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/proofs/:id/accept', (req: AuthRequest, res: Response) => {
+  try {
+    const proof = acceptPaymentProof(req.userId!, req.params.id);
+    const invoice = getInvoice(proof.invoice_id, req.userId!);
+    if (invoice) {
+      void notifyClient(invoice.client_id, {
+        kind: 'proof.accepted',
+        subject: `Payment received for ${invoice.invoice_number}`,
+        heading: 'Thank you — your payment is confirmed',
+        lines: [`${invoice.invoice_number} is now marked as paid.`],
+        link: `/portal/invoices`,
+      });
+    }
+    res.json(proof);
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/proofs/:id/reject', (req: AuthRequest, res: Response) => {
+  try {
+    const proof = rejectPaymentProof(req.userId!, req.params.id, req.body?.reason);
+    const invoice = getInvoice(proof.invoice_id, req.userId!);
+    if (invoice) {
+      void notifyClient(invoice.client_id, {
+        kind: 'proof.rejected',
+        subject: `We could not confirm your payment for ${invoice.invoice_number}`,
+        heading: 'Your payment proof needs another look',
+        lines: [
+          `${invoice.invoice_number} is still outstanding.`,
+          `Reason given: ${proof.reject_reason}`,
+        ],
+        link: `/portal/invoices`,
+      });
+    }
+    res.json(proof);
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// ── Client conversation ──
+
+router.get('/clients/:id/messages', (req: AuthRequest, res: Response) => {
+  try {
+    res.json(listStaffClientMessages(req.userId!, req.params.id));
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+router.post('/clients/:id/messages', (req: AuthRequest, res: Response) => {
+  try {
+    const message = postStaffMessage(req.userId!, req.params.id, {
+      body: req.body?.body, projectId: req.body?.projectId, invoiceId: req.body?.invoiceId,
+    });
+    void notifyClient(req.params.id, {
+      kind: 'message.fromStaff',
+      subject: 'You have a new message',
+      heading: `${message.author_label} wrote to you`,
+      lines: [message.body],
+      link: '/portal/messages',
+    });
+    res.json(message);
+  } catch (err: any) {
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
+});
+
+// ── Email preference (the signed-in staff user's own) ──
+
+router.get('/notification-pref', (req: AuthRequest, res: Response) => {
+  res.json({ mode: getNotificationMode('staff', req.userId!) });
+});
+
+router.put('/notification-pref', (req: AuthRequest, res: Response) => {
+  res.json({ mode: setNotificationMode('staff', req.userId!, req.body?.mode) });
 });
 
 export default router;

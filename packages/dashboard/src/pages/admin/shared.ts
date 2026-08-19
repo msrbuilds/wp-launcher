@@ -129,7 +129,7 @@ export interface Invoice {
   tax_amount: number;
   total: number;
   currency: string;
-  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  status: 'draft' | 'sent' | 'awaiting_verification' | 'paid' | 'overdue' | 'cancelled';
   issue_date: string;
   due_date: string | null;
   notes: string | null;

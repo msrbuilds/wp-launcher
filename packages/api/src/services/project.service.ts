@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../utils/db';
+import { purgeCardActivity } from './cardActivity.service';
 import { ValidationError, NotFoundError, ConflictError } from '../utils/errors';
 
 // ── Interfaces ──
@@ -87,7 +88,16 @@ export function deleteClient(id: string, userId: string): void {
   if (projectCount > 0) throw new ConflictError('Cannot delete client with linked projects. Delete or unlink the projects first.');
   const invoiceCount = (db.prepare('SELECT COUNT(*) as count FROM invoices WHERE client_id = ? AND user_id = ?').get(id, userId) as { count: number }).count;
   if (invoiceCount > 0) throw new ConflictError('Cannot delete client with invoices. Delete the invoices first.');
-  db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+  const remove = db.transaction(() => {
+    // Portal logins and the conversation both carry a foreign key to this
+    // client and mean nothing without it, so they go with it rather than
+    // blocking the delete. Projects and invoices are the records the operator
+    // is made to deal with first, above.
+    db.prepare('DELETE FROM client_messages WHERE client_id = ?').run(id);
+    db.prepare('DELETE FROM client_users WHERE client_id = ?').run(id);
+    db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+  });
+  remove();
 }
 
 export function getClient(id: string, userId: string): ClientRecord | undefined {
@@ -172,6 +182,9 @@ export function deleteProject(id: string, userId: string): void {
     // board_columns and board_cards both carry FOREIGN KEY (project_id)
     // REFERENCES projects(id), enforced by better-sqlite3's default
     // foreign_keys pragma. Cards reference columns too, so they must go first.
+    const cardIds = (db.prepare('SELECT id FROM board_cards WHERE project_id = ?')
+      .all(id) as { id: string }[]).map((r) => r.id);
+    purgeCardActivity(cardIds);
     db.prepare('DELETE FROM board_cards WHERE project_id = ?').run(id);
     db.prepare('DELETE FROM board_columns WHERE project_id = ?').run(id);
     db.prepare('DELETE FROM project_sites WHERE project_id = ?').run(id);
@@ -413,11 +426,16 @@ export function updateInvoiceStatus(id: string, userId: string, newStatus: strin
   const existing = db.prepare('SELECT * FROM invoices WHERE id = ? AND user_id = ?').get(id, userId) as InvoiceRecord | undefined;
   if (!existing) throw new NotFoundError('Invoice not found');
 
+  // `awaiting_verification` is reachable only by a client uploading a proof,
+  // never by staff setting it: it means "someone claims to have paid", which
+  // is not a thing the operator can assert on the client's behalf. From there
+  // staff settle it, hand it back, or cancel.
   const validTransitions: Record<string, string[]> = {
     draft: ['sent', 'cancelled'],
     sent: ['paid', 'cancelled'],
     paid: ['cancelled'],
     overdue: ['paid', 'cancelled'],
+    awaiting_verification: ['paid', 'sent', 'cancelled'],
     cancelled: [],
   };
   const allowed = validTransitions[existing.status] || [];

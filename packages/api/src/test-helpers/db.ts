@@ -139,6 +139,30 @@ const BOARD_CARDS_TABLE = `
     FOREIGN KEY (column_id) REFERENCES board_columns(id)
   )`;
 
+const CARD_COMMENTS_TABLE = `
+  CREATE TABLE card_comments (
+    id TEXT PRIMARY KEY,
+    card_id TEXT NOT NULL,
+    author_id TEXT,
+    author_label TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (card_id) REFERENCES board_cards(id)
+  )`;
+
+const CARD_ATTACHMENTS_TABLE = `
+  CREATE TABLE card_attachments (
+    id TEXT PRIMARY KEY,
+    card_id TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
+    original_name TEXT NOT NULL DEFAULT '',
+    mime TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    uploaded_by TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (card_id) REFERENCES board_cards(id)
+  )`;
+
 const INVOICES_TABLE = `
   CREATE TABLE invoices (
     id TEXT PRIMARY KEY,
@@ -189,6 +213,61 @@ const INVOICE_PAYMENT_METHODS_TABLE = `
     FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id)
   )`;
 
+const PAYMENT_PROOFS_TABLE = `
+  CREATE TABLE payment_proofs (
+    id TEXT PRIMARY KEY,
+    invoice_id TEXT NOT NULL,
+    client_user_id TEXT,
+    storage_path TEXT NOT NULL,
+    original_name TEXT NOT NULL DEFAULT '',
+    mime TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    amount REAL,
+    note TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    reviewed_by TEXT,
+    reviewed_at TEXT,
+    reject_reason TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+  )`;
+
+const CLIENT_MESSAGES_TABLE = `
+  CREATE TABLE client_messages (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    author_type TEXT NOT NULL,
+    author_id TEXT,
+    author_label TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL,
+    project_id TEXT,
+    invoice_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (client_id) REFERENCES clients(id)
+  )`;
+
+const NOTIFICATIONS_TABLE = `
+  CREATE TABLE notifications (
+    id TEXT PRIMARY KEY,
+    recipient_type TEXT NOT NULL,
+    recipient_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    link TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    sent_at TEXT
+  )`;
+
+const NOTIFICATION_PREFS_TABLE = `
+  CREATE TABLE notification_prefs (
+    recipient_type TEXT NOT NULL,
+    recipient_id TEXT NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'immediate',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (recipient_type, recipient_id)
+  )`;
+
 const IMAGE_BUILDS_TABLE = `
   CREATE TABLE image_builds (
     id TEXT PRIMARY KEY,
@@ -211,7 +290,7 @@ const IMAGE_BUILDS_TABLE = `
  */
 export function createTestDb(): Database.Database {
   const db = new Database(':memory:');
-  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, CLIENT_USERS_TABLE, PROJECTS_TABLE, PROJECT_SITES_TABLE, BOARD_COLUMNS_TABLE, BOARD_CARDS_TABLE, INVOICES_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE, SNAPSHOTS_TABLE, PAYMENT_METHODS_TABLE, INVOICE_PAYMENT_METHODS_TABLE]) {
+  for (const ddl of [USERS_TABLE, SITES_TABLE, SITE_LOGS_TABLE, CLIENTS_TABLE, CLIENT_USERS_TABLE, PROJECTS_TABLE, PROJECT_SITES_TABLE, BOARD_COLUMNS_TABLE, BOARD_CARDS_TABLE, INVOICES_TABLE, SETTINGS_TABLE, IMAGE_BUILDS_TABLE, SNAPSHOTS_TABLE, PAYMENT_METHODS_TABLE, INVOICE_PAYMENT_METHODS_TABLE, PAYMENT_PROOFS_TABLE, CLIENT_MESSAGES_TABLE, CARD_COMMENTS_TABLE, CARD_ATTACHMENTS_TABLE, NOTIFICATIONS_TABLE, NOTIFICATION_PREFS_TABLE]) {
     db.prepare(ddl).run();
   }
   return db;

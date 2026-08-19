@@ -19,6 +19,7 @@ import { PortalLoginPage, PortalAcceptPage } from './pages/portal/PortalAuthPage
 import PortalLayout from './pages/portal/PortalLayout';
 import PortalProjectsPage from './pages/portal/PortalProjectsPage';
 import PortalInvoicesPage from './pages/portal/PortalInvoicesPage';
+import PortalMessagesPage from './pages/portal/PortalMessagesPage';
 import VerifyEmailChangePage from './pages/VerifyEmailChangePage';
 import SignupPage from './pages/SignupPage';
 import DemoPortalPage from './pages/DemoPortalPage';
@@ -103,6 +104,7 @@ function AppRoutes() {
       <Route element={<PortalLayout />}>
         <Route path="/portal/projects" element={<PortalProjectsPage />} />
         <Route path="/portal/invoices" element={<PortalInvoicesPage />} />
+        <Route path="/portal/messages" element={<PortalMessagesPage />} />
       </Route>
 
       <Route path="/" element={<AppShell />}>

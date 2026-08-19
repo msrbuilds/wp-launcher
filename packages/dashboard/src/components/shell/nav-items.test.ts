@@ -72,9 +72,19 @@ describe('buildNavGroups', () => {
     }
   });
 
-  it('offers payment methods in Settings to privileged roles only', () => {
+  it('keeps payment methods with the invoices that use them', () => {
+    const crm = buildNavGroups(allFeatures, 'admin').find((g) => g.label === 'Mini CRM');
+    expect(crm?.items.map((i) => i.to)).toContain('/payment-methods');
     const settings = buildNavGroups(allFeatures, 'admin').find((g) => g.label === 'Settings');
-    expect(settings?.items.map((i) => i.to)).toContain('/payment-methods');
-    expect(buildNavGroups(allFeatures, 'member').find((g) => g.label === 'Settings')).toBeUndefined();
+    expect(settings?.items.map((i) => i.to)).not.toContain('/payment-methods');
+  });
+
+  it('hides payment methods when Mini CRM is off, and from members entirely', () => {
+    // It followed Settings' visibility before, so an install with Mini CRM
+    // disabled still showed a tab configuring invoices it cannot issue.
+    const crmOff = buildNavGroups({ ...allFeatures, projects: false }, 'admin');
+    expect(crmOff.flatMap((g) => g.items).map((i) => i.to)).not.toContain('/payment-methods');
+    expect(buildNavGroups(allFeatures, 'member').flatMap((g) => g.items).map((i) => i.to))
+      .not.toContain('/payment-methods');
   });
 });
