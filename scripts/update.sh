@@ -113,6 +113,22 @@ YAML
   ok "Override patched with /host/proc mount"
 fi
 
+# Backfill SHARED_DB_ROOT_PASSWORD (required since v2.5.0). docker-compose.yml
+# refuses to start without it, and installs from before shared database servers
+# never had one. Safe to mint here: an install that lacks it has never started a
+# shared engine, so there is no existing root password for it to disagree with.
+if [ -f .env ] && ! grep -q '^SHARED_DB_ROOT_PASSWORD=.\+' .env; then
+  info "Generating SHARED_DB_ROOT_PASSWORD for shared database servers..."
+  SHARED_DB_ROOT_PASSWORD="$(openssl rand -base64 32 2>/dev/null | tr -d '/+=' | head -c 40 || head -c 32 /dev/urandom | base64 | tr -d '/+=')"
+  if grep -q '^SHARED_DB_ROOT_PASSWORD=' .env; then
+    sed -i.bak "s|^SHARED_DB_ROOT_PASSWORD=.*|SHARED_DB_ROOT_PASSWORD=${SHARED_DB_ROOT_PASSWORD}|" .env && rm -f .env.bak
+  else
+    printf '\n# Root password for the shared MySQL/MariaDB servers (added by update.sh)\nSHARED_DB_ROOT_PASSWORD=%s\n' "$SHARED_DB_ROOT_PASSWORD" >> .env
+  fi
+  export SHARED_DB_ROOT_PASSWORD
+  ok "SHARED_DB_ROOT_PASSWORD added to .env"
+fi
+
 # Generate version.json
 info "Generating version info..."
 bash scripts/generate-version.sh || { rollback; }

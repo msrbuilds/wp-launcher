@@ -28,6 +28,7 @@ if [ ! -f .env ]; then
   API_KEY=$(openssl rand -base64 24 2>/dev/null || head -c 24 /dev/urandom | base64)
   JWT_SECRET=$(openssl rand -base64 32 2>/dev/null || head -c 32 /dev/urandom | base64)
   PROV_KEY=$(openssl rand -base64 24 2>/dev/null || head -c 24 /dev/urandom | base64)
+  SHARED_DB_ROOT=$(openssl rand -base64 24 2>/dev/null | tr -d '/+=' || head -c 24 /dev/urandom | base64 | tr -d '/+=')
 
   cat > .env <<EOF
 # WP Launcher — Local Development Mode
@@ -40,6 +41,7 @@ PUBLIC_URL=http://localhost
 API_KEY=${API_KEY}
 JWT_SECRET=${JWT_SECRET}
 PROVISIONER_INTERNAL_KEY=${PROV_KEY}
+SHARED_DB_ROOT_PASSWORD=${SHARED_DB_ROOT}
 
 # WordPress
 WP_IMAGE=wp-launcher/wordpress:latest

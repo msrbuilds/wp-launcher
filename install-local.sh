@@ -87,6 +87,7 @@ if [ ! -f "$PROJECT_DIR/.env" ]; then
   API_KEY="$(gen_secret)"
   JWT_SECRET="$(gen_secret)"
   PROVISIONER_KEY="$(gen_secret)"
+  SHARED_DB_ROOT_PASSWORD="$(gen_secret)"
 
   # Docker bind mounts need Windows-style paths (forward slashes) on Windows
   DOCKER_PROJECT_DIR="$PROJECT_DIR"
@@ -114,6 +115,11 @@ API_KEY=${API_KEY}
 JWT_SECRET=${JWT_SECRET}
 PROVISIONER_INTERNAL_KEY=${PROVISIONER_KEY}
 JWT_EXPIRES_IN=30d
+
+# Root password for the shared MySQL/MariaDB servers. Written into each
+# engine's data volume when it first starts — changing it later does not
+# change the running server's password.
+SHARED_DB_ROOT_PASSWORD=${SHARED_DB_ROOT_PASSWORD}
 
 # No limits in local mode
 MAX_SITES_PER_USER=0
