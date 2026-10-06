@@ -645,21 +645,22 @@ banner "Building WordPress Image"
 # Default: build only PHP 8.3 (fast install). Additional versions are optional.
 echo -e "${BOLD}PHP Versions${NC}"
 echo "  WP Launcher ships with the default PHP 8.3 image."
-echo "  You can also build images for PHP 8.2 and 8.1 (each adds a few minutes)."
+echo "  You can also build images for PHP 8.2, 8.1 and 7.4 (each adds a few minutes)."
+echo "  Any version, including 8.4 and 8.5, can be built later from Settings → Images."
 echo ""
 echo "  1) PHP 8.3 only (recommended — fastest install)"
-echo "  2) All versions (8.3, 8.2, 8.1)"
+echo "  2) All versions (8.3, 8.2, 8.1, 7.4)"
 echo ""
 prompt -rp "$(echo -e "${CYAN}PHP versions to build${NC} [1]: ")" PHP_CHOICE
 PHP_CHOICE="${PHP_CHOICE:-1}"
 
 if [ "$PHP_CHOICE" = "2" ]; then
   WP_PHP_VERSIONS=all bash "$PROJECT_DIR/scripts/build-wp-image.sh"
-  ok "WordPress base images built (PHP 8.3, 8.2, 8.1)"
+  ok "WordPress base images built (PHP 8.3, 8.2, 8.1, 7.4)"
 else
   WP_PHP_VERSIONS=8.3 bash "$PROJECT_DIR/scripts/build-wp-image.sh"
   ok "WordPress base image built (PHP 8.3)"
-  info "To add other PHP versions later:"
+  info "To add other PHP versions later, use Settings → Images, or:"
   info "  WP_PHP_VERSIONS=\"8.2,8.1\" bash scripts/build-wp-image.sh"
 fi
 
