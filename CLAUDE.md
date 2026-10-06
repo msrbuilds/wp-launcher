@@ -41,7 +41,7 @@ products/                   # Product config JSONs (_default, demo-sqlite, demo-
 product-assets/             # Per-product plugins/, themes/, demo-content.xml
 traefik/                    # traefik.yml, dynamic/middleware.yml, dynamic/tls.yml (standalone only)
 scripts/                    # build-wp-image.sh, create-product.sh, setup.sh
-guides/                     # Documentation (getting-started, creating-products, vps-deployment, dokploy-deployment)
+guides/                     # Documentation (getting-started, creating-products, vps-deployment, dokploy-deployment, mini-crm, upgrading)
 docker-compose.dokploy.yml  # Dokploy variant: two-tier Traefik, sites on private wpl-sites
 .env.dokploy.example        # Environment template for Dokploy
 data/                       # Runtime SQLite DB (wp-launcher.db)

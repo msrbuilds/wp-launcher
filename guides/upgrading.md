@@ -45,6 +45,49 @@ curl -sf http://localhost:3737/health
 wpl version
 ```
 
+## Upgrading to v2.5.0 (Mini CRM, Shared Database Servers)
+
+Non-destructive. New tables are created automatically on first start.
+
+### New required secret: `SHARED_DB_ROOT_PASSWORD`
+
+MySQL and MariaDB sites now run on one shared server per engine instead of one
+database container each, and `docker-compose.yml` refuses to start without the
+root password for those servers.
+
+- **`wpl update`, the panel's update button, or `scripts/update.sh`:** nothing
+  to do. The script adds a random `SHARED_DB_ROOT_PASSWORD` to `.env` when it is
+  missing or empty.
+- **Manual upgrade:** add it to `.env` *before* step 5 above:
+
+  ```bash
+  grep -q '^SHARED_DB_ROOT_PASSWORD=.' .env || \
+    echo "SHARED_DB_ROOT_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 40)" >> .env
+  ```
+
+The password is written into each engine's data volume the first time it
+starts. Changing it afterwards does **not** change the running server's
+password — the API will report a mismatch naming the volume.
+
+### Existing MySQL/MariaDB sites
+
+Sites created before v2.5.0 keep their own database container and keep working.
+They move to the shared server only when relaunched; take a snapshot first if
+the site holds anything you need.
+
+### Rebuild the WordPress base image
+
+The admin-bar badge fix ships inside the image. Rebuild it from
+**Settings → Images**, or run `bash scripts/build-wp-image.sh`. Existing sites
+keep their current behaviour until relaunched.
+
+### Dokploy installs
+
+Set `ACME_EMAIL`, `BASE_DOMAIN_REGEX`, `ADMINER_AUTH_USERS` and
+`SHARED_DB_ROOT_PASSWORD`, and relaunch sites created before this release. See
+*Upgrading from a release before self-contained TLS* in
+[dokploy-deployment.md](dokploy-deployment.md).
+
 ## Upgrading to v2.0.0 (Security Hardening)
 
 This is a major version bump focused on security. The upgrade is non-destructive — existing data, sites, and configurations are preserved. Database schema changes are auto-migrated on startup.

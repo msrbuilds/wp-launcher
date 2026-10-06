@@ -2,6 +2,66 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [2.5.0] - 2026-10-07
+
+### Added
+- **Mini CRM** — *Projects & Invoices* is renamed and grown into a small CRM for running client work from the panel. The feature flag and API prefix stay `projects`, so existing installs keep their setting. Records are scoped to the staff user who created them. See [guides/mini-crm.md](guides/mini-crm.md).
+  - **Payment methods** — keep your bank details and payment instructions in one install-wide list, and choose which ones each invoice shows. An invoice only shows the methods attached to it, so adding a method later never changes an invoice already sent. Deactivate a method rather than delete it while invoices still use it.
+  - **Project board** — a Kanban board on every project, shown beside its details. Drag cards between and within columns, and drag a column by its header grip to reorder it. Cards carry a description, due date, labels, and staff-only notes and file attachments. Each column has a *client-visible* toggle, off by default, so a forgotten toggle hides work instead of leaking an internal column.
+  - **Client portal** (off by default; enable under Features) — invite a client's people from the client page. They sign in at `/portal` to see their projects (visible columns only), their invoices (never drafts or cancelled ones) and the payment details attached to each invoice. Portal sessions use their own token and cookie, and the panel refuses them outright.
+  - **Payment proofs** — clients upload a receipt (PNG, JPEG, WebP or PDF, up to 5 MB) against an invoice. The invoice moves to *Awaiting verification*, never straight to *Paid*. Staff accept the proof, which records the payment, or reject it with a reason the client reads. Files are checked by their content, not their extension, and are only ever served to signed-in users.
+  - **Client conversations** — one message thread per client, written from both the panel and the portal. A message can reference a project or an invoice.
+  - **Notifications** — an in-app notification centre (the bell in the panel and portal headers), plus email that each person sets to *immediate*, *daily digest* (sent at 08:00) or *off*. Choosing *off* stops the email but still records the notification in the bell.
+- **Shared database servers** — MySQL and MariaDB sites now get their own database and user on one shared, tuned server per engine. The server starts on demand and stops when its last site goes. Previously each site ran its own database container at about 500 MB; on a four-site host, memory use fell from about 1.2 GB to about 0.45 GB. Sites created before this keep their own database container until relaunched. Orphaned databases are reclaimed automatically.
+- **Dokploy: self-contained TLS and site isolation** — WP Launcher's own Traefik now terminates TLS and owns certificate issuance. Dokploy's Traefik forwards `*.BASE_DOMAIN` to it untouched. Certificates are issued per site over TLS-ALPN-01, or as a wildcard when `ACME_DNS_PROVIDER` is set. Sites run on a private network and can no longer reach other apps on the Dokploy instance. See [guides/dokploy-deployment.md](guides/dokploy-deployment.md).
+- **Rebuild a missing image from the launch error** — a launch whose WordPress image isn't built now fails immediately with a clear message, and offers a one-click rebuild for base images.
+- **Snapshots** — restoring now asks for confirmation, and the snapshot most recently restored is badged.
+- **Clear finished sites** — a *Clear* action on the Sites page removes failed and expired rows. The site log keeps its history.
+
+### Security
+- **Site database passwords are random.** They were derived from the public subdomain plus a timestamp, which was weak enough to brute-force from any container that could reach the database port. Existing sites keep their current credentials until relaunched.
+- **Dokploy: Adminer now requires a login** (`ADMINER_AUTH_USERS`) and is off the shared Dokploy network. Before, it was publicly routed with no authentication, and its login form accepts any server address.
+- **Dokploy: sites can no longer reach other apps on the instance** (see *Site isolation* above).
+
+### Fixed
+- Panel pages flashed "Sign in required" on every reload for signed-in users.
+- Unrestricted sites on a production domain were labelled "Local Dev" in the admin bar.
+- Deleting a blueprint that ships with WP Launcher didn't survive a redeploy that re-clones the code (as Dokploy does).
+- Creating a blueprint failed when the code checkout was read-only.
+- An image build with an empty build context now reports the real cause.
+- Invoice numbers are now allocated across the whole install. They were counted separately for each user, so two users could produce the same number.
+- The orphan watchdog can no longer remove a shared database server.
+- `install-local.sh` and `scripts/local-setup.sh` now generate `SHARED_DB_ROOT_PASSWORD`, and `scripts/update.sh` adds it to existing installs that lack it.
+
+### Upgrading
+- **Update as usual** — `wpl update`, the panel's update button, or `bash scripts/update.sh`. `docker-compose.yml` now requires `SHARED_DB_ROOT_PASSWORD`, and the update script adds it to `.env` if missing. If you update by hand with `git pull` + `docker compose up`, add it to `.env` yourself first, or Compose will refuse to start.
+- **Rebuild the WordPress base image** (Settings → Images, or `bash scripts/build-wp-image.sh`) to pick up the admin-bar badge fix. Existing sites keep their current behaviour until relaunched.
+- **Dokploy** installs must set `ACME_EMAIL`, `BASE_DOMAIN_REGEX`, `ADMINER_AUTH_USERS` and `SHARED_DB_ROOT_PASSWORD`, and must relaunch sites created before this release. See *Upgrading from a release before self-contained TLS* in the Dokploy guide.
+- New database tables are created automatically on first start. No manual migration is needed.
+
+## [2.4.0] - 2026-08-13
+
+### Added
+- **Blueprint editing** — every blueprint now has an **Edit** action. The ID is locked while editing, and the card image and icon survive a save. Changes apply to sites launched afterwards.
+
+### Security
+- `GET /api/blueprints/:id?full=true` returned the unsanitized blueprint (Docker config, plugin lists, demo admin email) without authentication. It now requires an admin.
+
+## [2.3.3] - 2026-08-13
+
+### Fixed
+- **Blueprint restriction toggles now govern the launched site.** *Disable File Modifications*, *Blocked Capabilities* and *Hidden Admin Menu Items* were saved but never applied. The blueprint is now authoritative. Its 7 toggles expand to 12 capabilities in coherent groups, and an absent setting fails closed to the full legacy lockdown. Rebuild the WordPress base image to apply.
+- The blueprint editor's defaults omitted `export` and `import`.
+
+## [2.3.2] - 2026-08-13
+
+### Added
+- **Dokploy deployment support** via `docker-compose.dokploy.yml`.
+- Optional per-site certificate resolver (`CERT_RESOLVER`) and `TRAEFIK_NETWORK`.
+
+### Fixed
+- The setup page's password strength meter contradicted the 12-character submit rule.
+
 ## [2.3.1] - 2026-03-29
 
 ### Fixed
