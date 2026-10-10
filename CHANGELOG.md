@@ -2,6 +2,17 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [2.5.1] - 2026-10-10
+
+### Security
+- **New sites no longer default to `admin` / `admin`.** The site creation form now fills in a random 20-character password with a mix of letters, digits and symbols. Buttons beside the field generate a new one or copy it, and *Create Another* draws a fresh password, so sites launched back to back never share one. The username is still `admin` unless you change it.
+
+### Fixed
+- The VPS installer's *All versions* option builds PHP 7.4 as well as 8.3, 8.2 and 8.1, but its prompt and summary only listed the latter three. Both now list 7.4, and they point to **Settings → Images** for other versions, including 8.4 and 8.5.
+
+### Upgrading
+- Dashboard-only change: update as usual. There is nothing to migrate and no image to rebuild. Existing sites keep their current passwords.
+
 ## [2.5.0] - 2026-10-07
 
 ### Added
