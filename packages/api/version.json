@@ -1,9 +1,9 @@
 {
-  "version": "2.5.0",
-  "commit": "758fb17",
-  "commitFull": "758fb17b6103898154ddf4ec8884de0906108500",
+  "version": "2.5.1",
+  "commit": "e9dc7f0",
+  "commitFull": "e9dc7f0f1ab0216c30d4475580d52e56760e919f",
   "branch": "main",
-  "buildDate": "2026-10-06T21:15:26Z",
-  "commitDate": "2026-10-07 02:15:25 +0500",
-  "commitMessage": "chore: bump to 2.5.0"
+  "buildDate": "2026-10-10T12:57:50Z",
+  "commitDate": "2026-10-10 17:57:49 +0500",
+  "commitMessage": "chore: bump to 2.5.1"
 }
