@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Check, ChevronDown, ChevronUp, Copy, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Copy, Loader2, RefreshCw } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { apiFetch } from '../utils/api';
+import { generatePassword } from '@/lib/generate-password';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -120,7 +121,9 @@ export default function LocalLaunchPage() {
   const [dbEngine, setDbEngine] = useState('mysql');
   const [phpVersion, setPhpVersion] = useState('8.3');
   const [adminUser, setAdminUser] = useState('admin');
-  const [adminPassword, setAdminPassword] = useState('admin');
+  // A fresh random password per site. A shared default like admin/admin is the
+  // first thing anyone tries against a site that becomes reachable.
+  const [adminPassword, setAdminPassword] = useState(() => generatePassword());
   const [adminEmail, setAdminEmail] = useState('admin@localhost.test');
 
   // PHP configuration
@@ -360,7 +363,7 @@ export default function LocalLaunchPage() {
           <Button
             variant="secondary"
             size="lg"
-            onClick={() => { setResult(null); setStep('configure'); }}
+            onClick={() => { setResult(null); setAdminPassword(generatePassword()); setStep('configure'); }}
           >
             Create Another
           </Button>
@@ -443,14 +446,37 @@ export default function LocalLaunchPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="adminPassword">Password</Label>
-              <Input
-                id="adminPassword"
-                type="text"
-                value={adminPassword}
-                onChange={(e) => setAdminPassword(e.target.value)}
-                placeholder="admin"
-                className="rounded-lg"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="adminPassword"
+                  type="text"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  spellCheck={false}
+                  autoComplete="off"
+                  className="rounded-lg font-mono"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  title="Generate a new password"
+                  aria-label="Generate a new password"
+                  onClick={() => setAdminPassword(generatePassword())}
+                >
+                  <RefreshCw />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  title="Copy password"
+                  aria-label="Copy password"
+                  onClick={() => copyToClipboard('formPassword', adminPassword)}
+                >
+                  {copiedKey === 'formPassword' ? <Check /> : <Copy />}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="adminEmail">Admin Email</Label>
