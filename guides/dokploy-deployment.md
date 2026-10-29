@@ -99,11 +99,47 @@ To switch, set `ACME_DNS_PROVIDER` to a
 [Traefik DNS provider](https://doc.traefik.io/traefik/https/acme/#providers)
 name and supply its credentials in the same Environment tab — for Cloudflare,
 `ACME_DNS_PROVIDER=cloudflare` and `CF_DNS_API_TOKEN=...` from a token scoped to
-`Zone -> DNS -> Edit` on your zone only. Redeploy, and one `*.BASE_DOMAIN`
-certificate replaces the per-site ones.
+`Zone -> DNS -> Edit` on your zone only. Redeploy.
 
-The switch needs no relaunches: certificates are requested by the proxy's
-entrypoint rather than by each site's router.
+From then on:
+
+- **Sites launched afterwards** share one `BASE_DOMAIN` + `*.BASE_DOMAIN`
+  certificate. The first launch requests it, and every later one reuses it.
+- **Sites that already exist** keep their own certificates, which now renew over
+  DNS-01. Docker labels cannot change on a running container, so they move to
+  the wildcard only when relaunched. Nothing needs to be relaunched for HTTPS to
+  keep working.
+
+Earlier versions configured the wildcard on the entrypoint alone. But each site's
+router carries its own `tls` block, and that block overrides the entrypoint's
+`tls.domains`. So no router ever asked for the wildcard, and every site kept
+getting a certificate of its own. The provisioner now names the wildcard on each
+router (`SITE_CERT_WILDCARD`, set automatically when `ACME_DNS_PROVIDER` is).
+
+To check which certificate a site gets, run this on the host:
+
+```bash
+echo | openssl s_client -connect 127.0.0.1:443 -servername <site>.<BASE_DOMAIN> 2>/dev/null \
+  | openssl x509 -noout -ext subjectAltName
+```
+
+### Behind Cloudflare, or a firewall that only admits Cloudflare
+
+If ports 80 and 443 on the host accept only Cloudflare's address ranges, sites
+reached directly will time out. That includes a rule in Docker's `FORWARD`
+path, which is where published ports are filtered. Let's Encrypt's TLS-ALPN-01
+validation is blocked the same way, so new sites also get no certificate. Two
+changes are needed:
+
+1. Set `ACME_DNS_PROVIDER=cloudflare` as above. DNS-01 needs no inbound
+   connection.
+2. In Cloudflare, set the `*` record to **Proxied** and SSL/TLS to
+   **Full (strict)**. The certificates WP Launcher's Traefik serves are real
+   Let's Encrypt ones, so strict mode validates them.
+
+Through Cloudflare's proxy, a free plan caps uploads at 100 MB per request and
+times out requests after 100 seconds. Large plugin uploads or long imports in a
+demo site can hit either limit.
 
 The panel itself, at the apex domain, is unaffected either way — it keeps its
 certificate from Dokploy's own resolver.

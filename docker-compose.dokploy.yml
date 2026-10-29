@@ -182,6 +182,12 @@ services:
       # no resolver: Traefik serves its self-signed certificate and never calls
       # ACME, silently, with nothing in the log either way.
       - CERT_RESOLVER=wpl
+      # With a DNS provider, each site's router asks for the one *.BASE_DOMAIN
+      # certificate. The entrypoint's tls.domains cannot do this alone: a router
+      # with its own tls block ignores the entrypoint's domains, so before this
+      # every site still got a certificate of its own. `:+` yields "true" only
+      # when ACME_DNS_PROVIDER is non-empty; TLS-ALPN-01 cannot issue wildcards.
+      - SITE_CERT_WILDCARD=${ACME_DNS_PROVIDER:+true}
       - PRODUCT_ASSETS_PATH=${PRODUCT_ASSETS_PATH:?Set PRODUCT_ASSETS_PATH to an absolute host path}
       - SITES_HOST_PATH=${SITES_HOST_PATH:?Set SITES_HOST_PATH to an absolute host path}
       # Custom-domain routers are written here for Traefik's file provider.

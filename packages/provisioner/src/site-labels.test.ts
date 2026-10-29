@@ -41,6 +41,31 @@ describe('buildSiteLabels', () => {
     expect(l['traefik.http.routers.happy-fox-1234.tls.certresolver']).toBeUndefined();
   });
 
+  it('asks for the shared wildcard certificate when told to', () => {
+    // A router with its own `tls` block ignores the entrypoint's tls.domains, so
+    // the wildcard must be named on the router or Traefik issues one
+    // certificate per site against Let's Encrypt's 50-per-week limit.
+    const l = buildSiteLabels({ ...base, enableTls: true, certResolver: 'wpl', wildcardCert: true });
+    expect(l['traefik.http.routers.happy-fox-1234.tls.certresolver']).toBe('wpl');
+    expect(l['traefik.http.routers.happy-fox-1234.tls.domains[0].main']).toBe('demo.example.com');
+    expect(l['traefik.http.routers.happy-fox-1234.tls.domains[0].sans']).toBe('*.demo.example.com');
+  });
+
+  it('names no domains when the wildcard is off, so the Host rule decides', () => {
+    const l = buildSiteLabels({ ...base, enableTls: true, certResolver: 'wpl' });
+    expect(l['traefik.http.routers.happy-fox-1234.tls.domains[0].main']).toBeUndefined();
+    expect(l['traefik.http.routers.happy-fox-1234.tls.domains[0].sans']).toBeUndefined();
+  });
+
+  it('names no wildcard without a resolver or without TLS', () => {
+    // Blank resolver means a preloaded certificate; asking for domains would
+    // make Traefik look for a resolver that is not there.
+    const blank = buildSiteLabels({ ...base, enableTls: true, certResolver: '', wildcardCert: true });
+    expect(blank['traefik.http.routers.happy-fox-1234.tls.domains[0].main']).toBeUndefined();
+    const plain = buildSiteLabels({ ...base, enableTls: false, wildcardCert: true });
+    expect(plain['traefik.http.routers.happy-fox-1234.tls.domains[0].main']).toBeUndefined();
+  });
+
   it('pins the Traefik network only when one is configured', () => {
     expect(buildSiteLabels(base)['traefik.docker.network']).toBeUndefined();
     expect(buildSiteLabels({ ...base, traefikNetwork: 'dokploy-network' })['traefik.docker.network'])

@@ -11,6 +11,16 @@ export interface SiteLabelInput {
    */
   certResolver: string;
   /**
+   * Ask the resolver for one `BASE_DOMAIN` + `*.BASE_DOMAIN` certificate rather
+   * than one per site. Needs a DNS-01 resolver, since a wildcard cannot be
+   * validated any other way. It has to be named on the router: a router with its
+   * own `tls` block ignores the entrypoint's `tls.domains` entirely, so setting
+   * the wildcard there alone left every site requesting its own certificate.
+   * Traefik reuses a stored certificate that already covers the names, so only
+   * the first launch triggers issuance.
+   */
+  wildcardCert?: boolean;
+  /**
    * The Docker network Traefik should reach this container on. Required when
    * Traefik's own configured network differs from the container's, as on
    * Dokploy. Empty omits the label, which is correct for the bundled Traefik.
@@ -54,6 +64,12 @@ export function buildSiteLabels(input: SiteLabelInput): Record<string, string> {
           [`${r}.entrypoints`]: 'websecure',
           [`${r}.tls`]: 'true',
           ...(input.certResolver ? { [`${r}.tls.certresolver`]: input.certResolver } : {}),
+          ...(input.certResolver && input.wildcardCert
+            ? {
+                [`${r}.tls.domains[0].main`]: input.baseDomain,
+                [`${r}.tls.domains[0].sans`]: `*.${input.baseDomain}`,
+              }
+            : {}),
         }
       : {}),
     'wp-launcher.managed': 'true',

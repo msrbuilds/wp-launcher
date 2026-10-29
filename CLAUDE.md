@@ -89,6 +89,11 @@ bash install.sh            # One-click VPS installer (standalone; bundles Traefi
 # a Dokploy upgrade cannot break renewal. Per-site TLS-ALPN-01 by default; set
 # ACME_DNS_PROVIDER for a wildcard. Requires ACME_EMAIL, BASE_DOMAIN_REGEX,
 # ADMINER_AUTH_USERS. See guides/dokploy-deployment.md.
+# The wildcard must be named on each site's router (SITE_CERT_WILDCARD →
+# tls.domains labels in site-labels.ts): a router with its own `tls` block
+# ignores the entrypoint's tls.domains, so the entrypoint setting alone never
+# issued it. A host that only admits Cloudflare on 80/443 also needs the `*`
+# record Proxied, since TLS-ALPN-01 and direct visits cannot get through.
 ```
 
 ## Environment Variables
