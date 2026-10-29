@@ -2,6 +2,18 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [2.5.2] - 2026-10-30
+
+### Fixed
+- **Dokploy: the wildcard certificate is now actually issued.** Setting `ACME_DNS_PROVIDER` configured `*.BASE_DOMAIN` on Traefik's entrypoint, but each site's router carries its own TLS settings, and those override the entrypoint's. No router ever asked for the wildcard, so every launch still requested a certificate of its own, counting against Let's Encrypt's limit of 50 per domain per week. Sites now name the wildcard themselves whenever a DNS provider is set (`SITE_CERT_WILDCARD`, derived automatically). The first new launch issues it, and later launches reuse it.
+
+### Changed
+- [guides/dokploy-deployment.md](guides/dokploy-deployment.md) no longer claims the wildcard replaces existing per-site certificates. It also gains a section for hosts that accept only Cloudflare on ports 80/443. On such a host, DNS-only sites time out and TLS-ALPN-01 cannot issue certificates, so the `*` record must be Proxied and certificates must use DNS-01.
+
+### Upgrading
+- **Dokploy installs with `ACME_DNS_PROVIDER` set:** redeploy. Sites launched afterwards use the wildcard. Existing sites keep their own certificates, which keep renewing over DNS-01, so nothing needs relaunching.
+- **Everything else:** no change, and nothing to do.
+
 ## [2.5.1] - 2026-10-10
 
 ### Security
