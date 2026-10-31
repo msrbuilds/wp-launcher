@@ -59,6 +59,18 @@ interface RemoteConnection {
   user_id: string | null;
 }
 
+function validateSelectiveRequest(contentIds: number[] | undefined, filePaths: string[] | undefined): void {
+  // Reject the entire request before creating a job or changing content. A
+  // mixed selection must never report success after silently skipping files.
+  if (filePaths !== undefined && (!Array.isArray(filePaths) || filePaths.length > 0)) {
+    throw new ValidationError('Selective sync supports content only. Use full sync to transfer files.');
+  }
+  if (!Array.isArray(contentIds) || contentIds.length === 0 ||
+      !contentIds.every((id) => Number.isSafeInteger(id) && id > 0)) {
+    throw new ValidationError('Select at least one content item using positive integer IDs.');
+  }
+}
+
 // ── Manifest Generation ──
 
 export async function generateLocalManifest(containerId: string, siteUrl: string): Promise<SyncManifest> {
@@ -260,6 +272,7 @@ export async function pushSelective(
   userId?: string,
   isAdmin: boolean = false,
 ): Promise<{ syncId: string; status: string }> {
+  validateSelectiveRequest(contentIds, filePaths);
   const db = getDb();
   const conn = db.prepare('SELECT * FROM remote_connections WHERE id = ?').get(connectionId) as RemoteConnection | undefined;
   if (!conn) throw new NotFoundError('Connection not found');
@@ -314,14 +327,6 @@ export async function pushSelective(
         }
       }
 
-      // File push: use the provisioner's snapshot for selected paths
-      // TODO: implement selective file push from Docker container
-      if (filePaths && filePaths.length > 0) {
-        if (itemsSynced === 0) {
-          throw new Error('File sync is not yet supported in selective mode. Use full sync for files, or select content items (posts/pages).');
-        }
-      }
-
       db.prepare(`UPDATE sync_history SET status = 'completed', completed_at = datetime('now') WHERE id = ?`).run(syncId);
       console.log(`[sync-incremental] Push ${syncId} done: ${itemsSynced} items synced`);
     } catch (err: any) {
@@ -343,6 +348,7 @@ export async function pullSelective(
   userId?: string,
   isAdmin: boolean = false,
 ): Promise<{ syncId: string; status: string }> {
+  validateSelectiveRequest(contentIds, filePaths);
   const db = getDb();
   const conn = db.prepare('SELECT * FROM remote_connections WHERE id = ?').get(connectionId) as RemoteConnection | undefined;
   if (!conn) throw new NotFoundError('Connection not found');
@@ -448,11 +454,6 @@ echo json_encode(array('imported' => $imported, 'total' => count($data['posts'])
           try { fs.unlinkSync(tmpFile); } catch {}
           try { fs.unlinkSync(phpScript); } catch {}
         }
-      }
-
-      // File pull: not yet implemented for selective sync
-      if (filePaths && filePaths.length > 0 && itemsSynced === 0) {
-        throw new Error('File sync is not yet supported in selective mode. Use full sync for files, or select content items (posts/pages).');
       }
 
       db.prepare(`UPDATE sync_history SET status = 'completed', completed_at = datetime('now') WHERE id = ?`).run(syncId);

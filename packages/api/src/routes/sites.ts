@@ -17,6 +17,7 @@ import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors'
 import { validatePhpConfig } from '../utils/phpConfigValidation';
 import { getDb } from '../utils/db';
 import { isFeatureEnabled } from '../services/features.service';
+import { seesAllRows } from '../utils/scope';
 
 const router = Router();
 
@@ -98,8 +99,9 @@ router.get('/', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Respon
   const blueprintId = (req.query.blueprintId ?? req.query.productId) as string | undefined;
   let sites;
 
-  if (req.userId && !req.query.all) {
-    sites = listUserSites(req.userId);
+  if (!seesAllRows(req.userRole) || !req.query.all) {
+    sites = listUserSites(req.userId!);
+    if (blueprintId) sites = sites.filter((site) => site.blueprint_id === blueprintId);
   } else if (blueprintId) {
     sites = listSites(blueprintId);
   } else {

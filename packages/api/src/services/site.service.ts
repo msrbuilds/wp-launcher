@@ -142,7 +142,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
     const userQuota = policy.quotaForRole(req.userRole || 'member');
     if (req.userId && req.userId !== 'admin' && userQuota > 0) {
       const userCount = db
-        .prepare("SELECT COUNT(*) as count FROM sites WHERE user_id = ? AND status = 'running'")
+        .prepare("SELECT COUNT(*) as count FROM sites WHERE user_id = ? AND status IN ('creating', 'running')")
         .get(req.userId) as { count: number };
       if (userCount.count >= userQuota) {
         throw new ConflictError(`You already have ${userQuota} active sites. Please delete one before creating a new one.`);
@@ -153,7 +153,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
     const totalQuota = policy.totalSiteQuota();
     if (totalQuota > 0) {
       const totalActive = db
-        .prepare("SELECT COUNT(*) as count FROM sites WHERE status = 'running'")
+        .prepare("SELECT COUNT(*) as count FROM sites WHERE status IN ('creating', 'running')")
         .get() as { count: number };
       if (totalActive.count >= totalQuota) {
         throw new ConflictError('This server is currently at capacity. Please try again in a few minutes.');
@@ -162,7 +162,7 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
 
     // Check concurrent site limit per product
     const productCount = db
-      .prepare("SELECT COUNT(*) as count FROM sites WHERE blueprint_id = ? AND status = 'running'")
+      .prepare("SELECT COUNT(*) as count FROM sites WHERE blueprint_id = ? AND status IN ('creating', 'running')")
       .get(req.blueprintId) as { count: number };
     if (maxConcurrent > 0 && productCount.count >= maxConcurrent) {
       throw new ConflictError(`Maximum concurrent sites (${maxConcurrent}) reached for this product.`);
@@ -182,8 +182,6 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       VALUES (?, ?, ?, ?, 'creating', ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, subdomain, req.blueprintId, req.userId || null, siteUrl, adminUrl, adminUser, adminPassword, autoLoginToken, expiresAt, req.directFileAccess ? 1 : 0, restrictions.restrict ? 1 : 0);
   });
-
-  insertSiteTxn();
 
   // Separate plugins into install+activate vs install-only
   const installAndActivate: string[] = [];  // plugins to install with --activate flag
@@ -264,6 +262,10 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
       );
     }
   }
+
+  // Reserve capacity only after preflight succeeds. The transaction rechecks
+  // quotas and subdomain ownership after the asynchronous image lookup.
+  insertSiteTxn();
 
   try {
     // SBP-004: Pass heartbeat secret to container so MU-plugin can authenticate

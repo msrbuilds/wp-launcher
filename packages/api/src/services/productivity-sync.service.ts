@@ -45,6 +45,9 @@ async function pushHeartbeatsToCloud(): Promise<{ pushed: number; status: string
 
       const payload = {
         heartbeats: heartbeats.map(hb => ({
+          // Stable across retries and batch-size changes. The receiver scopes
+          // this identity to the install and timestamp, not the batch.
+          event_id: String(hb.id),
           source: hb.source,
           entity: hb.entity,
           entity_type: hb.entity_type,
@@ -58,7 +61,6 @@ async function pushHeartbeatsToCloud(): Promise<{ pushed: number; status: string
           is_write: !!hb.is_write,
           created_at: hb.created_at,
         })),
-        batch_id: crypto.randomUUID(),
         total_count: heartbeats.length,
       };
 

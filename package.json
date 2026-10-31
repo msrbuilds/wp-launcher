@@ -23,7 +23,8 @@
     "dev:local": "docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build",
     "dev:api": "npm run dev -w packages/api",
     "dev:dashboard": "npm run dev -w packages/dashboard",
-    "build": "npm run build -w packages/api && npm run build -w packages/dashboard",
+    "build": "npm run build -w packages/api && npm run build -w packages/dashboard && npm --prefix packages/provisioner run build && npm --prefix packages/cli run build",
+    "test": "node scripts/test.mjs",
     "build:wp": "bash scripts/build-wp-image.sh",
     "rebuild": "docker compose up -d --build",
     "setup": "bash scripts/setup.sh"

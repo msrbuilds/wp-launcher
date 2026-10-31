@@ -1,0 +1,22 @@
+name: Checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            packages/provisioner/package-lock.json
+            packages/cli/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix packages/provisioner
+      - run: npm ci --prefix packages/cli
+      - run: npm test
+      - run: npm run build

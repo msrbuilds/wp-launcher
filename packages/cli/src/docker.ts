@@ -1,6 +1,7 @@
 import { execSync, spawn } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
+import { localApiConfig } from './api-config.js';
 
 // Resolve project directory
 export function getProjectDir(): string {
@@ -238,31 +239,37 @@ export function getWpContainerStats(): ContainerStats[] {
 }
 
 export async function getSites(): Promise<SiteInfo[]> {
+  const { apiKey, port } = localApiConfig(getProjectDir());
+  const options: RequestInit = {
+    headers: { 'X-API-Key': apiKey },
+    redirect: 'error',
+    signal: AbortSignal.timeout(5000),
+  };
+  let res: Response;
   try {
-    let data: any;
-    try {
-      const res = await fetch(`http://localhost:${process.env.API_PORT || '3737'}/api/sites`);
-      if (res.ok) data = await res.json();
-    } catch { /* fall through */ }
-    if (!data) {
-      const res2 = await fetch('http://localhost/api/sites');
-      if (!res2.ok) return [];
-      data = await res2.json();
-    }
-    const sites: any[] = data?.sites || (Array.isArray(data) ? data : []);
-    // Normalize camelCase API response to snake_case for CLI
-    return sites.map((s: any) => ({
-      id: s.id,
-      subdomain: s.subdomain,
-      status: s.status,
-      site_url: s.url || s.site_url || '',
-      admin_url: s.adminUrl || s.admin_url || '',
-      product_id: s.productId || s.product_id || '',
-      created_at: s.createdAt || s.created_at || '',
-      expires_at: s.expiresAt || s.expires_at || '',
-      db_engine: s.dbEngine || s.db_engine || undefined,
-    }));
+    res = await fetch(`http://localhost:${port}/api/sites?all=true`, options);
   } catch {
-    return [];
+    // Standalone deployments can expose only the dashboard's API proxy.
+    res = await fetch('http://localhost/api/sites?all=true', {
+      ...options, signal: AbortSignal.timeout(5000),
+    });
   }
+  if (res.status === 401 || res.status === 403) {
+    throw new Error('WP Launcher rejected the API key. Check this installation’s API_KEY.');
+  }
+  if (!res.ok) throw new Error(`Could not list sites (HTTP ${res.status}).`);
+  const data: any = await res.json();
+  const sites: any[] = data?.sites || (Array.isArray(data) ? data : []);
+  // Normalize camelCase API response to snake_case for CLI
+  return sites.map((s: any) => ({
+    id: s.id,
+    subdomain: s.subdomain,
+    status: s.status,
+    site_url: s.url || s.site_url || '',
+    admin_url: s.adminUrl || s.admin_url || '',
+    product_id: s.productId || s.product_id || '',
+    created_at: s.createdAt || s.created_at || '',
+    expires_at: s.expiresAt || s.expires_at || '',
+    db_engine: s.dbEngine || s.db_engine || undefined,
+  }));
 }

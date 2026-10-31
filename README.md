@@ -18,7 +18,9 @@
 
 </div>
 
-Docker-based WordPress development and publishing platform with two modes:
+Docker-based WordPress development and publishing platform for local development and hosted demos. The current application uses one authenticated panel: setup creates an owner, and panel settings, role-scoped features, quotas, and per-site restrictions determine behavior. `APP_MODE` is a legacy migration input, not a runtime authentication switch.
+
+Deployment use cases:
 
 - **Local Mode** — Full-featured local WordPress development tool (like Local by Flywheel / Laragon) with multi-PHP, multi-DB support, and a `wpl` CLI
 - **Agency Mode** — Demo hosting platform that spins up temporary WordPress sites pre-loaded with your plugins/themes, auto-deleted after expiration
@@ -95,7 +97,7 @@ That's it. The installer will:
 6. Open **http://localhost** in your browser
 
 **What you get:**
-- No authentication, no site limits, no WordPress restrictions (file mods, updates, cron all enabled)
+- First-run owner setup and authenticated access; quotas and WordPress restrictions are configurable in the panel
 - Choose PHP version (8.1 / 8.2 / 8.3), database engine (MySQL / MariaDB / SQLite), and admin credentials per site
 - Sites at `http://{subdomain}.localhost` (works in Chrome, Firefox, Edge — no hosts file needed)
 - Persistent site data via Docker volumes (survives restarts)
@@ -130,7 +132,7 @@ For a detailed step-by-step guide, see [guides/vps-deployment.md](guides/vps-dep
 
 #### Manual Setup
 
-**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/), [Node.js](https://nodejs.org/) 18+, Git Bash (Windows) or any Unix shell.
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/), Node.js 22 (the supported major for the native SQLite dependency), Git Bash (Windows) or any Unix shell.
 
 ```bash
 git clone https://github.com/msrbuilds/wp-launcher.git
@@ -196,7 +198,7 @@ Visit **http://localhost** — the dashboard is ready.
 
 | Variable | Description | Default |
 |---|---|---|
-| `APP_MODE` | `agency` (auth, limits, restrictions) or `local` (no auth, no limits) | `agency` |
+| `APP_MODE` | Legacy input used once when migrating panel defaults; does not disable authentication | `agency` |
 | `BASE_DOMAIN` | Your domain (subdomains will be `*.BASE_DOMAIN`) | `localhost` |
 | `NODE_ENV` | `development` or `production` | `development` |
 | `API_KEY` | Admin API key (bypasses rate limits, site limits, ownership checks) | (required) |
@@ -293,17 +295,19 @@ Each site supports per-site PHP settings, configurable at creation time and live
 
 PHP settings are written to `/usr/local/etc/php/conf.d/99-wp-launcher.ini` inside the container and applied via Apache graceful reload — no container restart required.
 
-### Local Mode vs Agency Mode
+### Panel Policy and Deployment Presets
 
-| Behavior | Local Mode | Agency Mode |
-|---|---|---|
-| Authentication | None (auto-authenticated) | Email verification + JWT |
-| Site limits | Unlimited | Configurable per-user and global |
-| WordPress restrictions | None (full admin) | `DISALLOW_FILE_MODS`, blocked capabilities |
-| WordPress updates | Allowed (core, plugins, themes) | Blocked |
-| WP-Cron | Enabled | Disabled |
-| Site expiration | Default: never | Default: 1 hour |
-| Data persistence | Docker volumes (survives restarts) | Ephemeral (deleted on expiry) |
+Local and agency are deployment presets, not separate authentication paths. Changing `APP_MODE` after migration does not change the saved policy.
+
+| Behavior | Current control |
+|---|---|
+| Authentication | First-run owner setup, then authenticated panel access on every deployment |
+| Registration and demos | Opt-in public registration and demo portal settings |
+| Site limits | Per-role and global quotas in panel settings; zero means unlimited |
+| Features | Separate owner/admin and member feature grants |
+| WordPress restrictions | Blueprint restrictions, with the panel default used when unspecified |
+| Site expiration | Per-launch choice or blueprint default; `never` creates a permanent site |
+| Storage | Named wp-content volumes when resource limits are disabled; resource-limited sites retain the legacy container-storage behavior |
 
 ## Adding a Product (While Running)
 
@@ -357,6 +361,12 @@ wpl shell <subdomain>               # Bash into container
 For more methods and tips, see [Working with WordPress Files Guide](guides/working-with-wordpress-files.md).
 
 ## Development
+
+Install the root dependencies with `npm ci`, then run `npm ci --prefix packages/provisioner` and `npm ci --prefix packages/cli`. `npm test` runs API, dashboard, provisioner, and CLI regressions using temporary data/configuration directories. `npm run build` builds all four application packages. CI runs both checks on pushes and pull requests.
+
+Site listing requires authentication. Members always see their own sites, including when they send `all=true`; owners/admins and API-key callers may explicitly request the global listing. The CLI reads `API_KEY` and `API_PORT` from the environment or installation `.env`, with `data/secrets.json` as the generated-key fallback.
+
+Selective synchronization supports posts/pages only. Requests containing any file selection are rejected before creating a sync job or modifying content. Use full sync to transfer files.
 
 ### Run the dashboard with hot reload
 

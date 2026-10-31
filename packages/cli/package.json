@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "node ../../node_modules/vitest/vitest.mjs run",
     "dev": "tsx src/index.ts"
   },
   "devDependencies": {
