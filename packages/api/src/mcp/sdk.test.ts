@@ -3,7 +3,7 @@ import express from 'express';
 import type { Server } from 'node:http';
 import { z } from 'zod';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { buildMcpServer, createRequestHandler, SUPPORTED_PROTOCOL_VERSIONS, type SdkToolSpec } from './sdk';
+import { buildMcpServer, createRequestHandler, scopeChallengeFor, SUPPORTED_PROTOCOL_VERSIONS, type SdkToolSpec } from './sdk';
 
 const echoTool: SdkToolSpec = {
   name: 'echo',
@@ -64,5 +64,17 @@ describe('v2 SDK adapter', () => {
 
   it('serves a 2025-06-18 client through initialize', async () => {
     await roundTrip(new Client({ name: 'legacy', version: '1' }, { supportedProtocolVersions: ['2025-06-18'] }));
+  });
+});
+
+describe('scope challenge', () => {
+  it('fails closed: no authInfo is challenged, not waved through', () => {
+    expect(scopeChallengeFor('sites:write')({ authInfo: undefined })).toEqual({ scopes: ['sites:write'] });
+  });
+
+  it('challenges a token that lacks the scope and passes one that has it', () => {
+    const base = { token: 't', clientId: 'c', scopes: ['sites:read'] };
+    expect(scopeChallengeFor('sites:write')({ authInfo: base })).toEqual({ scopes: ['sites:write'] });
+    expect(scopeChallengeFor('sites:read')({ authInfo: base })).toBeUndefined();
   });
 });

@@ -34,6 +34,16 @@ export interface SdkToolSpec {
   run(args: unknown): Promise<SdkToolResult>;
 }
 
+/**
+ * Fails closed: a request that somehow reached the SDK without auth info is
+ * challenged exactly like one whose token lacks the scope. The bearer guard
+ * should make that impossible, which is why it must not be relied on here.
+ */
+export function scopeChallengeFor(scope: string) {
+  return ({ authInfo }: { authInfo?: AuthInfo }): { scopes: [string] } | undefined =>
+    !authInfo || !Array.isArray(authInfo.scopes) || !authInfo.scopes.includes(scope) ? { scopes: [scope] } : undefined;
+}
+
 export function buildMcpServer(info: { name: string; version: string }, tools: SdkToolSpec[]): McpServer {
   const server = new McpServer(info, {
     capabilities: { tools: {} },
@@ -51,9 +61,7 @@ export function buildMcpServer(info: { name: string; version: string }, tools: S
         inputSchema: tool.inputSchema,
         outputSchema: tool.outputSchema,
         annotations: tool.annotations,
-        scopeChallenge: scope
-          ? ({ authInfo }) => (authInfo && !authInfo.scopes.includes(scope) ? { scopes: [scope] } : undefined)
-          : undefined,
+        scopeChallenge: scope ? scopeChallengeFor(scope) : undefined,
       },
       async (args: unknown) => tool.run(args) as any,
     );
