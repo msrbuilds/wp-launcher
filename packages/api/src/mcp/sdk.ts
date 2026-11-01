@@ -40,8 +40,14 @@ export interface SdkToolSpec {
  * should make that impossible, which is why it must not be relied on here.
  */
 export function scopeChallengeFor(scope: string) {
-  return ({ authInfo }: { authInfo?: AuthInfo }): { scopes: [string] } | undefined =>
-    !authInfo || !Array.isArray(authInfo.scopes) || !authInfo.scopes.includes(scope) ? { scopes: [scope] } : undefined;
+  return ({ authInfo }: { authInfo?: AuthInfo }): { scopes: [string, ...string[]] } | undefined => {
+    const held = authInfo && Array.isArray(authInfo.scopes) ? authInfo.scopes : [];
+    if (held.includes(scope)) return undefined;
+    // Ask for everything already held plus the missing scope: clients re-authorise
+    // with exactly the challenged set, so a challenge naming only the new scope
+    // would make step-up *replace* the grant and drop the scopes it had.
+    return { scopes: [...held, scope] as [string, ...string[]] };
+  };
 }
 
 export function buildMcpServer(info: { name: string; version: string }, tools: SdkToolSpec[]): McpServer {

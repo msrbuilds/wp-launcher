@@ -72,9 +72,14 @@ describe('scope challenge', () => {
     expect(scopeChallengeFor('sites:write')({ authInfo: undefined })).toEqual({ scopes: ['sites:write'] });
   });
 
+  it('asks for the union of what the token holds and what the tool needs, so re-consent adds rather than replaces', () => {
+    const base = { token: 't', clientId: 'c', scopes: ['sites:read', 'crm:read'] };
+    expect(scopeChallengeFor('sites:write')({ authInfo: base })).toEqual({ scopes: ['sites:read', 'crm:read', 'sites:write'] });
+  });
+
   it('challenges a token that lacks the scope and passes one that has it', () => {
     const base = { token: 't', clientId: 'c', scopes: ['sites:read'] };
-    expect(scopeChallengeFor('sites:write')({ authInfo: base })).toEqual({ scopes: ['sites:write'] });
+    expect(scopeChallengeFor('sites:write')({ authInfo: base })).toEqual({ scopes: ['sites:read', 'sites:write'] });
     expect(scopeChallengeFor('sites:read')({ authInfo: base })).toBeUndefined();
   });
 });

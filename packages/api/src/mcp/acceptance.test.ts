@@ -207,20 +207,26 @@ describe('4. reach', () => {
 describe('5. scope and step-up', () => {
   it('a read-only grant lists sites_delete, is challenged for sites:write, and succeeds after re-consent', async () => {
     const c = client();
-    const readOnly = await tokenFor(['sites:read'], 'owner', c);
+    const readOnly = await tokenFor(['sites:read', 'crm:read'], 'owner', c);
     const list = await readRpc(await legacy(readOnly, { jsonrpc: '2.0', id: 1, method: 'tools/list' }));
     expect(list.result.tools.map((t: { name: string }) => t.name)).toContain('sites_delete');
 
     const challenged = await legacy(readOnly, callTool('sites_delete', { siteId: 'mine' }));
     expect(challenged.status).toBe(403);
-    expect(challenged.headers.get('www-authenticate')).toMatch(/error="insufficient_scope"/);
-    expect(challenged.headers.get('www-authenticate')).toMatch(/scope="sites:write"/);
+    const header = challenged.headers.get('www-authenticate') ?? '';
+    expect(header).toMatch(/error="insufficient_scope"/);
     expect(deleteSpy).not.toHaveBeenCalled();
 
-    const upgraded = await tokenFor(['sites:read', 'sites:write'], 'owner', c);
+    // A compliant client re-authorises with exactly the challenged scope set.
+    const challengedScopes = /scope="([^"]+)"/.exec(header)![1].split(' ') as Scope[];
+    expect(challengedScopes.sort()).toEqual(['crm:read', 'sites:read', 'sites:write']);
+    const upgraded = await tokenFor(challengedScopes, 'owner', c);
     const ok = await readRpc(await legacy(upgraded, callTool('sites_delete', { siteId: 'mine' })));
     expect(ok.result.isError).toBeFalsy();
     expect(deleteSpy).toHaveBeenCalledWith('mine', 'owner', 'owner@example.com');
+    // …and has lost nothing it held before.
+    expect((await legacy(upgraded, callTool('crm_clients_list'))).status).toBe(200);
+    expect((await readRpc(await legacy(upgraded, callTool('crm_clients_list')))).result.isError).toBeFalsy();
   });
 
   describe('ordering: a missing scope never wins over an earlier failure', () => {
