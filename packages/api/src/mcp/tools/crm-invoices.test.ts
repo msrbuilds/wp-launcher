@@ -3,6 +3,7 @@ import type Database from 'better-sqlite3';
 import { createSiteTestDb } from '../../test-helpers/sites';
 import { __setDbForTesting } from '../../utils/db';
 import { crmInvoiceTools } from './crm-invoices';
+import { toSdkTool } from '../wrapper';
 import type { McpAuthContext } from '../../oauth/token.service';
 
 let db: Database.Database;
@@ -70,6 +71,14 @@ describe('ownership and leaks', () => {
     const out = tool('crm_proofs_list').output.parse(await run('crm_proofs_list', { invoiceId: 'i1' })) as { proofs: Record<string, unknown>[] };
     expect(JSON.stringify(out)).not.toContain('/data/uploads');
     expect(out.proofs[0]).toMatchObject({ id: 'pr1', originalName: 'receipt.pdf', status: 'pending' });
+  });
+});
+
+describe('reading panel-made invoices', () => {
+  it('reads an invoice whose line description is longer than an agent may write', async () => {
+    db.prepare("UPDATE invoices SET items = ? WHERE id = 'i1'").run(JSON.stringify([{ description: 'x'.repeat(2000), qty: 1, rate: 100, amount: 100 }]));
+    const result = await toSdkTool(tool('crm_invoices_get'), ctx).run({ invoiceId: 'i1' });
+    expect(result.isError).toBeFalsy();
   });
 });
 

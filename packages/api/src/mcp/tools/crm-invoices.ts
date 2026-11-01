@@ -64,7 +64,8 @@ export const crmInvoicesGet = defineTool({
   description: 'Returns one of your invoices with its line items and attached payment methods. Requires crm:read.',
   ...read,
   input: z.object({ invoiceId }),
-  output: z.object({ invoice: invoiceSchema.extend({ items: z.array(lineItem.extend({ amount: z.number() })), paymentMethods: z.array(methodSchema) }) }),
+  // Output items are what the panel stored, so none of the input limits apply here.
+  output: z.object({ invoice: invoiceSchema.extend({ items: z.array(z.object({ description: z.string(), qty: z.number(), rate: z.number(), amount: z.number() })), paymentMethods: z.array(methodSchema) }) }),
   handler: ({ invoiceId: id }, ctx) => {
     const invoice = invoiceOrFail(id, ctx.userId);
     return {
