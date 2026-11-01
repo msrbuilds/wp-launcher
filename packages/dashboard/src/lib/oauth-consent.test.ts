@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canApprove, consentView, initialSelection, toggleScope } from './oauth-consent';
+import { canApprove, consentView, initialSelection, renderableLogo, toggleScope } from './oauth-consent';
 
 const okResponse = {
   client: { name: 'Claude', logoUri: null, redirectHost: 'claude.ai', kind: 'cimd', unverified: true },
@@ -23,9 +23,11 @@ describe('consentView', () => {
     expect(consentView({ signedIn: true, role: 'owner', response: { render: 'Unknown app' }, path: '/' })).toEqual({ kind: 'error', message: 'Unknown app' });
   });
 
-  it('follows a server-supplied redirect for errors the client should hear about', () => {
+  it('offers, never auto-follows, a redirect back to the app for an error after verification', () => {
+    // Registration is open, so a registered redirect URI is not a trusted one:
+    // leaving the panel's origin must be the user's click.
     expect(consentView({ signedIn: true, role: 'owner', response: { redirect: 'https://claude.ai/cb?error=invalid_scope' }, path: '/' }))
-      .toEqual({ kind: 'redirect', to: 'https://claude.ai/cb?error=invalid_scope' });
+      .toEqual({ kind: 'return', to: 'https://claude.ai/cb?error=invalid_scope', host: 'claude.ai' });
   });
 
   it('shows the consent form otherwise', () => {
@@ -50,5 +52,14 @@ describe('scope selection', () => {
   it('cannot approve with nothing ticked', () => {
     expect(canApprove([])).toBe(false);
     expect(canApprove(['sites:read'])).toBe(true);
+  });
+});
+
+describe('renderableLogo', () => {
+  it('only renders a logo the panel CSP (img-src self) would actually load', () => {
+    expect(renderableLogo('https://cdn.example/logo.png', 'https://panel.example.com')).toBeNull();
+    expect(renderableLogo('https://panel.example.com/logo.png', 'https://panel.example.com')).toBe('https://panel.example.com/logo.png');
+    expect(renderableLogo(null, 'https://panel.example.com')).toBeNull();
+    expect(renderableLogo('not a url', 'https://panel.example.com')).toBeNull();
   });
 });

@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../utils/api';
-import { canApprove, consentView, initialSelection, toggleScope, type ConsentResponse } from '../lib/oauth-consent';
+import { canApprove, consentView, initialSelection, renderableLogo, toggleScope, type ConsentResponse } from '../lib/oauth-consent';
 
 /**
  * OAuth consent for MCP agents. Outside AppShell, like /login. The query string
@@ -44,8 +44,7 @@ export default function OAuthAuthorizePage() {
 
   useEffect(() => {
     if (view.kind === 'login') navigate(view.to, { replace: true });
-    if (view.kind === 'redirect') window.location.assign(view.to);
-  }, [view.kind, view.kind === 'login' || view.kind === 'redirect' ? view.to : '']); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [view.kind, view.kind === 'login' ? view.to : '']); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function decide(approve: boolean) {
     setSubmitting(true);
@@ -59,7 +58,6 @@ export default function OAuthAuthorizePage() {
       });
       const data = await res.json();
       if (data.redirectTo) window.location.assign(data.redirectTo);
-      else if (data.redirect) window.location.assign(data.redirect);
       else throw new Error(data.render || data.error || 'The decision could not be recorded.');
     } catch (err: any) {
       setError(err.message);
@@ -70,7 +68,7 @@ export default function OAuthAuthorizePage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
       <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6">
-        {(view.kind === 'loading' || view.kind === 'login' || view.kind === 'redirect') && (
+        {(view.kind === 'loading' || view.kind === 'login') && (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" /> Loading…
           </div>
@@ -92,11 +90,26 @@ export default function OAuthAuthorizePage() {
           </Alert>
         )}
 
+        {view.kind === 'return' && (
+          <>
+            <Alert variant="destructive">
+              <AlertTriangle />
+              <AlertTitle>This connection can’t continue</AlertTitle>
+              <AlertDescription>The app’s request was not valid. You can go back to it to see the details.</AlertDescription>
+            </Alert>
+            <div className="mt-4 flex justify-end">
+              <Button variant="outline" onClick={() => window.location.assign(view.to)}>
+                Return to <span className="break-all font-mono">{view.host}</span>
+              </Button>
+            </div>
+          </>
+        )}
+
         {view.kind === 'consent' && (
           <>
             <div className="mb-5 flex items-start gap-3">
-              {view.request.client.logoUri ? (
-                <img src={view.request.client.logoUri} alt="" className="size-10 shrink-0 rounded-md border border-border object-contain" />
+              {renderableLogo(view.request.client.logoUri, window.location.origin) ? (
+                <img src={view.request.client.logoUri!} alt="" className="size-10 shrink-0 rounded-md border border-border object-contain" />
               ) : (
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
                   <Bot className="size-5 text-muted-foreground" />
