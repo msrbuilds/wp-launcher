@@ -47,6 +47,10 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
   sites_health: { siteId: 'mine' },
   snapshots_list: { siteId: 'mine' },
   crm_clients_list: {},
+  crm_clients_get: { clientId: 'c1' },
+  crm_projects_list: {},
+  crm_projects_get: { projectId: 'p-none' },
+  crm_board_get: { projectId: 'p-none' },
 };
 
 let bareServer: Server;
