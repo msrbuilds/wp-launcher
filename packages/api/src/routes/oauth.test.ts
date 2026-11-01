@@ -186,6 +186,15 @@ describe('full flow', () => {
     expect(res.status).toBe(403);
   });
 
+  it('a member cannot even load the consent request, so cannot make the server fetch client metadata', async () => {
+    db.prepare("INSERT INTO users (id, email, verified, role) VALUES ('mem2', 'm2@x.test', 1, 'member')").run();
+    const res = await fetch(`${base}/api/oauth/authorize/request?${authorizeQuery('https://client.example/meta.json')}`, {
+      headers: { Cookie: `wpl_token=${generateToken('mem2', 'm2@x.test', 'member', 0)}` },
+    });
+    expect(res.status).toBe(403);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM oauth_clients WHERE kind = \'cimd\'').get()).toEqual({ n: 0 });
+  });
+
   it('a member cannot approve', async () => {
     db.prepare("INSERT INTO users (id, email, verified, role) VALUES ('mem', 'm@x.test', 1, 'member')").run();
     const clientId = await register();

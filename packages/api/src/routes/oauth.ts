@@ -85,7 +85,7 @@ router.post('/register', registerLimiter, (req, res) => {
 });
 
 /** What the consent page needs to render, or how it must fail. */
-router.get('/authorize/request', authorizeLimiter, userAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+router.get('/authorize/request', authorizeLimiter, userAuth, requireStaff, asyncHandler(async (req: AuthRequest, res: Response) => {
   const check = await checkAuthorizeRequest(pickParams(req.query as Record<string, unknown>));
   if (!check.ok) {
     res.json(check);
@@ -107,7 +107,7 @@ router.get('/authorize/request', authorizeLimiter, userAuth, asyncHandler(async 
   });
 }));
 
-router.post('/authorize/decision', authorizeLimiter, userAuth, asyncHandler(async (req: AuthRequest, res: Response) => {
+router.post('/authorize/decision', authorizeLimiter, userAuth, requireStaff, asyncHandler(async (req: AuthRequest, res: Response) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
   const check = await checkAuthorizeRequest(pickParams(body));
   if (!check.ok) {
