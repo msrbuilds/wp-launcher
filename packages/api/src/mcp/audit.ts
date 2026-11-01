@@ -19,6 +19,8 @@ const SECRET_KEY = /password|secret|token|key|credential/i;
 const MAX_STRING = 200;
 const MAX_ITEMS = 20;
 const MAX_DEPTH = 4;
+const MAX_KEY = 64;
+const MAX_SUMMARY = 8192;
 
 /**
  * A bounded, secret-free picture of what an agent asked for. Message bodies and
@@ -34,11 +36,23 @@ export function redactArgs(args: unknown, depth = 0): unknown {
     return args.length > MAX_ITEMS ? [...head, `<+${args.length - MAX_ITEMS} more>`] : head;
   }
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(args)) {
+  let kept = 0;
+  let skipped = 0;
+  for (const k in args) {
+    if (!Object.prototype.hasOwnProperty.call(args, k)) continue;
     if (SECRET_KEY.test(k)) continue;
-    out[k] = redactArgs(v, depth + 1);
+    if (kept >= MAX_ITEMS) { skipped++; continue; }
+    out[k.length > MAX_KEY ? `${k.slice(0, MAX_KEY - 1)}…` : k] = redactArgs((args as Record<string, unknown>)[k], depth + 1);
+    kept++;
   }
+  if (skipped) out['<more>'] = `<+${skipped} more keys>`;
   return out;
+}
+
+/** Final guard on what reaches the table, whatever the shape of the arguments. */
+function boundedSummary(args: unknown): string {
+  const json = JSON.stringify(redactArgs(args) ?? null);
+  return json.length <= MAX_SUMMARY ? json : JSON.stringify(`<summary: ${json.length} chars, truncated>`);
 }
 
 export function recordAudit(e: {
@@ -48,7 +62,7 @@ export function recordAudit(e: {
   getDb().prepare(`
     INSERT INTO mcp_audit_log (id, grant_id, user_id, client_id, tool, args_summary, outcome, error, duration_ms, bypass)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(crypto.randomUUID(), e.grantId, e.userId, e.clientId, e.tool, JSON.stringify(redactArgs(e.args) ?? null),
+  `).run(crypto.randomUUID(), e.grantId, e.userId, e.clientId, e.tool, boundedSummary(e.args),
     e.outcome, e.error ?? null, Math.round(e.durationMs), e.bypass ? 1 : 0);
 }
 

@@ -29,6 +29,15 @@ describe('redactArgs', () => {
     expect(redactArgs({ a: { b: { c: { d: { e: 1 } } } } })).toEqual({ a: { b: { c: { d: '<object>' } } } });
   });
 
+  it('caps the number of keys per object and truncates long key names', () => {
+    const wide = Object.fromEntries(Array.from({ length: 100_000 }, (_, i) => [`k${i}`, i]));
+    const out = redactArgs(wide) as Record<string, unknown>;
+    expect(Object.keys(out)).toHaveLength(21);
+    expect(out['<more>']).toBe('<+99980 more keys>');
+    const longKey = redactArgs({ ['x'.repeat(500)]: 1 }) as Record<string, unknown>;
+    expect(Object.keys(longKey)[0].length).toBeLessThanOrEqual(64);
+  });
+
   it('drops secret-looking keys at any depth', () => {
     expect(redactArgs({ adminPassword: 'x', apiKey: 'y', nested: { auth_token: 'z', keep: 1 }, credentials: {} })).toEqual({ nested: { keep: 1 } });
   });
@@ -51,6 +60,13 @@ describe('audit log', () => {
     const row = db.prepare('SELECT args_summary FROM mcp_audit_log').get() as { args_summary: string };
     expect(row.args_summary).not.toContain('hunter2');
     expect(JSON.parse(row.args_summary)).toEqual({ siteId: 's1' });
+  });
+
+  it('bounds the stored summary even when every individual cap is hit', () => {
+    const big = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`k${i}`, Object.fromEntries(Array.from({ length: 20 }, (_, j) => [`j${j}`, 'y'.repeat(200)]))]));
+    recordAudit({ ...base, args: big });
+    const row = db.prepare('SELECT args_summary FROM mcp_audit_log').get() as { args_summary: string };
+    expect(row.args_summary.length).toBeLessThanOrEqual(8192);
   });
 
   it('prunes rows older than 90 days only', () => {
