@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { OAUTH_DDL } from '../oauth/schema';
 import path from 'path';
 import fs from 'fs';
 import { config } from '../config';
@@ -569,9 +570,12 @@ function initSchema(db: Database.Database): void {
     );
   `);
 
+  for (const ddl of OAUTH_DDL) db.exec(ddl);
+
   // Seed default feature flags and branding
   const defaultSettings: Record<string, string> = {
     'feature.clientPortal': 'false',
+    'feature.mcp': 'false',
     'feature.cloning': 'false',
     'feature.snapshots': 'false',
     'feature.templates': 'false',

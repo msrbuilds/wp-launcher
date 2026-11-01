@@ -56,6 +56,13 @@ export const config = {
         `http://${process.env.BASE_DOMAIN || 'localhost'}`,
       ],
 
+  // Extra browser origins trusted to call /api/mcp (e.g. a local MCP inspector).
+  // PUBLIC_URL's origin is always trusted; demo-site origins never are.
+  mcpAllowedOrigins: (process.env.MCP_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
+
   // Defaults for new sites. Site quotas now live in the settings table and are
   // read through `policy` — see policy.quotaForRole / policy.totalSiteQuota.
   defaults: {

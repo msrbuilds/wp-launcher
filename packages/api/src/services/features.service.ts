@@ -20,6 +20,8 @@ export const ADMIN_ONLY_FEATURES: readonly string[] = [
   // Governs whether people outside the business can sign in at all, so it has
   // no member counterpart to grant.
   'clientPortal',
+  // Lets an AI agent act as a staff user over OAuth; members never authorise one.
+  'mcp',
 ];
 
 /** Per-site capabilities an admin may grant to members. */

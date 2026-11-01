@@ -9,17 +9,17 @@ import {
 } from './features.service';
 
 describe('catalogs', () => {
-  it('classifies every feature exactly once and covers all 18', () => {
-    expect(ADMIN_ONLY_FEATURES.length).toBe(6);
+  it('classifies every feature exactly once and covers all 19', () => {
+    expect(ADMIN_ONLY_FEATURES.length).toBe(7);
     expect(GRANTABLE_FEATURES.length).toBe(12);
-    expect(ALL_FEATURES.length).toBe(18);
+    expect(ALL_FEATURES.length).toBe(19);
     const overlap = ADMIN_ONLY_FEATURES.filter((k) => GRANTABLE_FEATURES.includes(k));
     expect(overlap).toEqual([]);
-    expect(new Set(ALL_FEATURES).size).toBe(18);
+    expect(new Set(ALL_FEATURES).size).toBe(19);
   });
 
-  it('puts the six admin-only features out of members reach', () => {
-    for (const k of ['projects', 'productivityMonitor', 'siteSync', 'webhooks', 'collaborativeSites', 'clientPortal']) {
+  it('puts the seven admin-only features out of members reach', () => {
+    for (const k of ['projects', 'productivityMonitor', 'siteSync', 'webhooks', 'collaborativeSites', 'clientPortal', 'mcp']) {
       expect(isAdminOnlyFeature(k)).toBe(true);
     }
     expect(isAdminOnlyFeature('cloning')).toBe(false);
@@ -94,6 +94,11 @@ describe('DB-backed lookups', () => {
     expect(isFeatureEnabled('adminer', 'owner')).toBe(false);
   });
 
+  it('keeps mcp off for an admin until its row is switched on', () => {
+    expect(isFeatureEnabled('mcp', 'admin')).toBe(false);
+    expect(isFeatureEnabled('mcp', 'member')).toBe(false);
+  });
+
   it('reads the demo namespace for a member', () => {
     expect(isFeatureEnabled('cloning', 'member')).toBe(false);
     expect(isFeatureEnabled('adminer', 'member')).toBe(true);
@@ -111,7 +116,7 @@ describe('DB-backed lookups', () => {
 
   it('builds an effective map covering all features for an admin', () => {
     const map = effectiveFeatures('admin');
-    expect(Object.keys(map).length).toBe(18);
+    expect(Object.keys(map).length).toBe(19);
     expect(map.cloning).toBe(true);
     expect(map.projects).toBe(true);
   });

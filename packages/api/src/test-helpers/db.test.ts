@@ -7,7 +7,7 @@ describe('createTestDb', () => {
     const names = (db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[])
       .map((r) => r.name)
       .sort();
-    expect(names).toEqual(['board_cards', 'board_columns', 'card_attachments', 'card_comments', 'client_messages', 'client_users', 'clients', 'image_builds', 'invoice_payment_methods', 'invoices', 'notification_prefs', 'notifications', 'payment_methods', 'payment_proofs', 'project_sites', 'projects', 'settings', 'site_logs', 'sites', 'snapshots', 'sqlite_sequence', 'users']);
+    expect(names).toEqual(['board_cards', 'board_columns', 'card_attachments', 'card_comments', 'client_messages', 'client_users', 'clients', 'image_builds', 'invoice_payment_methods', 'invoices', 'mcp_audit_log', 'notification_prefs', 'notifications', 'oauth_auth_codes', 'oauth_clients', 'oauth_grants', 'oauth_tokens', 'payment_methods', 'payment_proofs', 'project_sites', 'projects', 'settings', 'site_logs', 'sites', 'snapshots', 'sqlite_sequence', 'users']);
     db.close();
   });
 
