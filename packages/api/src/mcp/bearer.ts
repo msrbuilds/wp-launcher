@@ -18,11 +18,13 @@ export function bearerGuard(): RequestHandler {
     };
 
     const header = req.headers.authorization;
-    if (!header || !header.startsWith('Bearer ')) {
+    // The auth scheme is case-insensitive (RFC 6750 §2.1 / RFC 9110 §11.1).
+    const match = header ? /^bearer\s+(.+)$/i.exec(header) : null;
+    if (!match) {
       deny();
       return;
     }
-    const token = header.slice(7).trim();
+    const token = match[1].trim();
     const ctx = validateAccessToken(token);
     if (!ctx) {
       deny('invalid_token', 'The access token is invalid, expired or revoked');

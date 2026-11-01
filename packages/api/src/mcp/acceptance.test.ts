@@ -155,6 +155,16 @@ describe('1. token boundary', () => {
   });
 });
 
+describe('1b. bearer scheme', () => {
+  it('accepts the scheme in any case (RFC 6750)', async () => {
+    const token = await tokenFor(['sites:read']);
+    for (const scheme of ['bearer', 'BEARER', 'Bearer']) {
+      const res = await legacy(null, callTool('sites_list'), { Authorization: `${scheme} ${token}` });
+      expect(res.status, scheme).toBe(200);
+    }
+  });
+});
+
 describe('2. output safety (iterates the registry)', () => {
   it('no read tool ever returns a site password, autologin token or container id', async () => {
     const token = await tokenFor(['sites:read', 'crm:read', 'admin:read', 'admin:write']);
