@@ -14,6 +14,7 @@ import SitesListPage from './pages/SitesListPage';
 import LoginPage from './pages/LoginPage';
 import SetupPage from './pages/SetupPage';
 import AccountPage from './pages/AccountPage';
+import OAuthAuthorizePage from './pages/OAuthAuthorizePage';
 import VerifyPage from './pages/VerifyPage';
 import { PortalLoginPage, PortalAcceptPage } from './pages/portal/PortalAuthPages';
 import PortalLayout from './pages/portal/PortalLayout';
@@ -89,6 +90,7 @@ function AppRoutes() {
     <Routes>
       {/* Outside the shell: its auth guard would bounce these straight back. */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/oauth/authorize" element={<OAuthAuthorizePage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/demo" element={<DemoPortalPage />} />
       <Route path="/verify" element={<VerifyPage />} />
