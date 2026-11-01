@@ -17,6 +17,8 @@ import { config } from '../config';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+const CSRF_EXEMPT_BEARER_PATHS = new Set(['/api/oauth/register', '/api/oauth/token', '/api/oauth/revoke', '/api/mcp']);
+
 function buildAllowedOrigins(): Set<string> {
   const origins = new Set<string>();
 
@@ -82,6 +84,14 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
 
   // Skip productivity heartbeat endpoint (cross-origin from WP sites, no cookie auth)
   if (req.path === '/api/productivity/heartbeats' || req.path === '/api/productivity/cloud/status') {
+    return next();
+  }
+
+  // OAuth client endpoints and the MCP endpoint authenticate with a code or a
+  // bearer token, never the panel cookie, so there is no ambient credential to
+  // forge. The consent decision (/api/oauth/authorize/decision) is NOT exempt:
+  // it rides the staff session.
+  if (CSRF_EXEMPT_BEARER_PATHS.has(req.path)) {
     return next();
   }
 

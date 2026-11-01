@@ -25,6 +25,8 @@ import imagesRouter from './routes/images';
 import syncRouter from './routes/sync';
 import projectsRouter from './routes/projects';
 import portalRouter from './routes/portal';
+import oauthRouter, { oauthOpenCors } from './routes/oauth';
+import wellKnownRouter from './routes/wellKnown';
 import productivityRouter from './routes/productivity';
 import monitoringRouter from './routes/monitoring';
 import { startCleanupScheduler, cleanupOrphanedContainers } from './services/cleanup.service';
@@ -62,6 +64,10 @@ app.use(helmet({
     },
   },
 }));
+// Public OAuth endpoints answer any origin without credentials; this must run
+// before the credentialed allowlist below, which would otherwise answer their
+// preflights first.
+app.use(oauthOpenCors);
 app.use(cors({
   origin: config.corsOrigins,
   credentials: true,
@@ -580,6 +586,10 @@ app.use('/api/projects', projectsRouter);
 app.use('/api/portal/auth', authWriteLimiter);
 app.post('/api/portal/invoices/:id/proofs', uploadLimiter);
 app.use('/api/portal', portalRouter);
+
+// OAuth authorisation server for MCP agents (404 unless the mcp feature is on).
+app.use('/.well-known', wellKnownRouter);
+app.use('/api/oauth', oauthRouter);
 
 // Productivity monitor routes (heartbeat ingestion, stats, cloud sync)
 app.use('/api/productivity', productivityRouter);
