@@ -10,6 +10,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@modelcontextprotocol/express": "2.0.2",
+    "@modelcontextprotocol/node": "2.1.2",
+    "@modelcontextprotocol/server": "2.4.0",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^11.10.0",
     "cookie-parser": "^1.4.7",
@@ -26,6 +29,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.0",
     "@types/cookie-parser": "^1.4.10",
