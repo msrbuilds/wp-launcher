@@ -46,6 +46,7 @@ export const OAUTH_DDL: readonly string[] = [
     token_hash TEXT PRIMARY KEY,
     grant_id TEXT NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('access', 'refresh')),
+    scopes TEXT NOT NULL,
     expires_at TEXT NOT NULL,
     rotated_at TEXT,
     replaced_by TEXT,

@@ -43,6 +43,10 @@ interface CodeRow {
 interface GrantRow { id: string; client_id: string; user_id: string; scopes: string; resource: string; token_version: number; revoked_at: string | null }
 interface UserRow { id: string; email: string; role: string; verified: number; token_version: number | null }
 
+function intersect(a: Scope[], b: Scope[]): Scope[] {
+  return a.filter((s) => b.includes(s));
+}
+
 function pkceS256(verifier: string): string {
   return crypto.createHash('sha256').update(verifier).digest('base64url');
 }
@@ -70,9 +74,11 @@ function issueTokens(grantId: string, scopes: Scope[]): TokenResponse {
   const db = getDb();
   const access = mintToken('access');
   const refreshTok = mintToken('refresh');
-  const insert = db.prepare('INSERT INTO oauth_tokens (token_hash, grant_id, kind, expires_at) VALUES (?, ?, ?, datetime(\'now\', ?))');
-  insert.run(access.hash, grantId, 'access', ACCESS_TTL);
-  insert.run(refreshTok.hash, grantId, 'refresh', REFRESH_TTL);
+  // Each token records its own scopes: a refresh may narrow them, and the
+  // narrowing must bind the new access token and every later refresh.
+  const insert = db.prepare("INSERT INTO oauth_tokens (token_hash, grant_id, kind, scopes, expires_at) VALUES (?, ?, ?, ?, datetime('now', ?))");
+  insert.run(access.hash, grantId, 'access', scopes.join(' '), ACCESS_TTL);
+  insert.run(refreshTok.hash, grantId, 'refresh', scopes.join(' '), REFRESH_TTL);
   return { access_token: access.raw, token_type: 'Bearer', expires_in: 3600, refresh_token: refreshTok.raw, scope: scopes.join(' ') };
 }
 
@@ -121,8 +127,8 @@ export function refresh(p: { refresh_token: string; client_id: string; resource?
   const db = getDb();
   const outcome = db.transaction((): TokenResponse | OAuthError => {
     const tokenHash = hashToken(p.refresh_token ?? '');
-    const tok = db.prepare("SELECT grant_id, expires_at > datetime('now') AS live FROM oauth_tokens WHERE token_hash = ? AND kind = 'refresh'")
-      .get(tokenHash) as { grant_id: string; live: number } | undefined;
+    const tok = db.prepare("SELECT grant_id, scopes, expires_at > datetime('now') AS live FROM oauth_tokens WHERE token_hash = ? AND kind = 'refresh'")
+      .get(tokenHash) as { grant_id: string; scopes: string; live: number } | undefined;
     if (!tok || !tok.live) return new OAuthError('invalid_grant', 'Unknown or expired refresh token');
 
     const grant = db.prepare('SELECT * FROM oauth_grants WHERE id = ?').get(tok.grant_id) as GrantRow | undefined;
@@ -134,7 +140,8 @@ export function refresh(p: { refresh_token: string; client_id: string; resource?
     }
     if (p.resource !== undefined && !resourceMatches(p.resource)) return new OAuthError('invalid_target', 'The resource is not this MCP server');
 
-    const granted = parseScopeParam(grant.scopes) ?? [];
+    // The ceiling is what this refresh token carries, never more than the grant.
+    const granted = intersect(parseScopeParam(tok.scopes) ?? [], parseScopeParam(grant.scopes) ?? []);
     let scopes = granted;
     if (p.scope !== undefined) {
       const asked = parseScopeParam(p.scope);
@@ -194,14 +201,14 @@ export function validateAccessToken(raw: string, resource?: string): McpAuthCont
   if (resource !== undefined && !resourceMatches(resource)) return null;
   const db = getDb();
   const row = db.prepare(`
-    SELECT g.id AS grant_id, g.client_id, g.user_id, g.scopes, g.resource, g.token_version, g.revoked_at,
+    SELECT g.id AS grant_id, g.client_id, g.user_id, g.scopes, t.scopes AS token_scopes, g.resource, g.token_version, g.revoked_at,
            (g.last_used_at IS NULL OR g.last_used_at < datetime('now','-1 minute')) AS stale,
            c.client_name
     FROM oauth_tokens t
     JOIN oauth_grants g ON g.id = t.grant_id
     LEFT JOIN oauth_clients c ON c.client_id = g.client_id
     WHERE t.token_hash = ? AND t.kind = 'access' AND t.expires_at > datetime('now')
-  `).get(hashToken(raw)) as (GrantRow & { grant_id: string; stale: number; client_name: string | null }) | undefined;
+  `).get(hashToken(raw)) as (GrantRow & { grant_id: string; token_scopes: string; stale: number; client_name: string | null }) | undefined;
   if (!row || row.revoked_at) return null;
   if (row.resource !== mcpResourceUrl()) return null;
   const user = getUser(row.user_id);
@@ -214,6 +221,6 @@ export function validateAccessToken(raw: string, resource?: string): McpAuthCont
     grantId: row.grant_id,
     clientId: row.client_id,
     clientName: row.client_name ?? 'Unknown app',
-    scopes: parseScopeParam(row.scopes) ?? [],
+    scopes: intersect(parseScopeParam(row.token_scopes) ?? [], parseScopeParam(row.scopes) ?? []),
   };
 }

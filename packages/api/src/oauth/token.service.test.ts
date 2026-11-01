@@ -150,6 +150,21 @@ describe('refresh rotation', () => {
     expect(narrowed.scope).toBe('sites:read');
   });
 
+  it('enforces a narrowed scope on the new access token and keeps it narrowed on later refreshes', async () => {
+    const first = redeem(await approvedCode(['sites:read', 'crm:read']));
+    const narrowed = refresh({ refresh_token: first.refresh_token, client_id: client.client_id, scope: 'sites:read' });
+    expect(validateAccessToken(narrowed.access_token)?.scopes).toEqual(['sites:read']);
+    expectOAuthError(() => refresh({ refresh_token: narrowed.refresh_token, client_id: client.client_id, scope: 'sites:read crm:read' }), 'invalid_grant');
+  });
+
+  it('carries the narrowed scope into a refresh that asks for no scope', async () => {
+    const first = redeem(await approvedCode(['sites:read', 'crm:read']));
+    const narrowed = refresh({ refresh_token: first.refresh_token, client_id: client.client_id, scope: 'sites:read' });
+    const next = refresh({ refresh_token: narrowed.refresh_token, client_id: client.client_id });
+    expect(next.scope).toBe('sites:read');
+    expect(validateAccessToken(next.access_token)?.scopes).toEqual(['sites:read']);
+  });
+
   it('refuses a refresh token presented by another client', async () => {
     const first = redeem(await approvedCode());
     expectOAuthError(() => refresh({ refresh_token: first.refresh_token, client_id: 'dcr_other' }), 'invalid_grant');
