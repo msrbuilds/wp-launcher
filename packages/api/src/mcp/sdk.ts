@@ -46,7 +46,8 @@ export function scopeChallengeFor(scope: string) {
     // Ask for everything already held plus the missing scope: clients re-authorise
     // with exactly the challenged set, so a challenge naming only the new scope
     // would make step-up *replace* the grant and drop the scopes it had.
-    return { scopes: [...held, scope] as [string, ...string[]] };
+    const scopes = [...held, scope];
+    return { scopes: scopes as unknown as [string, ...string[]] };
   };
 }
 

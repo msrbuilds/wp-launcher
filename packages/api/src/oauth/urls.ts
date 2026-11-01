@@ -1,4 +1,5 @@
 import { config } from '../config';
+import { isLocalHostname } from '../utils/deployment';
 
 /**
  * Canonical URLs for the OAuth authorisation server and the MCP resource.
@@ -7,7 +8,14 @@ import { config } from '../config';
  * differs from what clients compute, or every token request fails.
  */
 export function issuer(publicUrl: string = config.publicUrl): string {
-  return new URL(publicUrl).origin; // lowercases scheme/host, drops path and default port
+  // A scheme-less value ("panel.example.com") is tolerated elsewhere in the
+  // codebase, so it must not throw here either: assume https unless local.
+  let raw = publicUrl.trim();
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) {
+    const host = raw.split('/')[0].replace(/:\d+$/, '');
+    raw = `${isLocalHostname(host) ? 'http' : 'https'}://${raw}`;
+  }
+  return new URL(raw).origin; // lowercases scheme/host, drops path and default port
 }
 
 export function mcpResourceUrl(publicUrl?: string): string {

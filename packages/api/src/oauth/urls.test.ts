@@ -39,3 +39,11 @@ describe('canonical OAuth URLs', () => {
     });
   });
 });
+
+describe('scheme-less PUBLIC_URL', () => {
+  it('assumes https for a public host and http for a local one, instead of throwing', () => {
+    expect(issuer('panel.example.com')).toBe('https://panel.example.com');
+    expect(issuer('localhost:8080')).toBe('http://localhost:8080');
+    expect(mcpResourceUrl('panel.example.com/')).toBe('https://panel.example.com/api/mcp');
+  });
+});
