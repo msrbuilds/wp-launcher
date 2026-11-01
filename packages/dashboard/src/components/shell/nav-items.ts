@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Globe, Layers,
   Users, FolderKanban, Receipt,
   Activity, BarChart3, Timer,
-  RefreshCw, ToggleLeft, Palette, UserCog, Server, SlidersHorizontal, Boxes, CreditCard,
+  RefreshCw, ToggleLeft, Palette, UserCog, Server, SlidersHorizontal, Boxes, CreditCard, Bot,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -79,6 +79,7 @@ export function buildNavGroups(features: Features, role: string | undefined): Na
             { to: '/branding', label: 'Branding', icon: Palette },
             { to: '/images', label: 'Images', icon: Boxes },
             { to: '/users', label: 'Users', icon: UserCog },
+            ...(features.mcp ? [{ to: '/agents', label: 'AI agents', icon: Bot }] : []),
             { to: '/system', label: 'System', icon: Server },
           ]
         : [],

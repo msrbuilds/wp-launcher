@@ -108,6 +108,18 @@ describe('connected apps', () => {
   });
 });
 
+describe('setup info', () => {
+  it('tells staff the MCP URL and whether cloud agents can reach it', async () => {
+    const body = await (await fetch(`${base}/info`, { headers: as('ada', 'admin') })).json();
+    expect(body).toEqual({ mcpUrl: `${ORIGIN}/api/mcp`, isPublic: false });
+  });
+
+  it('is staff-only', async () => {
+    db.prepare("INSERT INTO users (id, email, verified, role) VALUES ('mem', 'mem@x.test', 1, 'member')").run();
+    expect((await fetch(`${base}/info`, { headers: as('mem', 'member') })).status).toBe(403);
+  });
+});
+
 describe('agent activity', () => {
   it('returns only the caller’s audit rows', async () => {
     recordAudit({ grantId: 'g', userId: 'ada', clientId: 'c', tool: 'sites_list', args: {}, outcome: 'ok', durationMs: 1 });

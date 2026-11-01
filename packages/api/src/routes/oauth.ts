@@ -11,7 +11,8 @@ import '../oauth/cimd'; // installs the CIMD fetcher as resolveClient's default
 import { approve, checkAuthorizeRequest, deny, type AuthorizeParams } from '../oauth/authorize.service';
 import { OAuthError, redeemCode, refresh, revokeToken } from '../oauth/token.service';
 import { isScope, SCOPE_INFO, scopesOfferableTo, type Scope } from '../oauth/scopes';
-import { issuer } from '../oauth/urls';
+import { issuer, mcpResourceUrl } from '../oauth/urls';
+import { isLocalDeployment } from '../utils/deployment';
 import { listAllGrants, listGrantsForUser, revokeGrantAs } from '../oauth/grants.service';
 import { revokeAllForUser } from '../oauth/token.service';
 import { listAudit } from '../mcp/audit';
@@ -161,6 +162,11 @@ function requireStaff(req: AuthRequest, res: Response, next: () => void): void {
   }
   next();
 }
+
+/** For the AI agents settings page: the URL to paste, and whether cloud-hosted agents can reach it. */
+router.get('/info', userAuth, requireStaff, (_req, res) => {
+  res.json({ mcpUrl: mcpResourceUrl(), isPublic: issuer().startsWith('https://') && !isLocalDeployment() });
+});
 
 router.get('/grants', userAuth, requireStaff, (req: AuthRequest, res) => {
   res.json({ grants: listGrantsForUser(req.userId!) });

@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import ConnectedAppsCard from './account/ConnectedAppsCard';
+import AgentActivityCard from './account/AgentActivityCard';
 import { Loader2, Upload, Trash2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,6 +66,13 @@ export default function AccountPage() {
             <NotificationPrefControl endpoint="/api/projects/notification-pref" />
           </CardContent>
         </Card>
+      )}
+
+      {privileged && features.mcp && (
+        <>
+          <ConnectedAppsCard />
+          <AgentActivityCard />
+        </>
       )}
 
       <Card>

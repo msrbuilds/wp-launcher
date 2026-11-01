@@ -82,6 +82,7 @@ export const FEATURE_META: {
   { key: 'siteSync', label: 'Site Sync', description: 'Push and pull site content between this panel and remote instances' },
   { key: 'projects', label: 'Mini CRM', description: 'Clients, projects and invoices' },
   { key: 'clientPortal', label: 'Client Portal', description: 'Let clients sign in to view their own projects and invoices' },
+  { key: 'mcp', label: 'AI agents (MCP)', description: 'Let Claude, ChatGPT and other AI agents manage your sites and Mini CRM through OAuth' },
   { key: 'productivityMonitor', label: 'Productivity Monitor', description: 'Track coding time and WordPress activity with daily goals and breakdowns' },
 ];
 

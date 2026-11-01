@@ -21,6 +21,7 @@ export interface FeatureFlags {
   projects: boolean;
   productivityMonitor: boolean;
   clientPortal: boolean;
+  mcp: boolean;
 }
 
 export interface Branding {
@@ -68,6 +69,7 @@ const DEFAULT_FEATURES: FeatureFlags = {
   projects: false,
   productivityMonitor: false,
   clientPortal: false,
+  mcp: false,
 };
 
 const DEFAULT_BRANDING: Branding = {

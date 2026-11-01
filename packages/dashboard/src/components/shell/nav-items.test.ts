@@ -88,3 +88,18 @@ describe('buildNavGroups', () => {
       .not.toContain('/payment-methods');
   });
 });
+
+describe('AI agents settings entry', () => {
+  const settingsLinks = (features: Record<string, boolean>, role: string) =>
+    buildNavGroups(features, role).find((g) => g.label === 'Settings')?.items.map((i) => i.to) ?? [];
+
+  it('appears for staff while mcp is on', () => {
+    expect(settingsLinks({ mcp: true }, 'owner')).toContain('/agents');
+    expect(settingsLinks({ mcp: true }, 'admin')).toContain('/agents');
+  });
+
+  it('is hidden while mcp is off, and always for members', () => {
+    expect(settingsLinks({}, 'owner')).not.toContain('/agents');
+    expect(settingsLinks({ mcp: true }, 'member')).not.toContain('/agents');
+  });
+});
