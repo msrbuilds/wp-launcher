@@ -11,12 +11,13 @@ import { pipeline } from './pipeline';
 import { consumeGrantRequest } from './limits';
 import { sitesTools } from './tools/sites';
 import { crmClientTools } from './tools/crm-clients';
+import { snapshotTools } from './tools/snapshots';
 
 export const SERVER_INFO = { name: 'wp-launcher', version: '1.0.0' };
 
 /** Every tool the server can offer. Registered once per process. */
 export function ensureToolsRegistered(): void {
-  if (allTools().length === 0) registerTools([...sitesTools, ...crmClientTools]);
+  if (allTools().length === 0) registerTools([...sitesTools, ...snapshotTools, ...crmClientTools]);
 }
 
 /**

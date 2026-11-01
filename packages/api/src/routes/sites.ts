@@ -3,8 +3,9 @@ import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, getSiteLogsByUser, clearFinishedSites } from '../services/site.service';
 import { toRestSite } from '../services/siteView';
+import { mintAutoLoginUrl, probeSiteReady } from '../services/siteAccess';
 import { policy } from '../policy';
-import { getPhpConfig, updatePhpConfig, updateAutoLoginToken, setSitePassword, getSitePasswordStatus, exportSiteZip, getExportDownloadUrl, getContainerStats, getDbCredentials } from '../services/docker.service';
+import { getPhpConfig, updatePhpConfig, setSitePassword, getSitePasswordStatus, exportSiteZip, getExportDownloadUrl, getContainerStats, getDbCredentials } from '../services/docker.service';
 import { takeSnapshot, listSnapshots, restoreSnapshotToSite, deleteSnapshot, cloneSite } from '../services/snapshot.service';
 import { exportSiteAsTemplate } from '../services/blueprint-export.service';
 import { setCustomDomain, getCustomDomain, removeCustomDomain, getDnsInstructions } from '../services/domain.service';
@@ -189,22 +190,7 @@ router.post('/:id/autologin', siteWriteLimiter, conditionalAuth, asyncHandler(as
   if (req.userId !== 'admin' && site.user_id !== req.userId) {
     throw new ForbiddenError('You can only access your own sites');
   }
-  if (!site.container_id || site.status !== 'running') {
-    throw new ValidationError('Site is not running');
-  }
-
-  // Generate a fresh token and update both DB and container
-  const token = crypto.randomBytes(32).toString('base64url');
-  const { getDb } = await import('../utils/db.js');
-  getDb().prepare('UPDATE sites SET auto_login_token = ? WHERE id = ?').run(token, site.id);
-
-  // Write the token to the container's filesystem
-  await updateAutoLoginToken(site.container_id, token);
-
-  res.json({
-    autoLoginUrl: `${site.site_url}/wp-login.php?autologin=${token}`,
-    expiresIn: 60,
-  });
+  res.json(await mintAutoLoginUrl(site));
 }));
 
 // Extend site expiration
@@ -235,27 +221,7 @@ router.get('/:id/ready', siteReadLimiter, asyncHandler(async (req: AuthRequest, 
   if (!site) {
     throw new NotFoundError('Site not found');
   }
-
-  if (site.status !== 'running' || !site.site_url) {
-    res.json({ ready: false, reason: 'container not running' });
-    return;
-  }
-
-  // Probe the ready marker file written by entrypoint.sh after ALL setup completes
-  // (plugins, themes, demo content — not just WP core install)
-  const markerUrl = `http://wp-site-${site.subdomain}/.wp-launcher-ready`;
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    const probe = await fetch(markerUrl, {
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    const ready = probe.status === 200;
-    res.json({ ready });
-  } catch {
-    res.json({ ready: false, reason: 'site not responding' });
-  }
+  res.json(await probeSiteReady(site));
 }));
 
 // Get current PHP config from a running site (requires auth + ownership)

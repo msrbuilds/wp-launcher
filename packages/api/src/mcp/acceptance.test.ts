@@ -41,6 +41,11 @@ const ORIGIN = new URL(config.publicUrl).origin;
 const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
   sites_list: {},
   sites_get: { siteId: 'mine' },
+  blueprints_list: {},
+  sites_wait_ready: { siteId: 'mine', timeoutSeconds: 1 },
+  sites_php_config_get: { siteId: 'mine' },
+  sites_health: { siteId: 'mine' },
+  snapshots_list: { siteId: 'mine' },
   crm_clients_list: {},
 };
 
