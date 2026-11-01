@@ -224,3 +224,15 @@ export function validateAccessToken(raw: string, resource?: string): McpAuthCont
     scopes: intersect(parseScopeParam(row.token_scopes) ?? [], parseScopeParam(row.scopes) ?? []),
   };
 }
+
+/**
+ * Housekeeping for the hourly cron: codes are single-use and live 60 s, so any
+ * a day old are dead weight; tokens are dropped a day after they expire.
+ * Grants are kept (revoked ones too) as the record behind the audit log.
+ */
+export function pruneExpiredOAuth(): number {
+  const db = getDb();
+  const codes = db.prepare("DELETE FROM oauth_auth_codes WHERE created_at < datetime('now','-1 day')").run().changes;
+  const tokens = db.prepare("DELETE FROM oauth_tokens WHERE expires_at < datetime('now','-1 day')").run().changes;
+  return codes + tokens;
+}

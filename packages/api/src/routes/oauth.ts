@@ -12,6 +12,10 @@ import { approve, checkAuthorizeRequest, deny, type AuthorizeParams } from '../o
 import { OAuthError, redeemCode, refresh, revokeToken } from '../oauth/token.service';
 import { isScope, SCOPE_INFO, scopesOfferableTo, type Scope } from '../oauth/scopes';
 import { issuer } from '../oauth/urls';
+import { listAllGrants, listGrantsForUser, revokeGrantAs } from '../oauth/grants.service';
+import { revokeAllForUser } from '../oauth/token.service';
+import { listAudit } from '../mcp/audit';
+import { isAdminRole } from '../services/features.service';
 
 /**
  * Public, credential-less OAuth endpoints. Mounted *before* the global CORS
@@ -146,6 +150,55 @@ router.post('/revoke', tokenLimiter, (req, res) => {
   const token = (req.body ?? {}).token;
   if (typeof token === 'string' && token) revokeToken(token);
   res.status(200).end();
+});
+
+// ── Connected apps and agent activity (panel session; CSRF applies to writes) ──
+
+function requireStaff(req: AuthRequest, res: Response, next: () => void): void {
+  if (!isAdminRole(req.userRole)) {
+    res.status(403).json({ error: 'Available to panel administrators only' });
+    return;
+  }
+  next();
+}
+
+router.get('/grants', userAuth, requireStaff, (req: AuthRequest, res) => {
+  res.json({ grants: listGrantsForUser(req.userId!) });
+});
+
+router.get('/grants/all', userAuth, requireStaff, (req: AuthRequest, res) => {
+  if (req.userRole !== 'owner') {
+    res.status(403).json({ error: 'Only the owner can see every user’s connected apps' });
+    return;
+  }
+  res.json({ grants: listAllGrants() });
+});
+
+router.post('/grants/revoke-all', userAuth, requireStaff, (req: AuthRequest, res) => {
+  res.json({ revoked: revokeAllForUser(req.userId!) });
+});
+
+router.delete('/grants/:id', userAuth, requireStaff, (req: AuthRequest, res) => {
+  try {
+    revokeGrantAs(req.params.id, { userId: req.userId!, role: req.userRole! });
+    res.json({ revoked: true });
+  } catch (err) {
+    if (err instanceof AppError) {
+      res.status(err.statusCode).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.get('/audit', userAuth, requireStaff, (req: AuthRequest, res) => {
+  const q = req.query as Record<string, string | undefined>;
+  res.json(listAudit(req.userId!, {
+    clientId: q.clientId || undefined,
+    outcome: q.outcome || undefined,
+    limit: q.limit ? Number(q.limit) : undefined,
+    offset: q.offset ? Number(q.offset) : undefined,
+  }));
 });
 
 export default router;

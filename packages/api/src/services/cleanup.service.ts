@@ -5,6 +5,9 @@ import { siteDbIdentifier } from '../utils/dbIdentifier';
 import { cleanupSiteDir } from './site.service';
 import { removeTunnel } from './tunnel.service';
 import { fireWebhookEvent } from './webhook.service';
+import { pruneUnauthorizedClients } from '../oauth/clients.service';
+import { pruneExpiredOAuth } from '../oauth/token.service';
+import { pruneAudit } from '../mcp/audit';
 
 interface ExpiredSite {
   id: string;
@@ -12,7 +15,21 @@ interface ExpiredSite {
   container_id: string | null;
 }
 
+/** MCP/OAuth housekeeping: unclaimed DCR registrations, dead codes and tokens, audit rows past 90 days. */
+export function pruneMcpData(): void {
+  try {
+    const clients = pruneUnauthorizedClients();
+    const oauth = pruneExpiredOAuth();
+    const audit = pruneAudit();
+    if (clients + oauth + audit) console.log(`[cleanup] MCP prune: ${clients} clients, ${oauth} codes/tokens, ${audit} audit rows`);
+  } catch (err) {
+    console.error('[cleanup] MCP prune failed:', err);
+  }
+}
+
 export function startCleanupScheduler(): void {
+  cron.schedule('0 * * * *', pruneMcpData);
+
   // Run cleanup every minute
   cron.schedule('* * * * *', async () => {
     try {
