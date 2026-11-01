@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import { createSite, listSites, listUserSites, getSite, deleteSite, getSiteStatus, extendSite, getSiteLogsByUser, clearFinishedSites } from '../services/site.service';
+import { toRestSite } from '../services/siteView';
 import { policy } from '../policy';
 import { getPhpConfig, updatePhpConfig, updateAutoLoginToken, setSitePassword, getSitePasswordStatus, exportSiteZip, getExportDownloadUrl, getContainerStats, getDbCredentials } from '../services/docker.service';
 import { takeSnapshot, listSnapshots, restoreSnapshotToSite, deleteSnapshot, cloneSite } from '../services/snapshot.service';
@@ -108,20 +109,10 @@ router.get('/', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Respon
     sites = listSites();
   }
 
+  // toRestSite is the projection MCP shares; `productId` is its deprecated alias for pre-v3 callers.
   const mapped = sites.map((s) => ({
-    id: s.id,
-    subdomain: s.subdomain,
-    blueprintId: s.blueprint_id,
-        // Deprecated alias for pre-v3 API callers.
-        productId: s.blueprint_id,
-    url: s.site_url,
-    adminUrl: s.admin_url,
-    credentials: req.userId ? {
-      username: s.admin_user,
-    } : undefined,
-    status: s.status,
-    createdAt: s.created_at,
-    expiresAt: s.expires_at,
+    ...toRestSite(s),
+    credentials: req.userId ? toRestSite(s).credentials : undefined,
     hostPath: s.direct_file_access && config.sitesHostPath
       ? `${config.sitesHostPath}\\${s.subdomain}`.replace(/[/\\]+/g, config.sitesHostPath.includes('\\') ? '\\' : '/')
       : undefined,
@@ -188,21 +179,7 @@ router.get('/:id', siteReadLimiter, conditionalAuth, (req: AuthRequest, res: Res
     throw new ForbiddenError('You can only view your own sites');
   }
 
-  res.json({
-    id: site.id,
-    subdomain: site.subdomain,
-    blueprintId: site.blueprint_id,
-        // Deprecated alias for pre-v3 API callers.
-        productId: site.blueprint_id,
-    url: site.site_url,
-    adminUrl: site.admin_url,
-    credentials: {
-      username: site.admin_user,
-    },
-    status: site.status,
-    createdAt: site.created_at,
-    expiresAt: site.expires_at,
-  });
+  res.json(toRestSite(site));
 });
 
 // Generate a short-lived, single-use autologin URL
