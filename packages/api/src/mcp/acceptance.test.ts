@@ -55,6 +55,8 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
   crm_invoices_get: { invoiceId: 'i-none' },
   crm_payment_methods_list: {},
   crm_proofs_list: { invoiceId: 'i-none' },
+  crm_messages_list: { clientId: 'c1' },
+  notifications_list: {},
 };
 
 let bareServer: Server;

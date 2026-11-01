@@ -35,7 +35,8 @@ import {
 import {
   notifyClient, getNotificationMode, setNotificationMode, getInbox, markRead,
 } from '../services/notification.service';
-import { listStaffClientMessages, postStaffMessage } from '../services/clientMessage.service';
+import { listStaffClientMessages } from '../services/clientMessage.service';
+import { sendStaffMessage } from '../services/staffMessaging';
 
 const router = Router();
 
@@ -618,15 +619,8 @@ router.get('/clients/:id/messages', (req: AuthRequest, res: Response) => {
 
 router.post('/clients/:id/messages', (req: AuthRequest, res: Response) => {
   try {
-    const message = postStaffMessage(req.userId!, req.params.id, {
+    const message = sendStaffMessage(req.userId!, req.params.id, {
       body: req.body?.body, projectId: req.body?.projectId, invoiceId: req.body?.invoiceId,
-    });
-    void notifyClient(req.params.id, {
-      kind: 'message.fromStaff',
-      subject: 'You have a new message',
-      heading: `${message.author_label} wrote to you`,
-      lines: [message.body],
-      link: '/portal/messages',
     });
     res.json(message);
   } catch (err: any) {
