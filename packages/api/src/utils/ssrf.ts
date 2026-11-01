@@ -23,6 +23,7 @@ const BLOCKED_IPV4_RANGES: [number, number][] = [
   [ipv4ToInt('192.168.0.0'), prefixToMask(16)],   // RFC1918
   [ipv4ToInt('169.254.0.0'), prefixToMask(16)],   // link-local / cloud metadata
   [ipv4ToInt('0.0.0.0'), prefixToMask(8)],        // "this" network
+  [ipv4ToInt('100.64.0.0'), prefixToMask(10)],    // carrier-grade NAT (RFC 6598)
 ];
 
 function ipv4ToInt(ip: string): number {
