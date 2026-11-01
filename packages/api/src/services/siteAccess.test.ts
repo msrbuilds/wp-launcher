@@ -36,7 +36,8 @@ describe('siteForUserOrFail', () => {
 describe('site projections', () => {
   it('the MCP view carries no secrets or internals', () => {
     const view = toSiteView(getSite('mine')!);
-    expect(view).toMatchObject({ id: 'mine', url: 'https://mine.x', adminUser: 'admin', panelUrl: expect.stringMatching(/\/sites\/mine$/) });
+    // The dashboard has no per-site route (only /sites and /sites/new); a deeper link falls through to /.
+    expect(view).toMatchObject({ id: 'mine', url: 'https://mine.x', adminUser: 'admin', panelUrl: expect.stringMatching(/\/sites$/) });
     expect(JSON.stringify(view)).not.toMatch(/SECRET-PW|SECRET-TOK|ctr-123/);
   });
 

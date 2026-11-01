@@ -32,7 +32,7 @@ export function toSiteView(site: SiteRecord): SiteView {
     status: site.status,
     createdAt: site.created_at,
     expiresAt: site.expires_at,
-    panelUrl: `${issuer()}/sites/${site.id}`,
+    panelUrl: `${issuer()}/sites`,
   };
 }
 
