@@ -2,10 +2,10 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
-import { listBlueprints, getBlueprint, saveBlueprint, BlueprintConfig, clearBlueprintCache, isSafeSlug, recordBlueprintDeletion, persistBlueprintFile } from '../services/blueprint.service';
+import { listBlueprints, getBlueprint, saveBlueprint, BlueprintConfig } from '../services/blueprint.service';
 import { config } from '../config';
 import { NotFoundError, ValidationError } from '../utils/errors';
-import { blueprintConfigSchema } from '../utils/schemas';
+import { deleteBlueprint, saveBlueprintConfig, validateBlueprintConfig } from '../services/blueprintUpsert';
 
 const router = Router();
 
@@ -68,18 +68,7 @@ router.post('/', upload.fields([
     throw new ValidationError('Invalid JSON in config field');
   }
 
-  const parseResult = blueprintConfigSchema.safeParse(rawConfig);
-  if (!parseResult.success) {
-    throw new ValidationError(`Invalid blueprint config: ${parseResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ')}`);
-  }
-
-  let blueprintConfig: BlueprintConfig = parseResult.data as BlueprintConfig;
-
-  // Sanitize ID
-  blueprintConfig.id = blueprintConfig.id.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-  if (!blueprintConfig.id) {
-    throw new ValidationError('Invalid blueprint ID');
-  }
+  let blueprintConfig: BlueprintConfig = validateBlueprintConfig(rawConfig);
 
     // Ensure product-assets directory exists
     const assetsDir = path.resolve(config.blueprintConfigsDir, '..', 'product-assets', blueprintConfig.id);
@@ -137,33 +126,8 @@ router.post('/', upload.fields([
       (blueprintConfig.branding as any).logo_url = `/api/assets/${blueprintConfig.id}/images/card-icon${ext}`;
     }
 
-    // Update local plugin/theme paths to use product-assets relative paths
-    if (blueprintConfig.plugins?.preinstall) {
-      for (const plugin of blueprintConfig.plugins.preinstall) {
-        if (plugin.source === 'local' && plugin.path) {
-          const filename = path.basename(plugin.path);
-          plugin.path = `product-assets/${blueprintConfig.id}/plugins/${filename}`;
-        }
-      }
-    }
-    if (blueprintConfig.themes?.install) {
-      for (const theme of blueprintConfig.themes.install) {
-        if (theme.source === 'local' && theme.path) {
-          const filename = path.basename(theme.path);
-          theme.path = `product-assets/${blueprintConfig.id}/themes/${filename}`;
-        }
-      }
-    }
-
-    // Save blueprint config to DB
-    saveBlueprint(blueprintConfig);
-
-    // Also write a JSON file for backup/reference. Best-effort: the database
-    // above is authoritative, and this directory is unwritable whenever the
-    // checkout has been re-cloned under a running container.
-    persistBlueprintFile(blueprintConfig);
-
-    clearBlueprintCache();
+    // Rewrites local paths, saves to the DB and writes the best-effort JSON copy.
+    blueprintConfig = saveBlueprintConfig(blueprintConfig);
 
     res.json({ success: true, blueprint: blueprintConfig });
 });
@@ -182,37 +146,7 @@ router.put('/:id', (req: Request, res: Response) => {
 
 // Delete a blueprint
 router.delete('/:id', (req: Request, res: Response) => {
-  const id = req.params.id;
-  // SBP-002: Validate slug before filesystem operations
-  if (!isSafeSlug(id)) throw new NotFoundError('Blueprint not found');
-
-  // Check if the blueprint exists (DB or file) before deleting
-  const blueprintFilePath = path.join(config.blueprintConfigsDir, `${id}.json`);
-  const fileExists = fs.existsSync(blueprintFilePath);
-
-  const db = require('../utils/db').getDb();
-  const dbExists = !!db.prepare('SELECT id FROM blueprints WHERE id = ?').get(id);
-
-  if (!dbExists && !fileExists) {
-    throw new NotFoundError('Blueprint not found');
-  }
-
-  // Remove from DB
-  if (dbExists) {
-    db.prepare('DELETE FROM blueprints WHERE id = ?').run(id);
-  }
-
-  // Remove JSON file
-  if (fileExists) {
-    fs.unlinkSync(blueprintFilePath);
-  }
-
-  // Unlinking is not durable where the checkout is re-cloned on redeploy, so
-  // record the deletion in the database, which is a persistent volume.
-  recordBlueprintDeletion(id);
-
-  clearBlueprintCache();
-
+  deleteBlueprint(req.params.id);
   res.json({ success: true });
 });
 

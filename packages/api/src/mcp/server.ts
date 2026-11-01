@@ -15,12 +15,13 @@ import { snapshotTools } from './tools/snapshots';
 import { crmBoardTools } from './tools/crm-board';
 import { crmInvoiceTools } from './tools/crm-invoices';
 import { crmMessageTools } from './tools/crm-messages';
+import { adminTools } from './tools/admin';
 
 export const SERVER_INFO = { name: 'wp-launcher', version: '1.0.0' };
 
 /** Every tool the server can offer. Registered once per process. */
 export function ensureToolsRegistered(): void {
-  if (allTools().length === 0) registerTools([...sitesTools, ...snapshotTools, ...crmClientTools, ...crmBoardTools, ...crmInvoiceTools, ...crmMessageTools]);
+  if (allTools().length === 0) registerTools([...sitesTools, ...snapshotTools, ...crmClientTools, ...crmBoardTools, ...crmInvoiceTools, ...crmMessageTools, ...adminTools]);
 }
 
 /**

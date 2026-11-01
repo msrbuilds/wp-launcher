@@ -16,6 +16,8 @@ import { config } from '../config';
 import { csrfProtection } from '../middleware/csrf';
 import { generateToken } from '../middleware/userAuth';
 import * as siteService from '../services/site.service';
+import * as dockerService from '../services/docker.service';
+import * as siteAccess from '../services/siteAccess';
 import { registerDcrClient } from '../oauth/clients.service';
 import { approve, checkAuthorizeRequest } from '../oauth/authorize.service';
 import { redeemCode, revokeGrant } from '../oauth/token.service';
@@ -57,6 +59,12 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
   crm_proofs_list: { invoiceId: 'i-none' },
   crm_messages_list: { clientId: 'c1' },
   notifications_list: {},
+  admin_stats: {},
+  admin_site_logs: {},
+  admin_users_list: {},
+  admin_images_list: {},
+  admin_build_job_get: { jobId: 'none' },
+  admin_blueprints_get: { id: 'none' },
 };
 
 let bareServer: Server;
@@ -97,6 +105,9 @@ beforeEach(() => {
   db.prepare("INSERT INTO sites (id, subdomain, user_id, blueprint_id, expires_at, status) VALUES ('theirs', 'theirs', 'alice', 'demo', '2099-01-01', 'running')").run();
   db.prepare("INSERT INTO clients (id, user_id, name, notes) VALUES ('c1', 'owner', 'Acme', 'SECRET-PW is not a note anyone should see')").run();
   deleteSpy = vi.spyOn(siteService, 'deleteSite').mockResolvedValue() as never;
+  // No provisioner or WordPress containers in tests: answer the network-bound helpers locally.
+  vi.spyOn(dockerService, 'listWplImages').mockResolvedValue([{ tag: 'wp-launcher/wordpress:php8.3', id: 'img', size: 1, created: 1 }]);
+  vi.spyOn(siteAccess, 'probeSiteReady').mockResolvedValue({ ready: true });
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 afterEach(() => { __setDbForTesting(null); db.close(); vi.restoreAllMocks(); });
@@ -146,7 +157,7 @@ describe('1. token boundary', () => {
 
 describe('2. output safety (iterates the registry)', () => {
   it('no read tool ever returns a site password, autologin token or container id', async () => {
-    const token = await tokenFor(['sites:read', 'crm:read']);
+    const token = await tokenFor(['sites:read', 'crm:read', 'admin:read', 'admin:write']);
     const readTools = allTools().filter((t) => t.annotations.readOnlyHint);
     expect(readTools.length).toBeGreaterThan(0);
     for (const tool of readTools) {
@@ -157,7 +168,7 @@ describe('2. output safety (iterates the registry)', () => {
       expect(raw, tool.name).not.toMatch(/SECRET-TOK|ctr-1/);
       if (tool.name.startsWith('sites_')) expect(raw, tool.name).not.toContain('SECRET-PW');
     }
-  });
+  }, 20_000);
 });
 
 describe('3. revocation', () => {
