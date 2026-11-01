@@ -15,49 +15,57 @@ import { policy } from '../policy';
 
 const BLOCKED_HOSTNAMES = new Set(['localhost', 'metadata.google.internal']);
 
-// IPv4 private/reserved ranges as [baseInt, maskInt]
-const BLOCKED_IPV4_RANGES: [number, number][] = [
-  [ipv4ToInt('127.0.0.0'), prefixToMask(8)],     // loopback
-  [ipv4ToInt('10.0.0.0'), prefixToMask(8)],       // RFC1918
-  [ipv4ToInt('172.16.0.0'), prefixToMask(12)],    // RFC1918
-  [ipv4ToInt('192.168.0.0'), prefixToMask(16)],   // RFC1918
-  [ipv4ToInt('169.254.0.0'), prefixToMask(16)],   // link-local / cloud metadata
-  [ipv4ToInt('0.0.0.0'), prefixToMask(8)],        // "this" network
-  [ipv4ToInt('100.64.0.0'), prefixToMask(10)],    // carrier-grade NAT (RFC 6598)
-];
+// Every special-purpose range (RFC 6890 and friends). Only global unicast is
+// fetchable: IPv6 must sit in 2000::/3, and the transition ranges that embed an
+// IPv4 address (6to4, Teredo, NAT64) are refused outright rather than decoded.
+const BLOCKED = new net.BlockList();
+for (const [base, prefix] of [
+  ['0.0.0.0', 8],        // "this" network
+  ['10.0.0.0', 8],       // RFC1918
+  ['100.64.0.0', 10],    // carrier-grade NAT (RFC 6598)
+  ['127.0.0.0', 8],      // loopback
+  ['169.254.0.0', 16],   // link-local / cloud metadata
+  ['172.16.0.0', 12],    // RFC1918
+  ['192.0.0.0', 24],     // IETF protocol assignments
+  ['192.0.2.0', 24],     // TEST-NET-1
+  ['192.88.99.0', 24],   // 6to4 relay anycast
+  ['192.168.0.0', 16],   // RFC1918
+  ['198.18.0.0', 15],    // benchmarking
+  ['198.51.100.0', 24],  // TEST-NET-2
+  ['203.0.113.0', 24],   // TEST-NET-3
+  ['224.0.0.0', 4],      // multicast
+  ['240.0.0.0', 4],      // reserved, incl. broadcast
+] as const) BLOCKED.addSubnet(base, prefix, 'ipv4');
+for (const [base, prefix] of [
+  ['64:ff9b::', 96],     // NAT64
+  ['64:ff9b:1::', 48],   // local-use NAT64
+  ['100::', 64],         // discard-only
+  ['2001::', 32],        // Teredo
+  ['2001:db8::', 32],    // documentation
+  ['2002::', 16],        // 6to4
+] as const) BLOCKED.addSubnet(base, prefix, 'ipv6');
 
-function ipv4ToInt(ip: string): number {
-  const parts = ip.split('.').map(Number);
-  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
-}
-
-function prefixToMask(prefix: number): number {
-  return (~(0xffffffff >>> prefix)) >>> 0;
-}
+const GLOBAL_UNICAST_V6 = new net.BlockList();
+GLOBAL_UNICAST_V6.addSubnet('2000::', 3, 'ipv6');
 
 function isPrivateIPv4(ip: string): boolean {
-  const ipInt = ipv4ToInt(ip);
-  for (const [base, mask] of BLOCKED_IPV4_RANGES) {
-    if ((ipInt & mask) === (base & mask)) return true;
-  }
-  return false;
+  return BLOCKED.check(ip, 'ipv4');
 }
 
 function isPrivateIPv6(ip: string): boolean {
   const normalized = ip.toLowerCase();
-  if (normalized === '::1') return true;                          // loopback
-  if (normalized.startsWith('fe80:')) return true;                // link-local
-  if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true; // ULA
-  // IPv4-mapped IPv6 (::ffff:x.x.x.x)
-  const v4Match = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (v4Match) return isPrivateIPv4(v4Match[1]);
-  return false;
+  // IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible (::a.b.c.d): judge the embedded address.
+  const embedded = normalized.match(/^::(?:ffff:)?(\d+\.\d+\.\d+\.\d+)$/);
+  if (embedded) return isPrivateIPv4(embedded[1]);
+  if (!GLOBAL_UNICAST_V6.check(normalized, 'ipv6')) return true; // ::, ::1, fc00::/7, fe80::/10, fec0::/10, ff00::/8, …
+  return BLOCKED.check(normalized, 'ipv6');
 }
 
+/** Fails closed: anything that does not parse as an IP address counts as private. */
 export function isPrivateIp(ip: string): boolean {
   if (net.isIPv4(ip)) return isPrivateIPv4(ip);
   if (net.isIPv6(ip)) return isPrivateIPv6(ip);
-  return false;
+  return true;
 }
 
 export async function validateRemoteUrl(url: string): Promise<{ valid: boolean; error?: string }> {

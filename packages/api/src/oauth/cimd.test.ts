@@ -68,3 +68,27 @@ describe('fetchClientMetadata accepts', () => {
     expect(await at()).toBe(3600);
   });
 });
+
+describe('default requester', () => {
+  it('enforces a total deadline, not just an idle timeout, against a server that trickles bytes', async () => {
+    const { EventEmitter } = await import('node:events');
+    const { createHttpsRequester } = await import('./cimd');
+    const fakeHttps = {
+      request: (_opts: unknown, onResponse: (res: InstanceType<typeof EventEmitter> & { statusCode: number; headers: Record<string, string> }) => void) => {
+        const req = new EventEmitter() as InstanceType<typeof EventEmitter> & { end(): void; destroy(err?: Error): void };
+        let timer: ReturnType<typeof setInterval> | undefined;
+        req.destroy = (err?: Error) => { clearInterval(timer); if (err) req.emit('error', err); };
+        req.end = () => {
+          const res = Object.assign(new EventEmitter(), { statusCode: 200, headers: { 'content-type': 'application/json' } });
+          onResponse(res);
+          timer = setInterval(() => res.emit('data', Buffer.from(' ')), 20); // never idle, never ends
+        };
+        return req;
+      },
+    };
+    const started = Date.now();
+    await expect(createHttpsRequester(fakeHttps as never)(new URL('https://client.example/x.json'), '93.184.216.34', { timeoutMs: 150, maxBytes: 65_536 }))
+      .rejects.toThrow(/timed out/i);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+});

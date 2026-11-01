@@ -22,14 +22,24 @@ export interface CimdDeps {
 const TIMEOUT_MS = 5000;
 const MAX_BYTES = 65_536;
 
-const defaultDeps: CimdDeps = {
-  async resolve(host) {
-    const results = await dns.promises.lookup(host, { all: true }).catch(() => []);
-    return results.map((r) => r.address);
-  },
-  request(url, address, { timeoutMs, maxBytes }) {
-    return new Promise((resolve, reject) => {
-      const req = https.request(
+type HttpsLike = Pick<typeof https, 'request'>;
+
+/**
+ * The real requester. `timeoutMs` is a *total* deadline for the whole exchange:
+ * the socket's own timeout only fires after inactivity, so a server trickling
+ * one byte at a time would otherwise hold the request open indefinitely.
+ */
+export function createHttpsRequester(transport: HttpsLike): CimdDeps['request'] {
+  return (url, address, { timeoutMs, maxBytes }) =>
+    new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        fn();
+      };
+      const req = transport.request(
         {
           host: url.hostname,
           servername: url.hostname,
@@ -38,9 +48,10 @@ const defaultDeps: CimdDeps = {
           method: 'GET',
           headers: { accept: 'application/json' },
           // Pin the connection to the validated address.
-          lookup: (_host, _opts, cb) => cb(null, address, address.includes(':') ? 6 : 4),
+          lookup: (_host: string, _opts: unknown, cb: (err: Error | null, address: string, family: number) => void) =>
+            cb(null, address, address.includes(':') ? 6 : 4),
           timeout: timeoutMs,
-        },
+        } as https.RequestOptions,
         (res) => {
           let size = 0;
           const chunks: Buffer[] = [];
@@ -52,19 +63,27 @@ const defaultDeps: CimdDeps = {
             }
             chunks.push(chunk);
           });
-          res.on('end', () => {
+          res.on('end', () => finish(() => {
             const headers: Record<string, string> = {};
             for (const [k, v] of Object.entries(res.headers)) if (typeof v === 'string') headers[k] = v;
             resolve({ status: res.statusCode ?? 0, headers, body: Buffer.concat(chunks).toString('utf8') });
-          });
-          res.on('error', reject);
+          }));
+          res.on('error', (err) => finish(() => reject(err)));
         },
       );
+      const deadline = setTimeout(() => req.destroy(new ValidationError('Client metadata fetch timed out')), timeoutMs);
       req.on('timeout', () => req.destroy(new ValidationError('Client metadata fetch timed out')));
-      req.on('error', reject);
+      req.on('error', (err) => finish(() => reject(err)));
       req.end();
     });
+}
+
+const defaultDeps: CimdDeps = {
+  async resolve(host) {
+    const results = await dns.promises.lookup(host, { all: true }).catch(() => []);
+    return results.map((r) => r.address);
   },
+  request: createHttpsRequester(https),
 };
 
 function cacheSecondsFrom(cacheControl: string | undefined): number {
