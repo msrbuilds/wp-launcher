@@ -202,7 +202,7 @@ the MCP authorization spec:
 | Issuer in response | Include `iss` in every authorization response, success and error (RFC 9207), and advertise `authorization_response_iss_parameter_supported: true` |
 | Grant types | `authorization_code` with **PKCE S256 mandatory**; `refresh_token`. No implicit, no password, no client-credentials |
 | Resource indicators | Honour RFC 8707 `resource`; tokens are bound to the MCP URL (audience) and rejected for any other |
-| Redirect URIs | Exact-match against registered URIs. `https` required except loopback (`http://127.0.0.1:*`, `http://localhost:*`) for desktop/CLI clients |
+| Redirect URIs | Exact-match against registered URIs, **except that the port is ignored on plain-http loopback URIs** (RFC 8252 §7.3), since native clients use an ephemeral port a metadata document cannot list. `https` required except loopback (`http://127.0.0.1:*`, `http://localhost:*`) for desktop/CLI clients |
 | Token lifetime | **Access 1 h. Refresh 30 days, rotated on every use**, with reuse detection: presenting an already-rotated refresh token revokes the whole grant |
 | Token format | **Opaque random strings, stored as SHA-256 hashes** (my call — see below) |
 
@@ -724,7 +724,7 @@ The same matrix runs for `Host`.
   and Host validation* allowlist, never `*`. It is always without credentials,
   and it exposes `WWW-Authenticate`.
 - PKCE S256 enforced; `plain` refused. `state` passed through untouched.
-- Exact redirect URI matching; no open redirect from the consent page on error
+- Exact redirect URI matching (port-agnostic on http loopback only); no open redirect from the consent page on error — and errors after client verification are offered as an explicit "Return to app" link, never an automatic redirect, because open registration means a registered URI is not a trusted one
   (invalid client/redirect → render an error page, never redirect).
 - Code single-use, ≤ 60 s; refresh reuse → grant revoked.
 - Constant-time comparison on hash lookups is unnecessary (hashes are looked up

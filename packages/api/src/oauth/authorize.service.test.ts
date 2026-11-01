@@ -138,3 +138,11 @@ describe('deny', () => {
     expect(url.searchParams.get('iss')).toBe(issuer());
   });
 });
+
+describe('loopback redirect ports', () => {
+  it('accepts a registered loopback redirect on any port', async () => {
+    const native = registerDcrClient({ client_name: 'CLI', redirect_uris: ['http://127.0.0.1/callback'] });
+    const check = await checkAuthorizeRequest(params({ client_id: native.client_id, redirect_uri: 'http://127.0.0.1:54321/callback' }));
+    expect(check.ok).toBe(true);
+  });
+});

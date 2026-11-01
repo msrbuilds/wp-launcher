@@ -3,6 +3,7 @@ import { ForbiddenError, ValidationError } from '../utils/errors';
 import { getUserById } from '../services/user.service';
 import { isAdminRole } from '../services/features.service';
 import { markAuthorized, resolveClient, type OAuthClient } from './clients.service';
+import { redirectUriMatches } from './redirects';
 import { parseScopeParam, READ_SCOPES, scopesOfferableTo, type Scope } from './scopes';
 import { mintToken } from './tokens';
 import { issuer, mcpResourceUrl, resourceMatches } from './urls';
@@ -45,7 +46,7 @@ export async function checkAuthorizeRequest(p: AuthorizeParams): Promise<Authori
   if (!p.client_id) return { ok: false, render: 'The request is missing client_id.' };
   const client = await resolveClient(p.client_id);
   if (!client) return { ok: false, render: 'This app is not recognised, or its registration could not be verified.' };
-  if (!p.redirect_uri || !client.redirect_uris.includes(p.redirect_uri)) {
+  if (!p.redirect_uri || !redirectUriMatches(client.redirect_uris, p.redirect_uri)) {
     return { ok: false, render: 'This app asked to return to an address it did not register.' };
   }
 
