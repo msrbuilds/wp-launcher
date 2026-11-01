@@ -142,6 +142,11 @@ Tables in `data/wp-launcher.db`:
 - **productivity_cloud_config** — key, value (cloud_url, cloud_api_key, device_name, machine_id, last_synced_at, heartbeat_secret — the secret is per-install and outlives cloud linking)
 - **productivity_sync_log** — id, heartbeats_count, status, error, started_at, completed_at
 - **image_builds** — id, tag, kind (base|custom), status (queued/building/success/failed), log, error, spec (JSON), created_by, started_at, completed_at, created_at
+- **oauth_clients** — client_id, kind (cimd|dcr), client_name, logo_uri, redirect_uris (JSON), metadata_fetched_at, metadata_expires_at, created_at, last_authorized_at. For CIMD the id *is* the metadata URL and the row is a cache; DCR rows never authorised are pruned after 24 h
+- **oauth_auth_codes** — code_hash, client_id, user_id, scopes, redirect_uri, code_challenge, resource, token_version (captured at approval), expires_at (60 s), used_at, grant_id, invalidated_at
+- **oauth_grants** — id, client_id, user_id, scopes, resource, token_version, created_at, last_used_at, revoked_at. One per authorisation; what Connected apps lists. Kept after revocation as the record behind the audit log
+- **oauth_tokens** — token_hash, grant_id, kind (access|refresh), scopes, expires_at, rotated_at, replaced_by. Hashes only; each token carries its own (possibly narrowed) scopes
+- **mcp_audit_log** — id, grant_id, user_id, client_id, tool, args_summary (redacted, ≤8 KB), outcome (ok|error|denied), error, duration_ms, bypass, created_at. 90-day retention
 
 ## API Endpoints
 
@@ -372,6 +377,52 @@ behalf, and an already-read row keeps its original timestamp. Polling is every
 60s and skipped while the tab is hidden. The panel bell is hidden from members
 and when Mini CRM is off, since every notification kind is a Mini CRM event.
 
+### MCP and OAuth (`/api/mcp`, `/api/oauth/*`, `/.well-known/oauth-*`) — feature-gated (`mcp`, off by default)
+
+AI agents manage sites and the Mini CRM through an MCP endpoint, authorised by
+WP Launcher's own OAuth 2.1 server. Spec: `docs/superpowers/specs/2026-11-01-mcp-oauth-design.md`;
+user guide: `guides/mcp.md`. Staff (owner/admin) only; every route answers 404 while `mcp` is off.
+
+**The token boundary.** Agent tokens are opaque random strings (`wplmcp_at_…`, `wplmcp_rt_…`) stored as
+SHA-256 hashes — never JWTs. `userAuth` accepts any `JWT_SECRET`-signed JWT carrying a `userId`, so a JWT
+access token would silently unlock the whole REST API; an opaque token fails `jwt.verify` and gets nothing
+outside `/api/mcp`. Conversely `/api/mcp` reads only `Authorization: Bearer` and ignores cookies and API keys.
+Tests assert both directions (`middleware/userAuth.mcp-boundary.test.ts`, `mcp/acceptance.test.ts`).
+
+**Revocation is live.** `validateAccessToken` reads the token, grant and user on every call: revoke, demotion,
+deletion, loss of verification and any `token_version` change (password/email change) bite on the next request.
+Codes capture `token_version` at approval and redemption refuses a mismatch; code redemption and refresh
+rotation are each one transaction; refresh reuse revokes the grant (strict, no grace window). Changing
+`PUBLIC_URL` invalidates grants, which are bound to the MCP URL.
+
+**Request pipeline, fail closed** (`src/mcp/server.ts`): feature gate → `originHostGuard` (absent Origin ok,
+untrusted Origin 403, Host must be the panel's — DNS rebinding) → `bearerGuard` (401 + challenge) → per-grant
+limit → `pipeline()` (envelope validated *and answered* here — the SDK's legacy path accepts a missing
+`MCP-Protocol-Version`; ineligible tools refused without a challenge) → SDK (`scopeChallenge` → 403
+`insufficient_scope` for step-up) → the wrapper. **`toSdkTool`'s `run` re-checks eligibility and scope
+unconditionally** and audits any refusal there as a `bypass`; never remove it on the grounds that the pipeline
+already checked.
+
+**Tools** live in `src/mcp/tools/*`, declared with `defineTool` (scope, feature, minRole, writeBucket, zod
+input *and output*). The output schema is an allowlist: the wrapper returns only its fields, so a service that
+grows a column cannot leak it. Plain `z.object` only — never `passthrough`/`loose`. Tools call services, never
+routes; route-only guards were moved into shared helpers (`siteAccess.ts`, `siteView.ts`, `staffMessaging.ts`,
+`imageAdmin.service.ts`, `blueprintUpsert.ts`). Site reach is **owner-only** (`siteForUserOrFail`); feature
+flags are enforced the way the panel UI honours them, even where REST does not. Agents may only send a draft
+or cancel an unpaid invoice. Deliberately absent: proof accept/reject, user invite/delete/role, feature flags,
+settings, SMTP, API key, webhooks, sync, DB credentials, Adminer, tunnels, domains, sharing, export ZIPs,
+binary uploads. `mcp/acceptance.test.ts` iterates the registry (output safety, scope backstop), so a new read
+tool must add `SAMPLE_ARGS`.
+
+**SDK.** `src/mcp/sdk.ts` is the only importer of `@modelcontextprotocol/*` (exact pins; see
+`src/mcp/SDK_NOTES.md`). An SDK upgrade reruns the acceptance suite. One handler serves 2026-07-28 and the
+2025-11-25 / 2025-06-18 eras (stateless, no `Mcp-Session-Id`).
+
+**Panel.** `/oauth/authorize` (consent, outside AppShell), Account → Connected AI agents and Agent activity
+(per user), Settings → AI agents (URL, setup, and for the owner every user's grants — never their activity).
+`MCP_ALLOWED_ORIGINS` adds trusted browser origins. nginx proxies `/.well-known/oauth-*` and an unbuffered
+`/api/mcp` to the API.
+
 ### Productivity (`/api/productivity/*`) — feature-gated (`productivityMonitor`)
 - `POST /heartbeats` — batch heartbeat ingestion (no auth, requires cloud linked, CSRF exempt)
 - `GET /stats/today` — today's stats + breakdowns by source/project/language/category/editor
@@ -492,8 +543,8 @@ Stored in the `settings` table. Controlled via Admin > Features.
 
 Two scopes. `feature.<key>` is the **admin/owner** set (the original rows — unchanged). `feature.demo.<key>` is the **member** set, and absent means off, so members start with nothing until granted.
 
-**Admin-only (6)** — no member counterpart, never granted:
-`projects`, `productivityMonitor`, `siteSync`, `webhooks`, `collaborativeSites`, `clientPortal`
+**Admin-only (7)** — no member counterpart, never granted:
+`projects`, `productivityMonitor`, `siteSync`, `webhooks`, `collaborativeSites`, `clientPortal`, `mcp`
 
 **Grantable (12)** — one toggle per audience:
 `cloning`, `snapshots`, `templates`, `customDomains`, `phpConfig`, `siteExtend`, `sitePassword`, `exportZip`, `healthMonitoring`, `scheduledLaunch`, `adminer`, `publicSharing`

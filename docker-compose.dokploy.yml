@@ -230,6 +230,7 @@ services:
       - PROVISIONER_URL=http://provisioner:4000
       - PROVISIONER_INTERNAL_KEY=${PROVISIONER_INTERNAL_KEY:?Set PROVISIONER_INTERNAL_KEY}
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-}
+      - MCP_ALLOWED_ORIGINS=${MCP_ALLOWED_ORIGINS:-}
       - EMAIL_PROVIDER=${EMAIL_PROVIDER:-smtp}
       # No mailpit here: real SMTP is required for verification and invites.
       - SMTP_HOST=${SMTP_HOST:-}

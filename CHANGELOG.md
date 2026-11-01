@@ -2,6 +2,20 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [Unreleased]
+
+### Added
+- **AI agents (MCP).** Claude, ChatGPT and other MCP clients can now manage your sites and Mini CRM. Paste the URL from **Settings → AI agents** into the agent, sign in to your panel and tick what it may do. WP Launcher runs its own OAuth 2.1 server (PKCE, Client ID Metadata Documents and dynamic registration, rotating refresh tokens), so there is nothing else to set up. Off by default; owners and admins only. See [guides/mcp.md](guides/mcp.md).
+- An agent works as the person who approved it: only their own sites and clients, and never more than the panel would allow them. It can send a draft invoice or cancel an unpaid one, but never mark one paid or review a payment proof.
+- **Account → Connected AI agents** lists every authorised app with one-click revoke, and **Agent activity** shows every tool call for 90 days. The owner can see and revoke every staff member's agents.
+
+### Changed
+- The SSRF guard used by site sync now blocks every special-purpose address range (CGNAT, documentation, benchmarking, multicast, NAT64, 6to4, Teredo) and treats anything that is not an IP address as private.
+
+### Upgrading
+- Rebuild the API and dashboard images. The new tables are created on start. Nothing changes until you turn on **AI agents (MCP)** in Settings → Features.
+- Optional: `MCP_ALLOWED_ORIGINS` in `.env` for browser-based MCP clients.
+
 ## [2.5.2] - 2026-10-30
 
 ### Fixed
