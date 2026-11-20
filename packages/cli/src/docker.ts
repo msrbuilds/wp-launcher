@@ -38,6 +38,12 @@ export function getComposeArgs(projectDir: string): string[] {
   if (existsSync(localFile) && isLocalMode(projectDir)) {
     args.push('-f', localFile);
   }
+  // Naming files with -f switches off Compose's automatic override loading, so
+  // add the machine's gitignored override back by hand — last, so it wins.
+  const overrideFile = path.join(projectDir, 'docker-compose.override.yml');
+  if (existsSync(overrideFile)) {
+    args.push('-f', overrideFile);
+  }
   return args;
 }
 

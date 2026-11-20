@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { localApiConfig } from './api-config';
-import { getSites } from './docker';
+import { getComposeArgs, getSites } from './docker';
 
 let dir: string;
 beforeEach(() => {
@@ -14,6 +14,34 @@ beforeEach(() => {
   fs.writeFileSync(path.join(dir, '.env'), 'API_KEY="install-key"\nAPI_PORT=3800\n');
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); fs.rmSync(dir, { recursive: true, force: true }); });
+
+describe('compose file selection', () => {
+  const files = (args: string[]) => args.filter((_, i) => args[i - 1] === '-f').map((f) => path.basename(f));
+  const touch = (name: string) => fs.writeFileSync(path.join(dir, name), 'services: {}\n');
+
+  it('uses the base file alone by default', () => {
+    expect(files(getComposeArgs(dir))).toEqual(['docker-compose.yml']);
+  });
+
+  it('adds the local file only in local mode', () => {
+    touch('docker-compose.local.yml');
+    expect(files(getComposeArgs(dir))).toEqual(['docker-compose.yml']);
+    fs.writeFileSync(path.join(dir, '.env'), 'APP_MODE=local\n');
+    expect(files(getComposeArgs(dir))).toEqual(['docker-compose.yml', 'docker-compose.local.yml']);
+  });
+
+  // Naming any file with -f turns off Compose's automatic override loading, so
+  // a machine's gitignored override (a port clash workaround, say) was silently
+  // dropped by every wpl command while plain `docker compose` honoured it.
+  it('keeps the gitignored override, last so it wins', () => {
+    touch('docker-compose.override.yml');
+    expect(files(getComposeArgs(dir))).toEqual(['docker-compose.yml', 'docker-compose.override.yml']);
+    touch('docker-compose.local.yml');
+    fs.writeFileSync(path.join(dir, '.env'), 'APP_MODE=local\n');
+    expect(files(getComposeArgs(dir)))
+      .toEqual(['docker-compose.yml', 'docker-compose.local.yml', 'docker-compose.override.yml']);
+  });
+});
 
 describe('authenticated CLI site listing', () => {
   it('loads quoted installation settings and permits environment overrides', () => {

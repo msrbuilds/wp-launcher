@@ -99,11 +99,16 @@ ensure_docker() {
 
 # Wrapper that handles paths with spaces correctly
 compose() {
+  local files=(-f "$PROJECT_DIR/docker-compose.yml")
   if [ -f "$PROJECT_DIR/docker-compose.local.yml" ] && grep -q "APP_MODE=local" "$PROJECT_DIR/.env" 2>/dev/null; then
-    docker compose -f "$PROJECT_DIR/docker-compose.yml" -f "$PROJECT_DIR/docker-compose.local.yml" "$@"
-  else
-    docker compose -f "$PROJECT_DIR/docker-compose.yml" "$@"
+    files+=(-f "$PROJECT_DIR/docker-compose.local.yml")
   fi
+  # Naming files with -f switches off Compose's automatic override loading, so
+  # add the machine's gitignored override back by hand — last, so it wins.
+  if [ -f "$PROJECT_DIR/docker-compose.override.yml" ]; then
+    files+=(-f "$PROJECT_DIR/docker-compose.override.yml")
+  fi
+  docker compose "${files[@]}" "$@"
 }
 
 CMD="${1:-help}"

@@ -46,6 +46,12 @@ if exist "%PROJECT_DIR%\docker-compose.local.yml" (
     )
 )
 
+:: Naming files with -f switches off Compose's automatic override loading, so
+:: add the machine's gitignored override back by hand - last, so it wins.
+if exist "%PROJECT_DIR%\docker-compose.override.yml" (
+    set "COMPOSE=!COMPOSE! -f "%PROJECT_DIR%\docker-compose.override.yml""
+)
+
 :: Parse command
 set "CMD=%~1"
 if "%CMD%"=="" set "CMD=help"
