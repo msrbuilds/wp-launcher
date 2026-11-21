@@ -2,6 +2,17 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [2.6.2] - 2026-11-21
+
+### Fixed
+- **The setup page explains itself** ([#15](https://github.com/msrbuilds/wp-launcher/issues/15)). *Create owner account* could look as if it did nothing:
+  - **The button was disabled with no reason.** A list under it now names every unmet requirement: email, password length (counting down the characters still needed), strength, and the confirmation.
+  - **Errors were unhelpful.** Each failure now says what to do: open the panel at the exact `PUBLIC_URL` when the request came from another address, sign in when setup has already run, wait out the rate limit, or check the `api` container. A non-JSON reply no longer shows a raw parse error.
+  - **Plain HTTP gave no warning.** On a server install the sign-in cookie only works over HTTPS, so opening the page over plain HTTP now shows a warning before you submit.
+
+### Upgrading
+- Update as usual. Panel-only change: no image rebuild and no migration.
+
 ## [2.6.1] - 2026-11-21
 
 ### Security
