@@ -1,11 +1,11 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, X } from 'lucide-react';
+import { AlertTriangle, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordStrengthMeter } from '../components/PasswordStrengthMeter';
-import { evaluatePassword } from '@/lib/password-strength';
+import { describeSetupFailure, insecureContextWarning, setupBlockers } from '@/lib/setup-form';
 import { apiFetch } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
@@ -29,46 +29,47 @@ export default function SetupPage() {
 
   const mismatch = confirm.length > 0 && confirm !== password;
   const matches = confirm.length > 0 && confirm === password;
-  // One minimum, passed to the meter too, so a password the button rejects can
-  // never render as "Strong".
-  const strongEnough = evaluatePassword(password, MIN_OWNER_PASSWORD).ok;
-  const canSubmit = strongEnough && matches && email.length > 0 && !saving;
+  // The same rules the meter uses (one minimum, so a password the button
+  // rejects can never render as "Strong"), listed under the button so a
+  // disabled button always says what it is waiting for (#15).
+  const blockers = setupBlockers({ email, password, confirm, minLength: MIN_OWNER_PASSWORD });
+  const canSubmit = blockers.length === 0 && !saving;
+  const httpWarning = insecureContextWarning(window.location.protocol, window.location.hostname);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
-
-    if (password.length < MIN_OWNER_PASSWORD) {
-      setError(`Password must be at least ${MIN_OWNER_PASSWORD} characters`);
-      return;
-    }
-    if (!evaluatePassword(password).ok) {
-      setError('Choose a stronger password');
-      return;
-    }
-    if (password !== confirm) {
-      setError('Passwords do not match');
+    if (blockers.length > 0) {
+      setError(blockers[0]);
       return;
     }
 
     setSaving(true);
+    let res: Response;
     try {
-      const res = await apiFetch('/api/setup', {
+      res = await apiFetch('/api/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, panelName }),
+        body: JSON.stringify({ email: email.trim(), password, panelName }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Setup failed');
-      login(data.user);
-      // The gate in AppRoutes reads setupRequired from settings; without this
-      // it still says "setup needed" and bounces straight back here.
-      refresh();
-      setDone(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Setup failed');
+    } catch {
+      setError(describeSetupFailure(0, null, window.location.origin));
       setSaving(false);
+      return;
     }
+    // A proxy error page is HTML; reading it as JSON would surface a parse
+    // error instead of the status that explains the problem.
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data?.user) {
+      setError(describeSetupFailure(res.status, data, window.location.origin));
+      setSaving(false);
+      return;
+    }
+    login(data.user);
+    // The gate in AppRoutes reads setupRequired from settings; without this
+    // it still says "setup needed" and bounces straight back here.
+    refresh();
+    setDone(true);
   }
 
   useEffect(() => {
@@ -114,7 +115,14 @@ export default function SetupPage() {
           </p>
         </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {httpWarning && (
+          <p role="alert" className="flex gap-2 rounded-lg border border-border bg-muted p-3 text-xs text-foreground">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+            <span>{httpWarning}</span>
+          </p>
+        )}
+
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
         <div className="space-y-2">
           <Label htmlFor="su-panel">Panel name</Label>
@@ -177,9 +185,18 @@ export default function SetupPage() {
           )}
         </div>
 
-        <Button className="w-full" type="submit" disabled={!canSubmit}>
+        <Button className="w-full" type="submit" disabled={!canSubmit} aria-describedby={blockers.length ? 'su-blockers' : undefined}>
           {saving ? 'Creating owner…' : 'Create owner account'}
         </Button>
+
+        {blockers.length > 0 && (
+          <div id="su-blockers" className="text-xs text-muted-foreground" aria-live="polite">
+            <p className="font-medium">To continue:</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-4">
+              {blockers.map((b) => <li key={b}>{b}</li>)}
+            </ul>
+          </div>
+        )}
       </form>
     </div>
   );
