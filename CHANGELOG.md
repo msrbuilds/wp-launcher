@@ -2,24 +2,31 @@
 
 All notable changes to WP Launcher are documented here.
 
-## [Unreleased]
+## [2.6.0] - 2026-11-21
+
+### Security
+- **The Productivity Monitor heartbeat secret no longer works as an admin credential** ([#13](https://github.com/msrbuilds/wp-launcher/issues/13)). The secret is install-wide and every site receives it, so any user who could launch a site could read it from their own wp-admin. Before this fix, sending it in `x-wpl-secret` was treated as admin across the whole `/api/productivity` API. That let a site owner read every user's stats and the cloud API key, point cloud sync at their own server, delete all productivity data, and rotate the secret to lock everyone out. Now the secret is accepted only for heartbeat ingestion and for the today's-total view that editor status bars read (`totalSeconds`, `heartbeatCount` and `goal`, with no breakdowns). Every other productivity route requires a signed-in owner or admin. Editor extensions need no change.
+  - **If Productivity Monitor was enabled and anyone other than you could launch sites,** treat the cloud API key as exposed. Rotate it in your cloud account, check that **Productivity → Cloud** still points at your own URL, then rotate the heartbeat secret. Running sites keep the old secret until they are relaunched.
+  - **Still open:** sites still receive the shared secret, so a site owner can submit heartbeats in your name. Replacing it with per-site tokens is planned.
+- **Members could list every user's sites.** `GET /api/sites?all=true` returned every user's sites to any signed-in user. Only owners and admins now see other people's sites, and the blueprint filter applies within a member's own sites.
+- **Site quotas could be exceeded by launching several sites at once.** The per-user, total and per-blueprint limits counted only running sites, not ones still being created. Limits now count both, and are checked again after the image check, just before the site is recorded.
 
 ### Added
 - **AI agents (MCP).** Claude, ChatGPT and other MCP clients can now manage your sites and Mini CRM. Paste the URL from **Settings → AI agents** into the agent, sign in to your panel and tick what it may do. WP Launcher runs its own OAuth 2.1 server (PKCE, Client ID Metadata Documents and dynamic registration, rotating refresh tokens), so there is nothing else to set up. Off by default; owners and admins only. See [guides/mcp.md](guides/mcp.md).
 - An agent works as the person who approved it: only their own sites and clients, and never more than the panel would allow them. It can send a draft invoice or cancel an unpaid one, but never mark one paid or review a payment proof.
 - **Account → Connected AI agents** lists every authorised app with one-click revoke, and **Agent activity** shows every tool call for 90 days. The owner can see and revoke every staff member's agents.
 
-### Security
-- **The Productivity Monitor heartbeat secret no longer works as an admin credential** ([#13](https://github.com/msrbuilds/wp-launcher/issues/13)). The secret is install-wide and every site receives it, so any user who could launch a site could read it from their own wp-admin. Before this fix, sending it in `x-wpl-secret` was treated as admin across the whole `/api/productivity` API. That let a site owner read every user's stats and the cloud API key, point cloud sync at their own server, delete all productivity data, and rotate the secret to lock everyone out. Now the secret is accepted only for heartbeat ingestion and for the today's-total view that editor status bars read (`totalSeconds`, `heartbeatCount` and `goal`, with no breakdowns). Every other productivity route requires a signed-in owner or admin. Editor extensions need no change.
-  - **If Productivity Monitor was enabled and anyone other than you could launch sites,** treat the cloud API key as exposed. Rotate it in your cloud account, check that **Productivity → Cloud** still points at your own URL, then rotate the heartbeat secret. Running sites keep the old secret until they are relaunched.
-  - **Still open:** sites still receive the shared secret, so a site owner can submit heartbeats in your name. Replacing it with per-site tokens is planned.
-
 ### Changed
 - The SSRF guard used by site sync now blocks every special-purpose address range (CGNAT, documentation, benchmarking, multicast, NAT64, 6to4, Teredo) and treats anything that is not an IP address as private.
 
+### Fixed
+- `wpl` ignored `docker-compose.override.yml`, because naming compose files with `-f` turns off Compose's automatic loading of it. All three versions of the CLI (`wpl.cmd`, bash `wpl` and the Node CLI) now include it.
+- Cloud sync sends each heartbeat with a stable ID, so a retried batch is no longer counted twice.
+
 ### Upgrading
-- Rebuild the API and dashboard images. The new tables are created on start. Nothing changes until you turn on **AI agents (MCP)** in Settings → Features.
-- Optional: `MCP_ALLOWED_ORIGINS` in `.env` for browser-based MCP clients.
+- **Update as usual:** `wpl update`, the panel's update button, or `bash scripts/update.sh`. New tables are created on start.
+- **If Productivity Monitor was enabled and anyone other than you could launch sites,** follow the steps under Security above: rotate the cloud API key, check the cloud URL, then rotate the heartbeat secret.
+- Nothing changes until you turn on **AI agents (MCP)** in **Settings → Features**. Optional: `MCP_ALLOWED_ORIGINS` in `.env` for browser-based MCP clients.
 
 ## [2.5.2] - 2026-10-30
 
