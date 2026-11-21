@@ -9,6 +9,11 @@ All notable changes to WP Launcher are documented here.
 - An agent works as the person who approved it: only their own sites and clients, and never more than the panel would allow them. It can send a draft invoice or cancel an unpaid one, but never mark one paid or review a payment proof.
 - **Account → Connected AI agents** lists every authorised app with one-click revoke, and **Agent activity** shows every tool call for 90 days. The owner can see and revoke every staff member's agents.
 
+### Security
+- **The Productivity Monitor heartbeat secret no longer works as an admin credential** ([#13](https://github.com/msrbuilds/wp-launcher/issues/13)). The secret is install-wide and every site receives it, so any user who could launch a site could read it from their own wp-admin. Before this fix, sending it in `x-wpl-secret` was treated as admin across the whole `/api/productivity` API. That let a site owner read every user's stats and the cloud API key, point cloud sync at their own server, delete all productivity data, and rotate the secret to lock everyone out. Now the secret is accepted only for heartbeat ingestion and for the today's-total view that editor status bars read (`totalSeconds`, `heartbeatCount` and `goal`, with no breakdowns). Every other productivity route requires a signed-in owner or admin. Editor extensions need no change.
+  - **If Productivity Monitor was enabled and anyone other than you could launch sites,** treat the cloud API key as exposed. Rotate it in your cloud account, check that **Productivity → Cloud** still points at your own URL, then rotate the heartbeat secret. Running sites keep the old secret until they are relaunched.
+  - **Still open:** sites still receive the shared secret, so a site owner can submit heartbeats in your name. Replacing it with per-site tokens is planned.
+
 ### Changed
 - The SSRF guard used by site sync now blocks every special-purpose address range (CGNAT, documentation, benchmarking, multicast, NAT64, 6to4, Teredo) and treats anything that is not an IP address as private.
 

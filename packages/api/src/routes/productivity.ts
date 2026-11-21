@@ -184,11 +184,13 @@ function requireGlobalReader(req: AuthRequest, res: Response, next: () => void) 
 }
 
 /**
- * The per-install heartbeat secret already authenticates editor clients for
- * ingestion, and the panel surfaces it for exactly that purpose. Accepting it
- * for reads too means an editor needs one credential, not two — asking for a
- * second one invites pasting the wrong key, which is a support problem rather
- * than a security gain: its holder is already trusted at install level.
+ * The heartbeat secret is NOT a panel credential. It is install-wide and every
+ * site container receives it (the mu-plugin prints it into wp-admin), so any
+ * tenant can read it. It used to be accepted as admin for this whole router,
+ * which let a tenant read everyone's stats and the cloud API key, re-point
+ * cloud sync at their own server, wipe the data and rotate the secret
+ * (GitHub #13). Its holder is trusted with exactly two things: ingestion, and
+ * the total that editor status bars show.
  */
 function hasValidHeartbeatSecret(req: AuthRequest): boolean {
   const provided = req.headers['x-wpl-secret'];
@@ -201,17 +203,26 @@ function hasValidHeartbeatSecret(req: AuthRequest): boolean {
   return crypto.timingSafeEqual(a, b);
 }
 
-function statsAuth(req: AuthRequest, res: Response, next: () => void) {
-  if (hasValidHeartbeatSecret(req)) {
-    req.userId = 'heartbeat-client';
-    req.userRole = 'admin';
-    return next();
+// Editor status bars (VS Code, JetBrains, Sublime) poll today's total with the
+// secret. They parse only these three fields, so that is all a secret holder
+// gets: no per-project, per-language, per-editor or per-site breakdown. A
+// request without a valid secret falls through to the authenticated route below.
+router.get('/stats/today', requireFeatureForMachineClients, (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (!hasValidHeartbeatSecret(req)) return next();
+  try {
+    const stats = getStatsForDate(new Date().toISOString().slice(0, 10));
+    res.json({
+      totalSeconds: stats.totalSeconds,
+      heartbeatCount: stats.heartbeatCount,
+      goal: getGoal().dailyGoalSeconds,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
-  return conditionalAuth(req, res, next as NextFunction);
-}
+});
 
-// All other routes require auth + feature enabled + global read access
-router.use(statsAuth, requireFeature, requireGlobalReader);
+// Everything else needs a signed-in owner/admin (or the API key), never the secret.
+router.use(conditionalAuth, requireFeature, requireGlobalReader);
 
 // ── Stats ──
 
