@@ -2,6 +2,12 @@
 
 All notable changes to WP Launcher are documented here.
 
+## [Unreleased]
+
+### Security
+- **Each site now gets its own heartbeat token instead of the install-wide secret** ([#13](https://github.com/msrbuilds/wp-launcher/issues/13)). The WordPress Productivity plugin posts heartbeats from the visitor's browser, so whatever credential a site holds can be read by its owner. A site token can only submit heartbeats, only for its own site, and only while that site is running. The server overwrites every field that says whose heartbeat it is, so a site can no longer file time under another site or project, pose as an editor, or get another machine's heartbeats dropped as duplicates. The install secret is now for your editor extensions only. No WordPress image rebuild is needed.
+  - **Sites launched before this update still hold the install secret.** To cut them off, rotate the heartbeat secret (**Productivity → Cloud**) and paste the new one into your editor extensions. Older sites then stop reporting until relaunched; sites launched after this update are unaffected.
+
 ## [2.6.0] - 2026-11-21
 
 ### Security

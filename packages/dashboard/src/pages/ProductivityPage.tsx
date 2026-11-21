@@ -635,7 +635,7 @@ export default function ProductivityPage() {
                     </Button>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Paste into VS Code Settings &gt; WP Launcher Productivity &gt; Heartbeat Secret. Demo sites receive it automatically when launched.
+                    Paste into your editor extension&apos;s Heartbeat Secret setting. Keep it private: it is for your editors only. Each site gets its own token automatically when launched, so sites never see this secret.
                   </p>
                 </div>
               )}

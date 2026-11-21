@@ -16,7 +16,7 @@ import { fireWebhookEvent } from './webhook.service';
 import { parseBaseImageTag } from './imageBuild.service';
 import { getBlueprint } from './blueprint.service';
 import { resolveRestrictions } from './restrictions.service';
-import { getCloudConfig } from './productivity.service';
+import { mintSiteHeartbeatToken } from './siteHeartbeatToken.service';
 import { publicApiBaseUrl, isLocalDeployment } from '../utils/deployment';
 import { ConflictError, ValidationError, NotFoundError, ForbiddenError } from '../utils/errors';
 import { policy } from '../policy';
@@ -268,12 +268,11 @@ export async function createSite(req: CreateSiteRequest): Promise<SiteRecord & {
   insertSiteTxn();
 
   try {
-    // SBP-004: Pass heartbeat secret to container so MU-plugin can authenticate
-    let heartbeatSecret: string | undefined;
-    try {
-      const cloudCfg = getCloudConfig();
-      if (cloudCfg.heartbeat_secret) heartbeatSecret = cloudCfg.heartbeat_secret;
-    } catch { /* cloud config may not exist yet */ }
+    // The mu-plugin's heartbeat credential is readable by the site's owner, so
+    // it must be this site's own token, never the install-wide secret (#13).
+    // Minted even while Productivity Monitor is off, so enabling it later
+    // needs no relaunch.
+    const heartbeatSecret = mintSiteHeartbeatToken(id);
 
     // Hand the container a browser-reachable API URL. The mu-plugin runs in the
     // visitor's browser, so the internal http://api:3737 address is useless to it

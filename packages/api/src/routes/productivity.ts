@@ -22,6 +22,7 @@ import {
   HeartbeatInput,
 } from '../services/productivity.service';
 import { triggerManualSync } from '../services/productivity-sync.service';
+import { resolveSiteHeartbeatToken } from '../services/siteHeartbeatToken.service';
 import { isLocalDeployment, publicApiBaseUrl } from '../utils/deployment';
 import { getSetting, setSetting } from '../services/settings.service';
 import { isFeatureEnabled } from '../services/features.service';
@@ -136,23 +137,38 @@ router.get('/cloud/status', requireFeatureForMachineClients, (_req: AuthRequest,
   }
 });
 
-// Heartbeat ingestion requires the feature enabled AND a valid heartbeat secret.
-// SBP-004: the secret authenticates non-browser clients (extensions, MU-plugin)
-// that cannot use cookie auth or custom headers via sendBeacon. A linked cloud
-// account is deliberately NOT required — a localhost install stores locally and
-// shows its own dashboard without any cloud involvement.
+/**
+ * Rewrite a heartbeat posted with a site token so it can only describe that
+ * site. Everything that says whose heartbeat it is comes from the token, not
+ * the body: a tenant could otherwise file time under another site or project,
+ * pose as an editor, or reuse someone's machine_id — which isDuplicate keys on
+ * — to have that machine's real heartbeats discarded as duplicates.
+ */
+function scopeToSite(hb: unknown, subdomain: string): unknown {
+  if (!hb || typeof hb !== 'object' || Array.isArray(hb)) return hb; // left for validation to reject
+  const { editor: _e, language: _l, branch: _b, ...rest } = hb as Record<string, unknown>;
+  return { ...rest, source: 'wordpress', site_id: subdomain, project: subdomain, machine_id: `site:${subdomain}` };
+}
+
+// Heartbeat ingestion requires the feature enabled AND one of two credentials,
+// sent in the body because sendBeacon cannot set headers:
+//  - the install secret, held by the operator's editor extensions; or
+//  - a site's own token, held by that site's mu-plugin (#13). Its heartbeats
+//    are rewritten to that site by scopeToSite.
+// A linked cloud account is deliberately NOT required — a localhost install
+// stores locally and shows its own dashboard without any cloud involvement.
 router.post('/heartbeats', requireFeatureForMachineClients, (req: AuthRequest, res: Response) => {
   try {
-    const cloudCfg = getCloudConfig();
-
-    // SBP-004: Validate per-install heartbeat secret
     const secret = req.body?.secret;
-    if (!cloudCfg.heartbeat_secret || !secret || secret !== cloudCfg.heartbeat_secret) {
+    const site = matchesInstallSecret(secret) ? null : resolveSiteHeartbeatToken(secret);
+    if (!site && !matchesInstallSecret(secret)) {
       res.status(401).json({ error: 'Invalid or missing heartbeat secret' });
       return;
     }
 
-    const { heartbeats } = req.body;
+    const heartbeats = site && Array.isArray(req.body.heartbeats)
+      ? req.body.heartbeats.map((hb: unknown) => scopeToSite(hb, site.subdomain))
+      : req.body.heartbeats;
     if (!Array.isArray(heartbeats) || heartbeats.length === 0) {
       res.status(400).json({ error: 'heartbeats array is required' });
       return;
@@ -193,7 +209,11 @@ function requireGlobalReader(req: AuthRequest, res: Response, next: () => void) 
  * the total that editor status bars show.
  */
 function hasValidHeartbeatSecret(req: AuthRequest): boolean {
-  const provided = req.headers['x-wpl-secret'];
+  return matchesInstallSecret(req.headers['x-wpl-secret']);
+}
+
+/** Constant-time match against the install-wide secret. A site token never matches. */
+function matchesInstallSecret(provided: unknown): boolean {
   if (typeof provided !== 'string' || !provided) return false;
   const expected = getCloudConfig().heartbeat_secret;
   if (!expected) return false;
@@ -486,7 +506,10 @@ router.post('/secret/rotate', (_req: AuthRequest, res: Response) => {
   try {
     res.json({
       heartbeat_secret: rotateHeartbeatSecret(),
-      warning: 'Existing demo sites keep the previous secret and stop reporting until they are relaunched.',
+      // Sites launched since per-site tokens (#13) are unaffected: they never
+      // held this secret. Only older sites, which were given the install
+      // secret itself, go quiet.
+      warning: 'Paste the new secret into your editor extensions. Sites launched before per-site heartbeat tokens were given the old secret and stop reporting until relaunched; newer sites are unaffected.',
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

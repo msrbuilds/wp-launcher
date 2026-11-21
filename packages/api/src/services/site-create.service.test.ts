@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({ create: vi.fn(), images: vi.fn(), blueprint: v
 vi.mock('./docker.service', () => ({ createSiteContainer: mocks.create, listWplImages: mocks.images }));
 vi.mock('./blueprint.service', () => ({ getBlueprint: mocks.blueprint }));
 vi.mock('./webhook.service', () => ({ fireWebhookEvent: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('./productivity.service', () => ({ getCloudConfig: () => ({}) }));
+vi.mock('./productivity.service', () => ({ getCloudConfig: () => ({ heartbeat_secret: 'install-wide-secret' }) }));
 
 let db: ReturnType<typeof createSiteTestDb>;
 const request = { blueprintId: 'demo', userId: 'alice', userRole: 'member', subdomain: 'test-site' };
@@ -56,6 +56,20 @@ describe('site launch reservations', () => {
       status: 'error', admin_password: null, subdomain: expect.stringContaining('--error-'),
     });
     await expect(createSite(request)).resolves.toMatchObject({ status: 'running', subdomain: 'test-site' });
+  });
+
+  // GitHub #13: the install-wide secret used to be baked into every container,
+  // where any tenant could read it. Each site now gets a token of its own.
+  it('gives the container a per-site heartbeat token, never the install secret', async () => {
+    const site = await createSite(request);
+    const passed = mocks.create.mock.calls[0][0].heartbeatSecret as string;
+    expect(passed).toMatch(/^wplhb_/);
+    expect(passed).not.toContain('install-wide-secret');
+    const { resolveSiteHeartbeatToken } = await import('./siteHeartbeatToken.service');
+    expect(resolveSiteHeartbeatToken(passed)).toEqual({ siteId: site.id, subdomain: 'test-site' });
+
+    await createSite({ ...request, subdomain: 'second-site' });
+    expect(mocks.create.mock.calls[1][0].heartbeatSecret).not.toBe(passed);
   });
 
   it('still lets the provisioner resolve an image when image inventory is unavailable', async () => {

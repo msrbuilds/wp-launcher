@@ -546,6 +546,14 @@ function initSchema(db: Database.Database): void {
       value TEXT NOT NULL
     );
 
+    -- One heartbeat token per site, as a SHA-256 hash. A side table rather than
+    -- a sites column, because many queries return whole site rows to callers.
+    CREATE TABLE IF NOT EXISTS site_heartbeat_tokens (
+      token_hash TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS productivity_sync_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       heartbeats_count INTEGER NOT NULL DEFAULT 0,

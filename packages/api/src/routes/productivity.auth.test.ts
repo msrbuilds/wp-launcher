@@ -6,6 +6,7 @@ import type { Server } from 'node:http';
 import { __initSchemaForTesting, __setDbForTesting } from '../utils/db';
 import { generateToken } from '../middleware/userAuth';
 import { ensureHeartbeatSecret, getCloudConfig, insertHeartbeats, setCloudConfig } from '../services/productivity.service';
+import { mintSiteHeartbeatToken } from '../services/siteHeartbeatToken.service';
 import productivityRouter from './productivity';
 
 // GitHub issue #13. The install-wide heartbeat secret is handed to every site
@@ -16,6 +17,7 @@ let db: Database.Database;
 let server: Server;
 let base: string;
 let secret: string;
+let siteToken: string;
 
 beforeAll(async () => {
   const app = express();
@@ -41,6 +43,11 @@ beforeEach(() => {
     { source: 'wordpress', entity: 'post.php', project: 'tenant-b', site_id: 'site-b', time: now },
   ]);
   expect(inserted).toBe(2);
+  for (const [id, sub, status] of [['site-a', 'alpha', 'running'], ['site-old', 'old', 'expired']]) {
+    db.prepare("INSERT INTO sites (id, subdomain, blueprint_id, status, expires_at) VALUES (?, ?, 'demo', ?, '2099-01-01')")
+      .run(id, sub, status);
+  }
+  siteToken = mintSiteHeartbeatToken('site-a');
 });
 
 afterEach(() => { __setDbForTesting(null); db.close(); });
@@ -84,9 +91,12 @@ describe('the heartbeat secret is not a panel credential (#13)', () => {
   it.each(guarded)('$method $path answers a secret-only caller exactly as an anonymous one', async ({ method, path }) => {
     const anonymous = await call(method, path);
     const secretOnly = await call(method, path, withSecret());
+    const siteTokenOnly = await call(method, path, withSecret(siteToken));
     expect(anonymous.status).toBe(401);
     expect(secretOnly.status).toBe(anonymous.status);
     expect(secretOnly.text).toBe(anonymous.text);
+    expect(siteTokenOnly.status).toBe(anonymous.status);
+    expect(siteTokenOnly.text).toBe(anonymous.text);
   });
 
   it('cannot read cross-tenant breakdowns', async () => {
@@ -116,6 +126,42 @@ describe('the heartbeat secret is not a panel credential (#13)', () => {
   });
 });
 
+describe('per-site heartbeat tokens (#13 follow-up)', () => {
+  const post = (body: unknown) => call('POST', '/heartbeats', { 'Content-Type': 'application/json' }, body);
+  const lastRow = () => db.prepare('SELECT * FROM productivity_heartbeats ORDER BY id DESC LIMIT 1').get() as Record<string, unknown>;
+
+  it("files a site's heartbeats under that site, whatever it claims", async () => {
+    const r = await post({ secret: siteToken, heartbeats: [{
+      source: 'editor', entity: 'post.php', entity_type: 'wp-screen', category: 'editing', is_write: true,
+      site_id: 'beta', project: 'tenant-b', machine_id: 'victim-laptop', editor: 'vscode', language: 'PHP', branch: 'main',
+      time: new Date().toISOString(),
+    }] });
+    expect(r.status).toBe(200);
+    expect(r.json).toEqual({ received: 1 });
+    expect(lastRow()).toMatchObject({
+      source: 'wordpress', site_id: 'alpha', project: 'alpha', machine_id: 'site:alpha',
+      editor: null, language: null, branch: null,
+      entity: 'post.php', entity_type: 'wp-screen', category: 'editing', is_write: 1,
+    });
+  });
+
+  it("cannot suppress another client's heartbeats through the duplicate check", async () => {
+    const t = new Date().toISOString();
+    await post({ secret: siteToken, heartbeats: [{ source: 'editor', entity: 'a.ts', machine_id: 'victim-laptop', time: t }] });
+    const editor = await post({ secret, heartbeats: [{ source: 'editor', entity: 'a.ts', machine_id: 'victim-laptop', project: 'tenant-a', time: t }] });
+    expect(editor.json).toEqual({ received: 1 });
+  });
+
+  it("rejects a token once its site has stopped", async () => {
+    db.prepare("UPDATE sites SET status = 'expired' WHERE id = 'site-a'").run();
+    expect((await post({ secret: siteToken, heartbeats: [{ source: 'wordpress', entity: 'x', time: new Date().toISOString() }] })).status).toBe(401);
+  });
+
+  it('rejects an unknown token', async () => {
+    expect((await post({ secret: 'wplhb_forged', heartbeats: [{ source: 'wordpress', entity: 'x', time: new Date().toISOString() }] })).status).toBe(401);
+  });
+});
+
 describe('what the heartbeat secret still does', () => {
   it('ingests heartbeats', async () => {
     const r = await call('POST', '/heartbeats', { 'Content-Type': 'application/json' }, {
@@ -137,6 +183,10 @@ describe('what the heartbeat secret still does', () => {
 
   it('rejects a wrong secret on the status-bar route', async () => {
     expect((await call('GET', '/stats/today', withSecret('not-the-secret'))).status).toBe(401);
+  });
+
+  it('does not give a site token even the status-bar totals', async () => {
+    expect((await call('GET', '/stats/today', withSecret(siteToken))).status).toBe(401);
   });
 
   it('answers 403 on the status-bar route while the feature is off', async () => {

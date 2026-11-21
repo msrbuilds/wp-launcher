@@ -140,6 +140,7 @@ Tables in `data/wp-launcher.db`:
 - **productivity_heartbeats** — id, source (editor|wordpress), entity, entity_type, project, language, category, editor, site_id, machine_id, branch, is_write, created_at, synced
 - **productivity_goals** — id, daily_goal_seconds, updated_at
 - **productivity_cloud_config** — key, value (cloud_url, cloud_api_key, device_name, machine_id, last_synced_at, heartbeat_secret — the secret is per-install and outlives cloud linking)
+- **site_heartbeat_tokens** — token_hash (SHA-256), site_id (unique), created_at. One ingestion token per site, minted at every launch (`services/siteHeartbeatToken.service.ts`). A side table, not a `sites` column, because many queries return whole site rows to callers
 - **productivity_sync_log** — id, heartbeats_count, status, error, started_at, completed_at
 - **image_builds** — id, tag, kind (base|custom), status (queued/building/success/failed), log, error, spec (JSON), created_by, started_at, completed_at, created_at
 - **oauth_clients** — client_id, kind (cimd|dcr), client_name, logo_uri, redirect_uris (JSON), metadata_fetched_at, metadata_expires_at, created_at, last_authorized_at. For CIMD the id *is* the metadata URL and the row is a cache; DCR rows never authorised are pruned after 24 h
@@ -441,6 +442,8 @@ tool must add `SAMPLE_ARGS`.
 - `GET|PUT /destination` — heartbeat destination: `auto` (default) | `local` | `cloud`
 
 **Hybrid routing.** Heartbeats always land in local SQLite (that's what the dashboard reads) and are optionally forwarded to a linked cloud account. Ingestion requires the feature enabled + a valid heartbeat secret — **not** a cloud account — so a localhost install tracks standalone. The secret is minted when `productivityMonitor` is enabled (and backfilled at boot for installs enabled earlier). `auto` syncs only on a non-local deployment with a linked account; `local` never syncs; `cloud` syncs whenever linked. Cloud push runs every 15 min and is a no-op unless the resolved destination says otherwise. Local vs public is derived by `utils/deployment.ts` from `PUBLIC_URL`/`BASE_DOMAIN` (loopback, RFC1918, `*.local`, `*.localhost` → local).
+
+**Two ingestion credentials (#13).** The mu-plugin posts from the visitor's browser, so whatever it holds is readable by the site's owner. The **install secret** is for the operator's editor extensions only, and also unlocks the cut-down `GET /stats/today` (`totalSeconds`, `heartbeatCount`, `goal`). Each **site** gets its own `wplhb_…` token in the same `WP_HEARTBEAT_SECRET` env var, so the mu-plugin and image are unchanged. A site token only ingests, only while its site is `running`, and `scopeToSite` overwrites `source`, `site_id`, `project` and `machine_id` from the token and drops `editor`/`language`/`branch`. `machine_id` matters because `isDuplicate` keys on it: a forged one could have another machine's real heartbeats discarded. Neither credential is ever a panel credential: every other productivity route needs a signed-in owner/admin or the API key (`productivity.auth.test.ts` walks the router to enforce this). Sites launched before per-site tokens still hold the install secret until it is rotated.
 
 ### Other
 - `GET /health` — health check
